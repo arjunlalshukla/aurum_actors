@@ -1,4 +1,6 @@
+use crate::unify::Case;
 use serde::{Serialize, Deserialize};
+use serde::de::DeserializeOwned;
 use std::net::IpAddr;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -24,11 +26,15 @@ impl<T> RemoteRef<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ActorRef<Unified, Specific> {
+pub struct ActorRef<Unified, Specific> where 
+  Unified: Case<Specific> + Serialize + DeserializeOwned,
+  Specific: Serialize + DeserializeOwned {
   remote: RemoteRef<Unified>,
   local: Option<LocalRef<Specific>>
 }
-impl<Unified, Specific> ActorRef<Unified, Specific> {
+impl<Unified, Specific> ActorRef<Unified, Specific> where 
+  Unified: Case<Specific> + Serialize + DeserializeOwned,
+  Specific: Serialize + DeserializeOwned {
   pub fn new(
     remote: RemoteRef<Unified>,
     local: Option<LocalRef<Specific>>

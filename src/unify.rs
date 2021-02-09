@@ -1,7 +1,13 @@
 use crate::actor_ref::{ActorRef, Node};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-pub trait ForgeRef<Specific> where Self: Sized {
+
+pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned,
+ Specific: Serialize + DeserializeOwned {
   fn forge(s: String, n: Node) -> ActorRef<Self, Specific>;
+  fn name(s: String) -> Self;
+  fn is_instance(&self) -> bool;
 }  
 
 // Haskell-style algebraic data types
@@ -16,7 +22,7 @@ macro_rules! unified {
     }
 
     $(
-      impl aurum::unify::ForgeRef<$part> for $name {
+      impl aurum::unify::Case<$part> for $name {
         fn forge(s: std::string::String, n: aurum::actor_ref::Node) -> 
           aurum::actor_ref::ActorRef<$name, $part> {
           aurum::actor_ref::ActorRef::new(
@@ -24,6 +30,10 @@ macro_rules! unified {
             std::option::Option::None
           )
         }
+
+        fn name(s: String) -> $name { $name::$part(s) }
+
+        fn is_instance(&self) -> bool { matches!(self, $name::$part(_)) }
       }
     )*
 
