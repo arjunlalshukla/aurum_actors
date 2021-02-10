@@ -1,5 +1,6 @@
 use aurum::actor_ref::{ActorRef, Host, Node};
 use aurum::unify::Case;
+use aurum::actor::Translatable;
 use aurum::unified;
 use interface_proc::AurumInterface;
 use serde::{Serialize, Deserialize};
@@ -13,7 +14,7 @@ enum LoggerMsg {
   #[aurum]
   Warning(String),
   #[aurum]
-  Error(String)
+  Error(u32)
 }
 
 #[allow(unused)]
@@ -40,7 +41,13 @@ fn main() {
     <MsgTypes as Case<DataStoreMsg>>::forge("data-store".to_string(), node);
   println!("logger-recvr: {:?}", lgr_msg);
   println!("data-store-recvr: {:?}", ds_msg);
-  println!("{}", std::any::type_name::<ActorRef<MsgTypes, DataStoreMsg>>())
+  println!("{}", std::any::type_name::<ActorRef<MsgTypes, DataStoreMsg>>());
+  let w = "warning".to_string();
+  println!("translation warning \"{}\" to {:?}", w.clone(), 
+    <LoggerMsg as Translatable<String>>::translate(w));
+  let x = 5u32;
+  println!("translation warning \"{}\" to {:?}", x.clone(), 
+    <LoggerMsg as Translatable<u32>>::translate(x));
 }
 
 #[derive(Hash)]

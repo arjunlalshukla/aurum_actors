@@ -1,4 +1,5 @@
 extern crate proc_macro;
+use indoc::formatdoc;
 use proc_macro::TokenStream;
 use syn;
 
@@ -7,7 +8,7 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     println!("item: \"{}\"", item.to_string());
 
     let ast: syn::DeriveInput = syn::parse(item).unwrap();
-    let type_id: syn:: Ident = ast.ident;
+    let type_id = ast.ident.to_string();
     let data_enum: syn:: DataEnum = match ast.data {
       syn::Data::Enum(x) => x,
       _ => panic!("Only enums are supported")
@@ -15,15 +16,27 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     let variants: Vec<&syn::Variant> = data_enum.variants.iter().collect();
     let translates = variants.iter().filter_map(|x| aurum_tagged(*x))
       .collect::<Vec<AurumVariant>>();
-    println!("identifier = {}", type_id.to_string());
-    for t in translates {
+    println!("identifier = {}", type_id);
+    for t in &translates {
       println!("aurum translatable: {:?}", t);
     }
-    for v in variants {
-      aurum_tagged(v);
-    }
 
-    TokenStream::new()
+    let mut impls = translates.iter().map(|av: &AurumVariant| {
+      let f = formatdoc! {"
+        impl aurum::actor::Translatable<{from}> for {id} {{
+          fn translate(item: {from}) -> {id} {{
+            {id}::{variant}(item)
+          }}
+        }}
+        ",
+        id = type_id,
+        from = av.field,
+        variant = av.variant
+      };
+      f.to_string()
+    }).collect::<Vec<String>>();
+
+    impls.join("\n").parse().unwrap()
 }
 
 #[derive(Debug)]
