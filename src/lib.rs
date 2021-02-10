@@ -3,3 +3,5 @@ pub mod actor;
 pub mod unify;
 pub mod example;
 pub mod cluster;
+
+extern crate interface_proc;

@@ -18,10 +18,10 @@ impl Node {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct RemoteRef<T> { node: Node, name: T }
+pub struct RemoteRef<T> { node: Node, domain: T, name: String }
 impl<T> RemoteRef<T> {
-  pub fn new(node: Node, name: T) -> RemoteRef<T> {
-    RemoteRef {node: node, name: name}
+  pub fn new(node: Node, domain: T, name: String) -> RemoteRef<T> {
+    RemoteRef { node: node, domain: domain, name: name }
   }
 }
 

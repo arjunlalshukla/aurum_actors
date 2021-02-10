@@ -14,6 +14,6 @@ struct Cluster<Unified> {
 }
 impl<Unified> Cluster<Unified> where Unified: Case<IntraClusterMsg> {
   fn foo() {
-    <Unified as Case<IntraClusterMsg>>::name("hi there".to_string());
+   // <Unified as Case<IntraClusterMsg>>::name("hi there".to_string());
   }
 }

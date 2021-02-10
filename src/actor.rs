@@ -1,4 +1,4 @@
-use crossbeam_channel::Sender;
+use crossbeam::channel::Sender;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -15,8 +15,7 @@ pub struct ActorContext<Specific> {
 }
 impl<Specific> ActorContext<Specific> {
   fn local_ref<T>(&self) -> LocalRef<T>
-    where Specific: Translatable<T> + 'static {
-    
+   where Specific: Translatable<T> + 'static {
     let sender = self.tx.clone();
     Box::new(move |x: T|
       sender.send(<Specific as Translatable<T>>::translate(x)).is_ok()
@@ -26,4 +25,5 @@ impl<Specific> ActorContext<Specific> {
 
 pub trait Translatable<T> {
   fn translate(item: T) -> Self;
+  // fn deserialize(bytes: Vec<u8>) -> Self where T: Serialize + DeserializeOwned;
 }

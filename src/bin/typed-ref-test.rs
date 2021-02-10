@@ -1,32 +1,34 @@
 use aurum::actor_ref::{ActorRef, Host, Node};
 use aurum::unify::Case;
 use aurum::unified;
+use interface_proc::AurumInterface;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
 type MaybeString = Option<String>;
 
-#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
-#[allow(dead_code)]
+#[derive(AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
 enum LoggerMsg { 
-  Info(String), 
-  Warning(String), 
+  Info(String),
+  #[aurum]
+  Warning(String),
+  #[aurum]
   Error(String)
 }
 
-#[allow(dead_code)]
+#[allow(unused)]
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
 enum DataStoreMsg { Get, Put(String) }
 
 unified! { MsgTypes = LoggerMsg | DataStoreMsg | MaybeString }
 type Actress<T> = ActorRef<MsgTypes, T>;
 
-#[allow(dead_code)]
+#[allow(unused)]
 fn foo(mt: MsgTypes) {
   match mt {
-    MsgTypes::LoggerMsg(s) => println!("{}", s),
-    MsgTypes::DataStoreMsg(s) => println!("{}", s),
-    MsgTypes::MaybeString(_) => ()
+    MsgTypes::LoggerMsg => println!("Matched logger"),
+    MsgTypes::DataStoreMsg => println!("Matched data store"),
+    MsgTypes::MaybeString => println!("Matched maybe string")
   };
 }
 

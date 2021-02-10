@@ -1,19 +1,14 @@
 trait Foo {
-  fn hello() -> String;
-  fn world() -> String;
+  const VARIANT: Self;
 }
 
-struct Bar {}
+enum Bar {
+  Hello,
+  World
+}
 impl Foo for Bar {
-  fn hello() -> String {
-    String::from("hello")
-  }
-  
-  fn world() -> String {
-    String::from("world")
-  }
+  const VARIANT: Bar = Bar::Hello;
 }
 
 fn main() {
-
 }

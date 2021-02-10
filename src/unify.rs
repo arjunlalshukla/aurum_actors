@@ -1,13 +1,14 @@
-use crate::actor_ref::{ActorRef, Node};
+use crate::actor_ref::{ActorRef, RemoteRef, Node};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 
 pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned,
  Specific: Serialize + DeserializeOwned {
-  fn forge(s: String, n: Node) -> ActorRef<Self, Specific>;
-  fn name(s: String) -> Self;
-  fn is_instance(&self) -> bool;
+  const VARIANT: Self;
+  fn forge(s: String, n: Node) -> ActorRef<Self, Specific> {
+    ActorRef::new(RemoteRef::new(n, Self::VARIANT, s), None)
+  }
 }  
 
 // Haskell-style algebraic data types
@@ -18,24 +19,12 @@ macro_rules! unified {
       std::cmp::PartialEq, std::fmt::Debug, std::hash::Hash
     )]
     enum $name {
-      $($part(std::string::String),)*
+      $($part,)*
     }
-
     $(
       impl aurum::unify::Case<$part> for $name {
-        fn forge(s: std::string::String, n: aurum::actor_ref::Node) -> 
-          aurum::actor_ref::ActorRef<$name, $part> {
-          aurum::actor_ref::ActorRef::new(
-            aurum::actor_ref::RemoteRef::new(n, $name::$part(s)), 
-            std::option::Option::None
-          )
-        }
-
-        fn name(s: String) -> $name { $name::$part(s) }
-
-        fn is_instance(&self) -> bool { matches!(self, $name::$part(_)) }
+        const VARIANT: $name = $name::$part;
       }
     )*
-
   };
 }
