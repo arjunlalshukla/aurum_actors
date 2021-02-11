@@ -1,12 +1,14 @@
-use aurum::actor_ref::{ActorRef, Host, Node};
+use aurum::actor::{ActorRef, Host, Node};
+use aurum::actor::{SpecificInterface, DeserializeError};
 use aurum::unify::Case;
-use aurum::actor::Translatable;
 use aurum::unified;
 use interface_proc::AurumInterface;
+use aurum::actor::deserialize;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
-type MaybeString = Option<String>;
+#[allow(dead_code)] type Unsigned32 = u32;
+#[allow(dead_code)] type MaybeString = Option<String>;
 
 #[derive(AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
 enum LoggerMsg { 
@@ -16,38 +18,62 @@ enum LoggerMsg {
   #[aurum]
   Error(u32)
 }
+impl<Unified> SpecificInterface<Unified> for LoggerMsg where 
+ Unified: Eq + Case<String> + Case<u32> {
+  fn deserialize_as(item: Unified, bytes: Vec<u8>) ->
+    Result<Self, DeserializeError<Unified>> {
+      if <Unified as Case<u32>>::VARIANT == item {
+        match deserialize::<u32>(bytes) {
+          Some(res) => Result::Ok(LoggerMsg::from(res)),
+          None => Result::Err(DeserializeError::Other(item))
+        }
+      } else if <Unified as Case<String>>::VARIANT == item {
+        match deserialize::<String>(bytes) {
+          Some(res) => Result::Ok(LoggerMsg::from(res)),
+          None => Result::Err(DeserializeError::Other(item))
+        }      
+      } else {
+        Result::Err(DeserializeError::IncompatibleInterface(item))
+      }
+  }
+}
 
-#[allow(unused)]
+/* 
+match item {
+  <Unified as Case<u32>>::VARIANT => Result::Err(DeserializeError::Other(item)),
+  <Unified as Case<String>>::VARIANT => Result::Err(DeserializeError::Other(item)),
+  _ => Result::Err(DeserializeError::IncompatibleInterface(item))
+}
+*/
+
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
 enum DataStoreMsg { Get, Put(String) }
 
-unified! { MsgTypes = LoggerMsg | DataStoreMsg | MaybeString }
+unified! { MsgTypes = LoggerMsg | DataStoreMsg | MaybeString | String | Unsigned32}
 type Actress<T> = ActorRef<MsgTypes, T>;
 
-#[allow(unused)]
-fn foo(mt: MsgTypes) {
+#[allow(dead_code)]
+fn match_types(mt: MsgTypes) {
   match mt {
-    MsgTypes::LoggerMsg => println!("Matched logger"),
-    MsgTypes::DataStoreMsg => println!("Matched data store"),
-    MsgTypes::MaybeString => println!("Matched maybe string")
-  };
+    <MsgTypes as Case<LoggerMsg>>::VARIANT => (),
+    <MsgTypes as Case<DataStoreMsg>>::VARIANT => (),
+    <MsgTypes as Case<String>>::VARIANT => (),
+    <MsgTypes as Case<Unsigned32>>::VARIANT => (),
+    <MsgTypes as Case<MaybeString>>::VARIANT => ()
+  }
 }
 
 fn main() {
   let node = Node::new(Host::DNS("localhost".to_string()), 1000, 1001);
-  let lgr_msg: Actress<LoggerMsg> = 
+  let _lgr_msg: Actress<LoggerMsg> = 
     <MsgTypes as Case<LoggerMsg>>::forge("logger".to_string(), node.clone());
-  let ds_msg: Actress<DataStoreMsg> = 
+  let _ds_msg: Actress<DataStoreMsg> = 
     <MsgTypes as Case<DataStoreMsg>>::forge("data-store".to_string(), node);
-  println!("logger-recvr: {:?}", lgr_msg);
-  println!("data-store-recvr: {:?}", ds_msg);
   println!("{}", std::any::type_name::<ActorRef<MsgTypes, DataStoreMsg>>());
   let w = "warning".to_string();
-  println!("translation warning \"{}\" to {:?}", w.clone(), 
-    <LoggerMsg as Translatable<String>>::translate(w));
+  println!("translation warning \"{}\" to {:?}", w.clone(), LoggerMsg::from(w));
   let x = 5u32;
-  println!("translation warning \"{}\" to {:?}", x.clone(), 
-    <LoggerMsg as Translatable<u32>>::translate(x));
+  println!("translation warning \"{}\" to {:?}", x.clone(), LoggerMsg::from(x));
 }
 
 #[derive(Hash)]

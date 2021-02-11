@@ -1,5 +1,3 @@
-use crate::actor::Translatable;
-
 enum ClusterUpdate {
   Add,
   Delete
@@ -13,8 +11,8 @@ enum OurActorMsg {
   ClusterUpdateMsg(ClusterUpdate)
 }
 
-impl Translatable<ClusterUpdate> for OurActorMsg {
-  fn translate(c: ClusterUpdate) -> OurActorMsg {
+impl From<ClusterUpdate> for OurActorMsg {
+  fn from(c: ClusterUpdate) -> OurActorMsg {
     OurActorMsg::ClusterUpdateMsg(c)
   }
 }

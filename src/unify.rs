@@ -1,12 +1,12 @@
-use crate::actor_ref::{ActorRef, RemoteRef, Node};
+use crate::actor::{ActorRef, RemoteRef, Node};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 
-pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned,
- Specific: Serialize + DeserializeOwned {
+pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned {
   const VARIANT: Self;
-  fn forge(s: String, n: Node) -> ActorRef<Self, Specific> {
+  fn forge(s: String, n: Node) -> ActorRef<Self, Specific> 
+   where Specific: Serialize + DeserializeOwned {
     ActorRef::new(RemoteRef::new(n, Self::VARIANT, s), None)
   }
 }  

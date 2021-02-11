@@ -5,8 +5,6 @@ use syn;
 
 #[proc_macro_derive(AurumInterface, attributes(aurum))]
 pub fn aurum_interface(item: TokenStream) -> TokenStream {
-    println!("item: \"{}\"", item.to_string());
-
     let ast: syn::DeriveInput = syn::parse(item).unwrap();
     let type_id = ast.ident.to_string();
     let data_enum: syn:: DataEnum = match ast.data {
@@ -16,15 +14,10 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     let variants: Vec<&syn::Variant> = data_enum.variants.iter().collect();
     let translates = variants.iter().filter_map(|x| aurum_tagged(*x))
       .collect::<Vec<AurumVariant>>();
-    println!("identifier = {}", type_id);
-    for t in &translates {
-      println!("aurum translatable: {:?}", t);
-    }
-
-    let mut impls = translates.iter().map(|av: &AurumVariant| {
+    let impls = translates.iter().map(|av: &AurumVariant| {
       let f = formatdoc! {"
-        impl aurum::actor::Translatable<{from}> for {id} {{
-          fn translate(item: {from}) -> {id} {{
+        impl std::convert::From<{from}> for {id} {{
+          fn from(item: {from}) -> {id} {{
             {id}::{variant}(item)
           }}
         }}
@@ -36,7 +29,10 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
       f.to_string()
     }).collect::<Vec<String>>();
 
-    impls.join("\n").parse().unwrap()
+    let code = impls.join("\n");
+    println!("Generated code for {}: \n\n{}", type_id, code);
+
+    code.parse().unwrap()
 }
 
 #[derive(Debug)]
@@ -46,12 +42,9 @@ struct AurumVariant {
 }
 
 fn aurum_tagged(variant: &syn::Variant) -> Option<AurumVariant> {
-  let tag = "aurum".to_string();
   let err = "Aurum translations must contain a single, unnamed field";
   let id = variant.ident.to_string();
-  let tagged = variant.attrs.iter().map(|attr| path_to_string(&attr.path))
-    .any(|s| s == tag);
-  if !tagged {
+  if !variant.attrs.iter().any(|attr| attr.path.is_ident("aurum")) {
     return None;
   }
   let mut fields = match &variant.fields {
