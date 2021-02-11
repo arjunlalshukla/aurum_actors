@@ -1,13 +1,17 @@
-use crate::actor::{ActorRef, RemoteRef, Node};
+use crate::actor::{ActorRef, Address, HasInterface, Node};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 
-pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned {
+pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned {
   const VARIANT: Self;
-  fn forge(s: String, n: Node) -> ActorRef<Self, Specific> 
-   where Specific: Serialize + DeserializeOwned {
-    ActorRef::new(RemoteRef::new(n, Self::VARIANT, s), None)
+  fn forge<T>(s: String, n: Node) -> ActorRef<Self, T> where 
+   Specific: Serialize + DeserializeOwned + HasInterface<T>, 
+   Self: Case<T>, T: Serialize + DeserializeOwned {
+    ActorRef::new(
+      Address::new(n, <Self as Case<Specific>>::VARIANT, s),
+      <Self as Case<T>>::VARIANT,
+      None)
   }
 }  
 
@@ -16,7 +20,7 @@ pub trait Case<Specific> where Self: Sized + Serialize + DeserializeOwned {
 macro_rules! unified {
   ($name:ident = $($part:ident)|*) => {
     #[derive(serde::Serialize, serde::Deserialize, std::cmp::Eq, 
-      std::cmp::PartialEq, std::fmt::Debug, std::hash::Hash
+      std::cmp::PartialEq, std::fmt::Debug, std::hash::Hash, std::clone::Clone
     )]
     enum $name {
       $($part,)*

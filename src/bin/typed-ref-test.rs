@@ -1,4 +1,4 @@
-use aurum::actor::{ActorRef, Host, Node};
+use aurum::actor::{ActorRef, Host, Node, HasInterface};
 use aurum::actor::{SpecificInterface, DeserializeError};
 use aurum::unify::Case;
 use aurum::unified;
@@ -18,23 +18,26 @@ enum LoggerMsg {
   #[aurum]
   Error(u32)
 }
+impl HasInterface<LoggerMsg> for LoggerMsg {}
+impl HasInterface<String> for LoggerMsg {}
+impl HasInterface<u32> for LoggerMsg {}
 impl<Unified> SpecificInterface<Unified> for LoggerMsg where 
  Unified: Eq + Case<String> + Case<u32> {
   fn deserialize_as(item: Unified, bytes: Vec<u8>) ->
-    Result<Self, DeserializeError<Unified>> {
-      if <Unified as Case<u32>>::VARIANT == item {
-        match deserialize::<u32>(bytes) {
-          Some(res) => Result::Ok(LoggerMsg::from(res)),
-          None => Result::Err(DeserializeError::Other(item))
-        }
-      } else if <Unified as Case<String>>::VARIANT == item {
-        match deserialize::<String>(bytes) {
-          Some(res) => Result::Ok(LoggerMsg::from(res)),
-          None => Result::Err(DeserializeError::Other(item))
-        }      
-      } else {
-        Result::Err(DeserializeError::IncompatibleInterface(item))
+   Result<Self, DeserializeError<Unified>> {
+    if <Unified as Case<u32>>::VARIANT == item {
+      match deserialize::<u32>(bytes) {
+        Some(res) => Result::Ok(LoggerMsg::from(res)),
+        None => Result::Err(DeserializeError::Other(item))
       }
+    } else if <Unified as Case<String>>::VARIANT == item {
+      match deserialize::<String>(bytes) {
+        Some(res) => Result::Ok(LoggerMsg::from(res)),
+        None => Result::Err(DeserializeError::Other(item))
+      }      
+    } else {
+      Result::Err(DeserializeError::IncompatibleInterface(item))
+    }
   }
 }
 
@@ -50,7 +53,6 @@ match item {
 enum DataStoreMsg { Get, Put(String) }
 
 unified! { MsgTypes = LoggerMsg | DataStoreMsg | MaybeString | String | Unsigned32}
-type Actress<T> = ActorRef<MsgTypes, T>;
 
 #[allow(dead_code)]
 fn match_types(mt: MsgTypes) {
@@ -65,11 +67,12 @@ fn match_types(mt: MsgTypes) {
 
 fn main() {
   let node = Node::new(Host::DNS("localhost".to_string()), 1000, 1001);
-  let _lgr_msg: Actress<LoggerMsg> = 
-    <MsgTypes as Case<LoggerMsg>>::forge("logger".to_string(), node.clone());
-  let _ds_msg: Actress<DataStoreMsg> = 
-    <MsgTypes as Case<DataStoreMsg>>::forge("data-store".to_string(), node);
-  println!("{}", std::any::type_name::<ActorRef<MsgTypes, DataStoreMsg>>());
+  let _lgr_msg = <MsgTypes as Case<LoggerMsg>>::forge
+    ::<LoggerMsg>("logger".to_string(), node.clone());
+  println!("logger ref: {:#?}", _lgr_msg);
+  let _err_msg = <MsgTypes as Case<LoggerMsg>>::forge
+    ::<u32>("errors".to_string(), node.clone());
+  println!("errors ref: {:#?}", _err_msg);
   let w = "warning".to_string();
   println!("translation warning \"{}\" to {:?}", w.clone(), LoggerMsg::from(w));
   let x = 5u32;
