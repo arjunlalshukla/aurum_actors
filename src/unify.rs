@@ -1,12 +1,13 @@
-use crate::actor::{ActorRef, Address, HasInterface, Node};
+use crate::actor::{ActorRef, Address, HasInterface, Node, SpecificInterface};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::fmt::Debug;
 
 
-pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned {
+pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned + Debug {
   const VARIANT: Self;
   fn forge<T>(s: String, n: Node) -> ActorRef<Self, T> where 
-   Specific: Serialize + DeserializeOwned + HasInterface<T>, 
+   Specific: Serialize + DeserializeOwned + HasInterface<T> + SpecificInterface<Self>, 
    Self: Case<T>, T: Serialize + DeserializeOwned {
     ActorRef::new(
       Address::new(n, <Self as Case<Specific>>::VARIANT, s),

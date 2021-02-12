@@ -14,11 +14,11 @@ pub enum RegistryMsg<Unified> {
 }
 
 pub struct Registry<Unified> {
-  register: HashMap<(Unified, String), SerializedRecvr<Unified>>
+  pub register: HashMap<(Unified, String), SerializedRecvr<Unified>>
 }
 impl<Unified> Actor<Unified, RegistryMsg<Unified>> for Registry<Unified> where
  Unified: Case<RegistryMsg<Unified>> + Eq + Hash + Debug {
-  fn recv(&mut self, ctx: ActorContext<Unified, RegistryMsg<Unified>>, msg: RegistryMsg<Unified>) {
+  fn recv(&mut self, ctx: &ActorContext<Unified, RegistryMsg<Unified>>, msg: RegistryMsg<Unified>) {
     match msg {
       RegistryMsg::Forward(recv_type, name, interface, payload) => {
         let key = (recv_type, name);

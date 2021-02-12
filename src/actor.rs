@@ -11,7 +11,7 @@ pub type LocalRef<T> = Arc<dyn Fn(T) -> bool>;
 
 pub trait Actor<Unified: Clone + Case<Msg>, Msg> {
   fn pre_start(&mut self) {}
-  fn recv(&mut self, ctx: ActorContext<Unified, Msg>, msg: Msg);
+  fn recv(&mut self, ctx: &ActorContext<Unified, Msg>, msg: Msg);
   fn post_stop(&mut self) {}
 }
 
@@ -67,11 +67,23 @@ pub fn serialize<T>(item: T) -> Option<Vec<u8>>
  where T: Serialize + DeserializeOwned {
   serde_json::to_vec(&item).ok()
 }
-
+/* 
 pub fn deserialize<T>(bytes: Vec<u8>) -> Option<T>
  where T: Serialize + DeserializeOwned {
   serde_json::from_slice(bytes.as_slice()).ok()
 }
+*/
+
+pub fn deserialize<Unified, Specific, Interface>(item: Unified, bytes: Vec<u8>) ->
+ Result<Specific, DeserializeError<Unified>> where 
+ Unified: Case<Specific> + Case<Interface> + Debug, Specific: From<Interface>,
+ Interface: Serialize + DeserializeOwned {
+  match serde_json::from_slice::<Interface>(bytes.as_slice()) {
+    Ok(res) => Result::Ok(Specific::from(res)),
+    Err(_) => Result::Err(DeserializeError::Other(item))
+  }
+ }
+ 
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Host { DNS(String), IP(IpAddr) }
@@ -113,16 +125,27 @@ impl<Unified, Specific> ActorRef<Unified, Specific> where
   }
 
   pub fn send(msg: Specific) {}
+
+  /* 
+  fn new_interface<Interface>(&self) -> ActorRef<Unified, Interface> where 
+   Unified: Clone + Case<Specific> + Case<Interface> + Serialize + DeserializeOwned + Debug,
+   Specific: Serialize + DeserializeOwned + SpecificInterface<Unified> + HasInterface<Interface>, 
+   Interface: Serialize + DeserializeOwned {
+    ActorRef::new(self.addr.clone(), <Unified as Case<Interface>>::VARIANT, None)
+  }
+  */
 }
+
 impl<Unified, Specific> Debug for ActorRef<Unified, Specific> where 
  Unified: Clone + Case<Specific> + Serialize + DeserializeOwned + Debug,
  Specific: Serialize + DeserializeOwned{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      f.debug_struct("ActorRef")
-       .field("Unified", &std::any::type_name::<Unified>())
-       .field("Specific", &std::any::type_name::<Specific>())
-       .field("addr", &self.addr)
-       .field("interface", &self.interface)
-       .finish()
+    f.debug_struct("ActorRef")
+      .field("Unified", &std::any::type_name::<Unified>())
+      .field("Specific", &std::any::type_name::<Specific>())
+      .field("addr", &self.addr)
+      .field("interface", &self.interface)
+      .field("has_local", &self.local.is_some())
+      .finish()
   }
 }
