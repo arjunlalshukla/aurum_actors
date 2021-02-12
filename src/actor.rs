@@ -2,12 +2,12 @@ use std::marker::PhantomData;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::net::IpAddr;
-use crate::unify::Case;
+use crate::{registry::SerializedRecvr, unify::Case};
 use crossbeam::{channel::Sender, thread::ScopedThreadBuilder};
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
-type LocalRef<T> = Arc<dyn Fn(T) -> bool>;
+pub type LocalRef<T> = Arc<dyn Fn(T) -> bool>;
 
 pub trait Actor<Unified: Clone + Case<Msg>, Msg> {
   fn pre_start(&mut self) {}
@@ -15,18 +15,24 @@ pub trait Actor<Unified: Clone + Case<Msg>, Msg> {
   fn post_stop(&mut self) {}
 }
 
+pub enum HiddenInterface<Unified, Specific> {
+  Msg(Specific),
+  Serial(Unified, Vec<u8>)
+}
+
 pub struct ActorContext<Unified: Case<Specific> + Clone, Specific> {
-  tx: Sender<Specific>,
-  address: Address<Unified>
+  pub tx: Sender<HiddenInterface<Unified, Specific>>,
+  pub address: Address<Unified>
 }
 impl<Unified, Specific> ActorContext<Unified, Specific>
- where Unified: Case<Specific> + Clone {
-  fn local_ref<T>(&self) -> LocalRef<T> where Specific: From<T> + 'static {
+ where Unified: Case<Specific> + Clone + 'static, Specific: 'static {
+  pub fn local_ref<T>(&self) -> LocalRef<T> where Specific: From<T> + 'static {
     let sender = self.tx.clone();
-    Arc::new(move |x: T| sender.send(Specific::from(x)).is_ok())
+    Arc::new(move |x: T| 
+      sender.send(HiddenInterface::Msg(Specific::from(x))).is_ok())
   }
 
-  fn interface<T>(&self) -> ActorRef<Unified, T> where
+  pub fn interface<T>(&self) -> ActorRef<Unified, T> where
    Unified: Case<T>,
    T: Serialize + DeserializeOwned,
    Specific: HasInterface<T> + From<T> + 'static {
@@ -35,16 +41,23 @@ impl<Unified, Specific> ActorContext<Unified, Specific>
       <Unified as Case<T>>::VARIANT,
       Some(self.local_ref::<T>()))
   }
+
+  pub fn ser_recvr(&self) -> SerializedRecvr<Unified> {
+    let sender = self.tx.clone();
+    Box::new(move |unified: Unified, vec: Vec<u8>| 
+      sender.send(HiddenInterface::Serial(unified, vec)).is_ok())
+  }
 }
 
-pub enum DeserializeError<Unified> {
+#[derive(Debug)]
+pub enum DeserializeError<Unified: Debug> {
   IncompatibleInterface(Unified),
   Other(Unified)
 }
 
 pub trait HasInterface<T> {}
 
-pub trait SpecificInterface<Unified> where 
+pub trait SpecificInterface<Unified: Debug> where 
  Self: Serialize + DeserializeOwned + Sized {
   fn deserialize_as(interface: Unified, bytes: Vec<u8>) -> 
     Result<Self, DeserializeError<Unified>>;
@@ -72,10 +85,10 @@ impl Node {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct Address<T: Clone> { node: Node, domain: T, name: String }
+pub struct Address<T: Clone> { node: Node, recv_type: T, name: String }
 impl<T> Address<T> where T: Clone {
-  pub fn new(node: Node, domain: T, name: String) -> Address<T> {
-    Address { node: node, domain: domain, name: name }
+  pub fn new(node: Node, recv_type: T, name: String) -> Address<T> {
+    Address { node: node, recv_type: recv_type, name: name }
   }
 }
 
