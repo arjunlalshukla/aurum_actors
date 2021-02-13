@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
 use crate::core::{
   Actor, ActorContext, Address, Case, HiddenInterface, LocalRef, RegistryMsg, 
   Socket, SpecificInterface
