@@ -1,0 +1,43 @@
+impl std::convert::From<String> for LoggerMsg {
+    fn from(item: String) -> LoggerMsg {
+        LoggerMsg::Warning(item)
+    }
+}
+impl std::convert::From<u32> for LoggerMsg {
+    fn from(item: u32) -> LoggerMsg {
+        LoggerMsg::Error(item)
+    }
+}
+impl aurum::core::HasInterface<LoggerMsg> for LoggerMsg {}
+impl aurum::core::HasInterface<String> for LoggerMsg {}
+impl aurum::core::HasInterface<u32> for LoggerMsg {}
+impl<Unified> aurum::core::SpecificInterface<Unified> for LoggerMsg
+where
+    Unified: std::cmp::Eq
+        + std::fmt::Debug
+        + aurum::core::Case<LoggerMsg>
+        + aurum::core::Case<String>
+        + aurum::core::Case<u32>,
+{
+    fn deserialize_as(
+        item: Unified,
+        bytes: Vec<u8>,
+    ) -> std::result::Result<Self, aurum::core::DeserializeError<Unified>> {
+        //
+        if <Unified as aurum::core::Case<LoggerMsg>>::VARIANT == item {
+            aurum::core::deserialize::<Unified, LoggerMsg, LoggerMsg>(item, bytes)
+        } else
+        //
+        if <Unified as aurum::core::Case<String>>::VARIANT == item {
+            aurum::core::deserialize::<Unified, LoggerMsg, String>(item, bytes)
+        } else
+        //
+        if <Unified as aurum::core::Case<u32>>::VARIANT == item {
+            aurum::core::deserialize::<Unified, LoggerMsg, u32>(item, bytes)
+        } else
+        //
+        {
+            std::result::Result::Err(aurum::core::DeserializeError::IncompatibleInterface(item))
+        }
+    }
+}
