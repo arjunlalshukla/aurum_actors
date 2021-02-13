@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::fmt::Debug;
+use std::hash::Hash;
 
-use crate::actor::{Actor, ActorContext};
-use crate::unify::Case;
+use crate::core::{Actor, ActorContext, Case};
 
 pub type SerializedRecvr<Unified> = Box<dyn Fn(Unified, Vec<u8>) -> bool>;
 
@@ -18,7 +17,8 @@ pub struct Registry<Unified> {
 }
 impl<Unified> Actor<Unified, RegistryMsg<Unified>> for Registry<Unified> where
  Unified: Case<RegistryMsg<Unified>> + Eq + Hash + Debug {
-  fn recv(&mut self, ctx: &ActorContext<Unified, RegistryMsg<Unified>>, msg: RegistryMsg<Unified>) {
+  fn recv(&mut self, _ctx: &ActorContext<Unified, RegistryMsg<Unified>>, 
+   msg: RegistryMsg<Unified>) {
     match msg {
       RegistryMsg::Forward(recv_type, name, interface, payload) => {
         let key = (recv_type, name);

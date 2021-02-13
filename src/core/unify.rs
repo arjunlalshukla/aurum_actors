@@ -1,8 +1,8 @@
-use crate::actor::{ActorRef, Address, HasInterface, Node, SpecificInterface};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
 
+use crate::core::{ActorRef, Address, HasInterface, Node, SpecificInterface};
 
 pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned + Debug {
   const VARIANT: Self;
@@ -27,7 +27,7 @@ macro_rules! unified {
       $($part,)*
     }
     $(
-      impl aurum::unify::Case<$part> for $name {
+      impl aurum::core::Case<$part> for $name {
         const VARIANT: $name = $name::$part;
       }
     )*

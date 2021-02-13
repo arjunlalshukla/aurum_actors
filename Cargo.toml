@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 crossbeam = "0.8"
 indoc = "1.0"
-interface-proc = { path = "interface-proc" }
+interface-proc = { path = "src/core/interface-proc" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.1", features = ["sync"] }

@@ -32,41 +32,41 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     let non_locals = translates.iter().filter(|x| x.non_local)
       .collect::<Vec<&AurumVariant>>();
     if type_remote {
-      impls.push(format!("impl aurum::actor::HasInterface<{}> for {} {{}}\n",
+      impls.push(format!("impl aurum::core::HasInterface<{}> for {} {{}}\n",
         type_id, type_id));
     }
     for av in &non_locals {
-      impls.push(format!("impl aurum::actor::HasInterface<{}> for {} {{}}\n",
+      impls.push(format!("impl aurum::core::HasInterface<{}> for {} {{}}\n",
         av.field, type_id));
     }
 
 
     impls.push(formatdoc! {"
-      impl<Unified> aurum::actor::SpecificInterface<Unified> for {type_id} 
-       where Unified: Eq + Debug",
+      impl<Unified> aurum::core::SpecificInterface<Unified> for {type_id} 
+       where Unified: std::cmp::Eq + std::fmt::Debug",
        type_id = type_id
     });
     if type_remote {
-      impls.push(format!(" + aurum::unify::Case<{}>", type_id));
+      impls.push(format!(" + aurum::core::Case<{}>", type_id));
     }
     for av in &non_locals {
-      impls.push(format!(" + aurum::unify::Case<{}>", av.field));
+      impls.push(format!(" + aurum::core::Case<{}>", av.field));
     }
     impls.push(formatdoc! {" 
         {{
           fn deserialize_as(item: Unified, bytes: Vec<u8>) ->
-           Result<Self, aurum::actor::DeserializeError<Unified>> {{
+          std::result::Result<Self, aurum::core::DeserializeError<Unified>> {{
       "
     });
     if !type_remote && non_locals.is_empty() {
       impls.push(String::from(
-        "    Result::Err(DeserializeError::IncompatibleInterface(item))\n"));
+        "    std::result::Result::Err(DeserializeError::IncompatibleInterface(item))\n"));
     } else {
       if type_remote {
         impls.push(formatdoc! {"
           // 
-              if <Unified as aurum::unify::Case<{case}>>::VARIANT == item {{
-                deserialize::<Unified, {case}, {case}>(item, bytes)
+              if <Unified as aurum::core::Case<{case}>>::VARIANT == item {{
+                aurum::core::deserialize::<Unified, {case}, {case}>(item, bytes)
               }} else
           ",
           case = type_id
@@ -75,8 +75,8 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
       for av in &non_locals {
         impls.push(formatdoc! {" 
           //
-              if <Unified as aurum::unify::Case<{interface}>>::VARIANT == item {{
-                deserialize::<Unified, {case}, {interface}>(item, bytes)
+              if <Unified as aurum::core::Case<{interface}>>::VARIANT == item {{
+                aurum::core::deserialize::<Unified, {case}, {interface}>(item, bytes)
               }} else
           ",
           case = type_id,
@@ -86,7 +86,7 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
       impls.push(formatdoc! {"
         //
             {{
-              Result::Err(DeserializeError::IncompatibleInterface(item))
+              std::result::Result::Err(aurum::core::DeserializeError::IncompatibleInterface(item))
             }} 
         "
       });

@@ -1,10 +1,9 @@
-use crate::actor::{Actor, ActorContext, Address, HiddenInterface, SpecificInterface};
-use crate::unify::Case;
-use crate::actor::LocalRef;
+use crate::core::{Actor, ActorContext, Address, Case, HiddenInterface, SpecificInterface};
+use crate::core::LocalRef;
 use std::fmt::Debug;
 use std::marker::Send;
 
-fn spawn<Unified, Specific, A>(actor: A, name: String, addr: Address<Unified>) 
+pub fn spawn<Unified, Specific, A>(actor: A, addr: Address<Unified>) 
  -> LocalRef<Specific> where 
  A: Actor<Unified, Specific> + Send + 'static, 
  Specific: 'static + Send + SpecificInterface<Unified>,
