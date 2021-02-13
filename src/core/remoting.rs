@@ -28,17 +28,17 @@ pub fn deserialize<Unified, Specific, Interface>(item: Unified, bytes: Vec<u8>) 
 pub enum Host { DNS(String), IP(IpAddr) }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct Node { host: Host, udp: u16, tcp: u16 }
-impl Node {
-  pub fn new(host: Host, udp: u16, tcp: u16) -> Node {
-    Node {host: host, udp: udp, tcp: tcp}
+pub struct Socket { host: Host, udp: u16, tcp: u16 }
+impl Socket {
+  pub fn new(host: Host, udp: u16, tcp: u16) -> Socket {
+    Socket {host: host, udp: udp, tcp: tcp}
   }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct Address<T: Clone> { node: Node, recv_type: T, name: String }
+pub struct Address<T: Clone> { node: Socket, recv_type: T, name: String }
 impl<T> Address<T> where T: Clone {
-  pub fn new(node: Node, recv_type: T, name: String) -> Address<T> {
+  pub fn new(node: Socket, recv_type: T, name: String) -> Address<T> {
     Address { node: node, recv_type: recv_type, name: name }
   }
 }

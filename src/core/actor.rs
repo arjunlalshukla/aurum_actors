@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::core::{ActorRef, Address, Case, HasInterface, LocalRef, 
+use crate::core::{ActorRef, Address, Case, HasInterface, LocalRef,
   SerializedRecvr};
 use crossbeam::channel::Sender;
 use serde::Serialize;

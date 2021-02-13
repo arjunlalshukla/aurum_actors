@@ -1,4 +1,4 @@
-use aurum::core::{Case, Host, Node, RegistryMsg, SpecificInterface, serialize};
+use aurum::core::{Case, Host, Socket, RegistryMsg, SpecificInterface, serialize};
 use aurum::unified;
 use interface_proc::AurumInterface;
 use serde::{Serialize, Deserialize};
@@ -58,7 +58,7 @@ fn serde_test() {
 
 #[test]
 fn forge_test() {
-  let node = Node::new(Host::DNS("localhost".to_string()), 1000, 1001);
+  let node = Socket::new(Host::DNS("localhost".to_string()), 1000, 1001);
   let _lgr_msg = <MsgTypes as Case<LoggerMsg>>::forge
     ::<LoggerMsg>("logger".to_string(), node.clone());
   println!("logger ref: {:#?}", _lgr_msg);

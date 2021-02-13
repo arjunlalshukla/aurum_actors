@@ -27,13 +27,18 @@ pub use remoting::{
   Address,
   DeserializeError,
   Host,
-  Node,
+  Socket,
   deserialize,
   serialize
 };
 
 mod spawn;
 pub use spawn::spawn;
+
+mod node;
+pub use node::{
+  Node
+};
 
 mod unify;
 pub use unify::Case;
