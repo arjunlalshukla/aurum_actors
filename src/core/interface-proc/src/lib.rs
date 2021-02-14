@@ -30,6 +30,8 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     if type_props.non_local {
       non_locals.push(&type_id);
     }
+    let mut cases = non_locals.clone();
+    cases.push(&type_id);
 
     let code = TokenStream::from(quote! {
       #(
@@ -45,7 +47,7 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
       )*
 
       impl<Unified> aurum::core::SpecificInterface<Unified> for #type_id
-       where Unified: std::cmp::Eq + std::fmt::Debug #(+ aurum::core::Case<#interfaces>)* {
+       where Unified: std::cmp::Eq + std::fmt::Debug #(+ aurum::core::Case<#cases>)* {
         fn deserialize_as(item: Unified, bytes: Vec<u8>) ->
          std::result::Result<Self, aurum::core::DeserializeError<Unified>> {
           #(

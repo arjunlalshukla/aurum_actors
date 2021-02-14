@@ -24,6 +24,7 @@ enum LoggerMsg {
 enum DataStoreMsg {
   #[aurum]
   Cmd(DataStoreCmd),
+  #[aurum(local)]
   Subscribe(LocalRef<String>)
 }
 
