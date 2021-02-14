@@ -5,26 +5,29 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::process::Command;
-use syn::{self, Ident, TypePath};
+use syn::{self, Expr, ExprPath, Ident, Result, Token, TypePath, parenthesized, 
+  parse::Parse, parse::ParseStream, punctuated::Punctuated};
 
 #[proc_macro_derive(AurumInterface, attributes(aurum))]
 pub fn aurum_interface(item: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(item).unwrap();
     let type_tokens = ast.ident.to_string().parse().unwrap();
     let type_id = syn::parse_macro_input!(type_tokens as TypePath); 
-    let type_remote = ast.attrs.iter().any(|attr| attr.path.is_ident("aurum"));
+    let type_props = aurum_tokens(ast.attrs)
+      .map(|x| syn::parse::<AurumProperties>(x).unwrap()).unwrap_or_default();
     let data_enum: syn:: DataEnum = match ast.data {
       syn::Data::Enum(x) => x,
       _ => panic!("Only enums are supported")
     };
-    let translates = data_enum.variants.iter().filter_map(|x| aurum_tagged(x))
-      .collect::<Vec<AurumVariant>>();
-    let interfaces = translates.iter().map(|x| x.field).collect::<Vec<&TypePath>>();
-    let variants = translates.iter().map(|x| x.variant).collect::<Vec<&Ident>>();
-    let mut non_locals = translates.iter().filter(|x| x.non_local)
-      .map(|x| x.field)
+    let translates = data_enum.variants.into_iter()
+      .filter_map(|x| aurum_tagged(x)).collect::<Vec<AurumVariant>>();
+    let mut interfaces = translates.iter().map(|x| &x.field).collect::<Vec<&TypePath>>();
+    interfaces.push(&type_id);
+    let variants = translates.iter().map(|x| &x.variant).collect::<Vec<&Ident>>();
+    let mut non_locals = translates.iter().filter(|x| x.props.non_local)
+      .map(|x| &x.field)
       .collect::<Vec<&TypePath>>();
-    if type_remote {
+    if type_props.non_local {
       non_locals.push(&type_id);
     }
 
@@ -42,7 +45,7 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
       )*
 
       impl<Unified> aurum::core::SpecificInterface<Unified> for #type_id
-       where Unified: std::cmp::Eq + std::fmt::Debug #(+ aurum::core::Case<#non_locals>)* {
+       where Unified: std::cmp::Eq + std::fmt::Debug #(+ aurum::core::Case<#interfaces>)* {
         fn deserialize_as(item: Unified, bytes: Vec<u8>) ->
          std::result::Result<Self, aurum::core::DeserializeError<Unified>> {
           #(
@@ -54,36 +57,107 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
             aurum::core::DeserializeError::IncompatibleInterface(item)
           );
         }
-       }
+      }
     });
     write_and_fmt(ast.ident.to_string(), &code).expect("can't save codegen");
     code
 }
 
-struct AurumVariant<'a> {
-  variant: &'a Ident,
-  field: &'a TypePath,
-  non_local: bool
+struct AurumVariant {
+  variant: Ident,
+  field: TypePath,
+  props: AurumProperties
 }
 
-fn aurum_tagged(variant: &syn::Variant) -> Option<AurumVariant> {
+struct AurumProperties {
+  non_local: bool,
+  //priority: Option<Expr>
+}
+impl Default for AurumProperties {
+  fn default() -> AurumProperties {
+    AurumProperties {
+      non_local: true
+    }
+  }
+}
+impl Parse for AurumProperties {
+  fn parse(input: ParseStream) -> Result<AurumProperties> {
+    let mut props = AurumProperties::default();
+    if input.is_empty() {
+      return Ok(props);
+    }
+
+    let inner;
+    parenthesized!(inner in input);
+    let args = Punctuated::<Expr, Token![,]>::parse_terminated(&inner)?
+      .into_iter().collect::<Vec<Expr>>();
+  
+    for attr in args {
+      match attr {
+        Expr::Path(ExprPath {attrs: _, qself: _, path: p}) => {
+          let mut i = p.segments.into_iter();
+          let flag = i.next().unwrap();
+          if i.next().is_some() {
+            panic!("Aurum flags are singular identifiers");
+          }
+          match flag.arguments {
+            syn::PathArguments::None => (),
+            _ => panic!("Aurum flags should not contain generics")
+          }
+          match flag.ident.to_string().as_str() {
+            "local" if props.non_local => props.non_local = false,
+            "local" => already_defined("local"),
+            _ => ()
+          }
+        }
+        // This is for priorities later
+        //Expr::Assign(a) => (),
+        _ => panic!("Only identifiers are accepted in Aurum arguments")
+      }
+    }
+  
+    Ok(props)
+  }
+}
+
+fn aurum_tagged(variant: syn::Variant) -> Option<AurumVariant> {
   let err = "Aurum translations must contain a single, unnamed field";
-  if !variant.attrs.iter().any(|attr| attr.path.is_ident("aurum")) {
-    return None;
-  }
-  let mut fields = match &variant.fields {
-    syn::Fields::Unnamed(u) => u.unnamed.iter().map(|x| &x.ty)
-      .collect::<Vec<&syn::Type>>(),
-    _ => panic!(err)
+  let aurum_toks = TokenStream::from(aurum_tokens(variant.attrs)?);
+  let type_path = {
+    let mut fields = match variant.fields {
+      syn::Fields::Unnamed(u) => u.unnamed.into_iter().map(|x| x.ty)
+        .collect::<Vec<syn::Type>>(),
+      _ => panic!(err)
+    };
+    if fields.len() != 1 {
+      panic!(err);
+    }
+    match fields.remove(0) {
+      syn::Type::Path(p) => p,
+      _ => panic!("Type is not a type path")
+    }
   };
-  if fields.len() != 1 {
-    panic!(err);
+  Some(AurumVariant { 
+    variant: variant.ident,  
+    field: type_path, 
+    props: syn::parse(aurum_toks).unwrap()
+    //aurum_properties(aurum_toks).expect("Failed to parse aurum attribute")
+  } )
+}
+
+fn aurum_tokens(attrs: Vec<syn::Attribute>) -> Option<TokenStream> {
+  let mut i = attrs.into_iter()
+    .filter(|attr| attr.path.is_ident("aurum"));
+  match (i.next(), i.next().is_some()) {
+    (None, false) => None,
+    (Some(attr), false) => Some(attr.tokens.into()),
+    (Some(_), true) => panic!("Only use exactly one aurum annotation"),
+    (None, true) => panic!("WTF?! this should never happen...")
   }
-  let type_path = match fields.remove(0) {
-    syn::Type::Path(p) => p,
-    _ => panic!("Type is not a type path")
-  };
-  Some(AurumVariant { variant: &variant.ident,  field: type_path, non_local: true} )
+}
+
+fn already_defined(s: &str) {
+  panic!(format!("Do not define Aurum flag {} more than once", s))
 }
 
 fn write_and_fmt<S: ToString>(file: String, code: S) -> io::Result<()> {

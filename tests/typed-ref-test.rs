@@ -1,4 +1,4 @@
-use aurum::core::{Case, Host, Socket, RegistryMsg, SpecificInterface, serialize};
+use aurum::core::{Case, Host, LocalRef, RegistryMsg, Socket, SpecificInterface, serialize};
 use aurum::unified;
 use interface_proc::AurumInterface;
 use serde::{Serialize, Deserialize};
@@ -18,15 +18,23 @@ enum LoggerMsg {
   Error(u32)
 }
 
-#[derive(AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize)]
-#[aurum]
-enum DataStoreMsg { 
+#[derive(AurumInterface)]
+#[aurum(local)]
+#[allow(dead_code)]
+enum DataStoreMsg {
+  #[aurum]
+  Cmd(DataStoreCmd),
+  Subscribe(LocalRef<String>)
+}
+
+#[derive(Serialize, Deserialize)]
+enum DataStoreCmd {
   Get, 
-  Put(String) 
+  Put(String),
 }
 
 unified! { MsgTypes = DataStoreMsg | LoggerMsg | MaybeString | RegMsg | String |
-  Unsigned32 }
+  DataStoreCmd | Unsigned32 }
 
 #[test]
 fn serde_test() {
@@ -45,15 +53,15 @@ fn serde_test() {
     ::deserialize_as(<MsgTypes as Case<LoggerMsg>>::VARIANT, ser_info);
   assert_eq!(de_info.unwrap(), LoggerMsg::Info("hello".to_string()));
   
-  let ser_get = serialize(DataStoreMsg::Get).unwrap();
+  let ser_get = serialize(DataStoreCmd::Get).unwrap();
   let de_get = <DataStoreMsg as SpecificInterface<MsgTypes>>
-    ::deserialize_as(<MsgTypes as Case<DataStoreMsg>>::VARIANT, ser_get);
-  assert_eq!(de_get.unwrap(), DataStoreMsg::Get);
+    ::deserialize_as(<MsgTypes as Case<DataStoreCmd>>::VARIANT, ser_get);
+  assert!(matches!(de_get.unwrap(), DataStoreMsg::Cmd(DataStoreCmd::Get)));
 
-  let ser_put = serialize(DataStoreMsg::Put("put".to_string())).unwrap();
+  let ser_put = serialize(DataStoreCmd::Put("put".to_string())).unwrap();
   let de_put = <DataStoreMsg as SpecificInterface<MsgTypes>>
-    ::deserialize_as(<MsgTypes as Case<DataStoreMsg>>::VARIANT, ser_put);
-  assert_eq!(de_put.unwrap(), DataStoreMsg::Put("put".to_string()));
+    ::deserialize_as(<MsgTypes as Case<DataStoreCmd>>::VARIANT, ser_put);
+  assert!(matches!(de_put, Ok(DataStoreMsg::Cmd(DataStoreCmd::Put(x))) if x.as_str() == "put"));
 }
 
 #[test]
@@ -72,6 +80,6 @@ fn forge_test() {
   println!("logger ref string interface: {:#?}", _warn_msg);
 
   let _ds_msg = <MsgTypes as Case<DataStoreMsg>>::forge
-    ::<DataStoreMsg>("data_store".to_string(), node.clone());
+    ::<DataStoreCmd>("data_store".to_string(), node.clone());
   println!("data store ref: {:#?}", _ds_msg);
 }

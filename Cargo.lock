@@ -114,6 +114,7 @@ name = "interface-proc"
 version = "0.1.0"
 dependencies = [
  "indoc",
+ "proc-macro2",
  "quote",
  "syn",
 ]

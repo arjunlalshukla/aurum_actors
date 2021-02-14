@@ -7,7 +7,7 @@ use crate::core::{ActorRef, Address, HasInterface, Socket, SpecificInterface};
 pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned + Debug {
   const VARIANT: Self;
   fn forge<T>(s: String, n: Socket) -> ActorRef<Self, T> where 
-   Specific: Serialize + DeserializeOwned + HasInterface<T> + SpecificInterface<Self>, 
+   Specific: HasInterface<T> + SpecificInterface<Self>, 
    Self: Case<T>, T: Serialize + DeserializeOwned {
     ActorRef::new(
       Address::new(n, <Self as Case<Specific>>::VARIANT, s),

@@ -6,10 +6,9 @@ use serde::de::DeserializeOwned;
 
 pub type LocalRef<T> = Arc<dyn Fn(T) -> bool>;
 
-pub trait HasInterface<T> {}
+pub trait HasInterface<T: Serialize + DeserializeOwned> {}
 
-pub trait SpecificInterface<Unified: Debug> where 
- Self: Serialize + DeserializeOwned + Sized {
+pub trait SpecificInterface<Unified: Debug> where Self: Sized {
   fn deserialize_as(interface: Unified, bytes: Vec<u8>) -> 
     Result<Self, DeserializeError<Unified>>;
 }
@@ -20,7 +19,7 @@ pub struct ActorRef<Unified, Specific> where Unified: Clone,
  Specific: Serialize + DeserializeOwned {
   addr: Address<Unified>,
   interface: Unified,
-  #[serde(skip)] #[serde(default)]
+  #[serde(skip, default)]
   local: Option<LocalRef<Specific>>
 }
 impl<Unified, Specific> ActorRef<Unified, Specific> where 
