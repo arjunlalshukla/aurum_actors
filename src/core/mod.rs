@@ -41,4 +41,4 @@ pub use node::{
 };
 
 mod unify;
-pub use unify::Case;
+pub use unify::{Case, forge};

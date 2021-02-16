@@ -4,16 +4,20 @@ use std::fmt::Debug;
 
 use crate::core::{ActorRef, Address, HasInterface, Socket, SpecificInterface};
 
-pub trait Case<Specific> where Self: Clone + Sized + Serialize + DeserializeOwned + Debug {
+
+pub fn forge<Unified, Specific, Interface>(s: String, n: Socket)
+ -> ActorRef<Unified, Interface> where 
+ Specific: HasInterface<Interface> + SpecificInterface<Unified>, 
+ Unified: Case<Specific> + Case<Interface> + Serialize + DeserializeOwned, 
+ Interface: Serialize + DeserializeOwned {
+  ActorRef::new(
+    Address::new(n, <Unified as Case<Specific>>::VARIANT, s),
+    <Unified as Case<Interface>>::VARIANT,
+    None)
+}
+
+pub trait Case<Specific> where Self: Sized + Debug + Clone + Serialize + DeserializeOwned {
   const VARIANT: Self;
-  fn forge<T>(s: String, n: Socket) -> ActorRef<Self, T> where 
-   Specific: HasInterface<T> + SpecificInterface<Self>, 
-   Self: Case<T>, T: Serialize + DeserializeOwned {
-    ActorRef::new(
-      Address::new(n, <Self as Case<Specific>>::VARIANT, s),
-      <Self as Case<T>>::VARIANT,
-      None)
-  }
 }  
 
 // Haskell-style algebraic data types

@@ -1,4 +1,4 @@
-use aurum::core::{Case, Host, LocalRef, RegistryMsg, Socket, SpecificInterface, serialize};
+use aurum::core::{Case, Host, LocalRef, RegistryMsg, Socket, SpecificInterface, serialize, forge};
 use aurum::unified;
 use interface_proc::AurumInterface;
 use serde::{Serialize, Deserialize};
@@ -68,19 +68,19 @@ fn serde_test() {
 #[test]
 fn forge_test() {
   let node = Socket::new(Host::DNS("localhost".to_string()), 1000, 1001);
-  let _lgr_msg = <MsgTypes as Case<LoggerMsg>>::forge
-    ::<LoggerMsg>("logger".to_string(), node.clone());
+  let _lgr_msg = forge::<MsgTypes, LoggerMsg, LoggerMsg>
+    ("logger".to_string(), node.clone());
   println!("logger ref: {:#?}", _lgr_msg);
 
-  let _err_msg = <MsgTypes as Case<LoggerMsg>>::forge
-    ::<u32>("logger".to_string(), node.clone());
+  let _err_msg = forge::<MsgTypes, LoggerMsg, u32>
+    ("logger".to_string(), node.clone());
   println!("logger ref u32 interface: {:#?}", _err_msg);
 
-  let _warn_msg = <MsgTypes as Case<LoggerMsg>>::forge
-    ::<String>("logger".to_string(), node.clone());
+  let _warn_msg = forge::<MsgTypes, LoggerMsg, String>
+    ("logger".to_string(), node.clone());
   println!("logger ref string interface: {:#?}", _warn_msg);
 
-  let _ds_msg = <MsgTypes as Case<DataStoreMsg>>::forge
-    ::<DataStoreCmd>("data_store".to_string(), node.clone());
+  let _ds_msg = forge::<MsgTypes, DataStoreMsg, DataStoreCmd>
+    ("data_store".to_string(), node.clone());
   println!("data store ref: {:#?}", _ds_msg);
 }
