@@ -37,15 +37,23 @@ pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
   pub name: ActorName<Unified>,
   pub node: Arc<Node<Unified>>,
 }
-impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static>
+impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
   ActorContext<Unified, Specific>
 {
+  pub(in crate::core) fn create_local<T>(
+    sender: Sender<ActorMsg<Unified, Specific>>,
+  ) -> LocalRef<T>
+  where
+    Specific: From<T> + 'static,
+  {
+    Arc::new(move |x: T| sender.send(ActorMsg::Msg(Specific::from(x))).is_ok())
+  }
+
   pub fn local_interface<T>(&self) -> LocalRef<T>
   where
     Specific: From<T> + 'static,
   {
-    let sender = self.tx.clone();
-    Arc::new(move |x: T| sender.send(ActorMsg::Msg(Specific::from(x))).is_ok())
+    Self::create_local::<T>(self.tx.clone())
   }
 
   pub fn interface<T: Serialize + DeserializeOwned>(

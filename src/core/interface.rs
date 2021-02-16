@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::UnifiedBounds;
 
-pub type LocalRef<T> = Arc<dyn Fn(T) -> bool>;
+pub type LocalRef<T> = Arc<dyn Fn(T) -> bool + Send + Sync>;
 
 pub trait HasInterface<T: Serialize + DeserializeOwned> {}
 
