@@ -1,44 +1,43 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
-use std::hash::Hash;
-
-use crate::core::{Actor, ActorContext, Case};
+use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
 
 pub type SerializedRecvr<Unified> = Box<dyn Fn(Unified, Vec<u8>) -> bool>;
 
-pub enum RegistryMsg<Unified> {
-  Forward(Unified, String, Unified, Vec<u8>),
-  Register(Unified, String, SerializedRecvr<Unified>),
-  Deregister(Unified, String)
+pub enum RegistryMsg<Unified: UnifiedBounds> {
+  Forward(ActorName<Unified>, Unified, Vec<u8>),
+  Register(ActorName<Unified>, SerializedRecvr<Unified>),
+  Deregister(ActorName<Unified>)
 }
 
-pub struct Registry<Unified> {
-  pub register: HashMap<(Unified, String), SerializedRecvr<Unified>>
+pub struct Registry<Unified: UnifiedBounds> {
+  pub register: HashMap<ActorName<Unified>, SerializedRecvr<Unified>>
 }
-impl<Unified> Actor<Unified, RegistryMsg<Unified>> for Registry<Unified> where
- Unified: Case<RegistryMsg<Unified>> + Eq + Hash + Debug {
+impl<Unified: UnifiedBounds> Actor<Unified, RegistryMsg<Unified>>
+ for Registry<Unified> where
+ Unified: Case<RegistryMsg<Unified>> + UnifiedBounds {
   fn recv(&mut self, _ctx: &ActorContext<Unified, RegistryMsg<Unified>>, 
    msg: RegistryMsg<Unified>) {
     match msg {
-      RegistryMsg::Forward(recv_type, name, interface, payload) => {
-        let key = (recv_type, name);
-        match self.register.get(&key) {
+      RegistryMsg::Forward(name, interface, payload) => {
+        match self.register.get(&name) {
           Some(recvr) => {
             if !recvr(interface, payload) {
-              self.register.remove(&key);
-              println!("Forward message to {:?} failed, removing actor", key);
+              self.register.remove(&name);
+              println!("Forward message to {:?} failed, removing actor", name);
             } else {
-              println!("Forwarded message to {:?}", key);
+              println!("Forwarded message to {:?}", name);
             }
           }
-          None => { println!("Cannot send to {:?}, not in register", key); }
+          None => { 
+            println!("Cannot send to {:?}, not in register", name); 
+          }
         }
       }
-      RegistryMsg::Register(recv_type, name, channel) => {
-        self.register.insert((recv_type, name), channel);
+      RegistryMsg::Register(name, channel) => {
+        self.register.insert(name, channel);
       }
-      RegistryMsg::Deregister(recv_type, name) => { 
-        self.register.remove(&(recv_type, name));
+      RegistryMsg::Deregister(name) => { 
+        self.register.remove(&name);
       }
     }
   }

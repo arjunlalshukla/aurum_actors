@@ -1,6 +1,7 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::net::IpAddr;
-use crate::core::Case;
+use crate::core::{ActorName, Case, UnifiedBounds};
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 
@@ -17,7 +18,7 @@ pub fn serialize<T>(item: T) -> Option<Vec<u8>>
 
 pub fn deserialize<Unified, Specific, Interface>(item: Unified, bytes: Vec<u8>) ->
  Result<Specific, DeserializeError<Unified>> where 
- Unified: Case<Specific> + Case<Interface> + Debug, Specific: From<Interface>,
+ Unified: Case<Specific> + Case<Interface> + UnifiedBounds, Specific: From<Interface>,
  Interface: Serialize + DeserializeOwned {
   match serde_json::from_slice::<Interface>(bytes.as_slice()) {
     Ok(res) => Result::Ok(Specific::from(res)),
@@ -36,9 +37,14 @@ impl Socket {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub struct Address<T: Clone> { node: Socket, recv_type: T, name: String }
-impl<T> Address<T> where T: Clone {
-  pub fn new(node: Socket, recv_type: T, name: String) -> Address<T> {
-    Address { node: node, recv_type: recv_type, name: name }
+#[serde(bound = "Unified: UnifiedBounds")]
+pub struct Address<Unified: UnifiedBounds> { 
+  node: Socket, 
+  name: ActorName<Unified> 
+}
+impl<Unified: UnifiedBounds> Address<Unified> {
+  pub fn new<Specific>(node: Socket, name: String) -> Address<Unified> where 
+  Unified: Case<Specific> {
+    Address { node: node, name: ActorName::new::<Specific>(name) }
   }
 }

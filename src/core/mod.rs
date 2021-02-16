@@ -4,7 +4,8 @@ mod actor;
 pub use actor::{
   Actor, 
   ActorContext,
-  HiddenInterface
+  ActorName,
+  ActorMsg
 };
 
 mod interface;
@@ -32,13 +33,10 @@ pub use remoting::{
   serialize
 };
 
-mod spawn;
-pub use spawn::spawn;
-
 mod node;
 pub use node::{
   Node
 };
 
 mod unify;
-pub use unify::{Case, forge};
+pub use unify::{Case, forge, UnifiedBounds};
