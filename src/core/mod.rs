@@ -1,42 +1,21 @@
 extern crate interface_proc;
 
 mod actor;
-pub use actor::{
-  Actor, 
-  ActorContext,
-  ActorName,
-  ActorMsg
-};
+pub use actor::{Actor, ActorContext, ActorMsg, ActorName};
 
 mod interface;
-pub use interface::{
-  ActorRef,
-  HasInterface,
-  LocalRef,
-  SpecificInterface
-};
+pub use interface::{ActorRef, HasInterface, LocalRef, SpecificInterface};
 
 mod registry;
-pub use registry::{
-  Registry,
-  RegistryMsg,
-  SerializedRecvr
-};
+pub use registry::{Registry, RegistryMsg, SerializedRecvr};
 
 mod remoting;
 pub use remoting::{
-  Address,
-  DeserializeError,
-  Host,
-  Socket,
-  deserialize,
-  serialize
+  deserialize, serialize, Address, DeserializeError, Host, Socket,
 };
 
 mod node;
-pub use node::{
-  Node
-};
+pub use node::Node;
 
 mod unify;
-pub use unify::{Case, forge, UnifiedBounds};
+pub use unify::{forge, Case, UnifiedBounds};

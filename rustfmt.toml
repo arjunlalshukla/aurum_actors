@@ -1,0 +1,5 @@
+tab_spaces = 2
+newline_style = "Unix"
+max_width = 80
+struct_lit_width = 80
+# imports_granularity = "Module"
