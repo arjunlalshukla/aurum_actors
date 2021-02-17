@@ -6,7 +6,7 @@ use aurum::{
   unified,
 };
 use crossbeam::channel::{bounded, unbounded, Sender};
-use interface_proc::AurumInterface;
+use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
 
 type RegType = RegistryMsg<RegTestTypes>;

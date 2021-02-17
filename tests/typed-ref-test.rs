@@ -3,7 +3,7 @@ use aurum::core::{
   SpecificInterface,
 };
 use aurum::unified;
-use interface_proc::AurumInterface;
+use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 

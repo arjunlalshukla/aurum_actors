@@ -1,2 +1,2 @@
 pub mod core;
-extern crate interface_proc;
+extern crate aurum_macros;

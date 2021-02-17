@@ -1,4 +1,4 @@
-extern crate interface_proc;
+extern crate aurum_macros;
 
 mod actor;
 pub use actor::{Actor, ActorContext, ActorMsg, ActorName};

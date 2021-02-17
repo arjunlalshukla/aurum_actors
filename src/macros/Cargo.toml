@@ -1,5 +1,5 @@
 [package]
-name = "interface-proc"
+name = "aurum_macros"
 version = "0.1.0"
 authors = ["Arjun Shukla <arjunlalshukla@gmail.com>"]
 edition = "2018"
