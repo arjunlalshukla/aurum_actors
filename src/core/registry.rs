@@ -1,5 +1,6 @@
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
+use crossbeam::channel::Sender;
 use interface_proc::AurumInterface;
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ pub type SerializedRecvr<Unified> =
 #[aurum(local)]
 pub enum RegistryMsg<Unified: UnifiedBounds> {
   Forward(ActorName<Unified>, Unified, Vec<u8>),
-  Register(ActorName<Unified>, SerializedRecvr<Unified>),
+  Register(ActorName<Unified>, SerializedRecvr<Unified>, Sender<()>),
   Deregister(ActorName<Unified>),
 }
 
@@ -50,9 +51,16 @@ where
           }
         }
       }
-      RegistryMsg::Register(name, channel) => {
+      RegistryMsg::Register(name, channel, confirmation) => {
         println!("Adding actor to registry: {:?}", name);
-        self.register.insert(name, channel);
+        self.register.insert(name.clone(), channel);
+        match confirmation.send(()) {
+          Err(_) => {
+            println!("Could not send confirmation, removing from registry");
+            self.register.remove(&name);
+          }
+          _ => (),
+        }
       }
       RegistryMsg::Deregister(name) => {
         println!("Removing actor from registry: {:?}", name);

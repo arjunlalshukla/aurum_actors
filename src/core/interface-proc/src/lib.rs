@@ -31,7 +31,7 @@ pub fn aurum_interface(item: TokenStream) -> TokenStream {
     };
     let translates = data_enum.variants.into_iter()
       .filter_map(|x| aurum_tagged(x)).collect::<Vec<AurumVariant>>();
-    let mut interfaces = translates.iter()
+    let interfaces = translates.iter()
       .map(|x| x.field.to_token_stream().into())
       .collect::<Vec<proc_macro2::TokenStream>>();
     let variants = translates.iter().map(|x| &x.variant).collect::<Vec<&Ident>>();

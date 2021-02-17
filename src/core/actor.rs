@@ -9,6 +9,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
+use super::RegistryMsg;
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "Unified: UnifiedBounds")]
 pub struct ActorName<Unified>(Unified, String);
@@ -35,7 +37,7 @@ pub enum ActorMsg<Unified, Specific> {
 pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
   pub tx: Sender<ActorMsg<Unified, Specific>>,
   pub name: ActorName<Unified>,
-  pub node: Arc<Node<Unified>>,
+  pub node: Node<Unified>,
 }
 impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
   ActorContext<Unified, Specific>
@@ -60,11 +62,11 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
     &self,
   ) -> ActorRef<Unified, T>
   where
-    Unified: Case<T>,
+    Unified: Case<T> + Case<RegistryMsg<Unified>>,
     Specific: HasInterface<T> + From<T> + 'static,
   {
     ActorRef::new(
-      Address::new::<Specific>(self.node.socket.clone(), self.name.clone()),
+      Address::new::<Specific>(self.node.socket().clone(), self.name.clone()),
       <Unified as Case<T>>::VARIANT,
       Some(self.local_interface::<T>()),
     )

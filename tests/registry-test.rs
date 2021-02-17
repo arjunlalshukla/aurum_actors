@@ -5,26 +5,29 @@ use aurum::{
   core::{ActorName, Case},
   unified,
 };
+use crossbeam::channel::{bounded, unbounded, Sender};
 use interface_proc::AurumInterface;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 type RegType = RegistryMsg<RegTestTypes>;
 
-#[derive(AurumInterface, Serialize, Deserialize)]
+#[derive(AurumInterface, PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum Echo {
   #[aurum]
   FullString(String),
   JustNumber(u32),
 }
 
-struct Echoer {}
+struct Echoer {
+  confirm_start: Sender<()>,
+  echo_recvr: Sender<Echo>,
+}
 impl Actor<RegTestTypes, Echo> for Echoer {
+  fn pre_start(&mut self) {
+    self.confirm_start.send(()).unwrap();
+  }
   fn recv(&mut self, _ctx: &ActorContext<RegTestTypes, Echo>, msg: Echo) {
-    match msg {
-      Echo::FullString(s) => println!("Got String: \"{}\"", s),
-      Echo::JustNumber(x) => println!("Got number: \"{}\"", x),
-    }
+    self.echo_recvr.send(msg).unwrap();
   }
 }
 
@@ -38,13 +41,25 @@ fn registry_test() {
     1001,
   ));
   let echo_name = ActorName::new::<Echo>("echoer".to_string());
-  Node::spawn(node.clone(), Echoer {}, echo_name.clone(), true);
+  let (confirm_tx, confirm_rx) = bounded(1);
+  let (tx, rx) = unbounded();
+  node.spawn(
+    Echoer {
+      confirm_start: confirm_tx,
+      echo_recvr: tx,
+    },
+    echo_name.clone(),
+    true,
+  );
   let str_ser = serialize("oh no!".to_string()).unwrap();
-  std::thread::sleep_ms(1000);
-  (&node.registry)(RegistryMsg::Forward(
+  confirm_rx.recv().unwrap();
+  node.registry(RegistryMsg::Forward(
     echo_name,
     <RegTestTypes as Case<String>>::VARIANT,
     str_ser,
   ));
-  std::thread::sleep_ms(5000);
+  match rx.recv() {
+    Ok(echo) => assert_eq!(echo, Echo::FullString("oh no!".to_string())),
+    Err(_) => panic!("Could not receive!"),
+  }
 }
