@@ -1,28 +1,17 @@
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
+use interface_proc::AurumInterface;
 use std::collections::HashMap;
 
 pub type SerializedRecvr<Unified> =
   Box<dyn Fn(Unified, Vec<u8>) -> bool + Send>;
 
+#[derive(AurumInterface)]
+#[aurum(local)]
 pub enum RegistryMsg<Unified: UnifiedBounds> {
   Forward(ActorName<Unified>, Unified, Vec<u8>),
   Register(ActorName<Unified>, SerializedRecvr<Unified>),
   Deregister(ActorName<Unified>),
-}
-impl<Unified: UnifiedBounds> aurum::core::SpecificInterface<Unified>
-  for RegistryMsg<Unified>
-where
-  Unified: Case<RegistryMsg<Unified>>,
-{
-  fn deserialize_as(
-    item: Unified,
-    _bytes: Vec<u8>,
-  ) -> std::result::Result<Self, aurum::core::DeserializeError<Unified>> {
-    std::result::Result::Err(
-      aurum::core::DeserializeError::IncompatibleInterface(item),
-    )
-  }
 }
 
 pub struct Registry<Unified: UnifiedBounds> {
