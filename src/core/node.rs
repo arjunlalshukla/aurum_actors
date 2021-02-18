@@ -18,7 +18,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   pub fn new(socket: Socket) -> Self {
     let (reg, reg_node_tx) = Self::start_codependent(
       Registry::new(),
-      ActorName::new::<RegistryMsg<Unified>>("registry".to_string()),
+      "registry".to_string(),
     );
     let node = Node {
       node: Arc::new(NodeImpl {
@@ -40,10 +40,10 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     (&self.node.registry)(msg);
   }
 
-  pub fn spawn<Specific, A>(
+  pub fn spawn_local_single<Specific, A>(
     &self,
     actor: A,
-    name: ActorName<Unified>,
+    name: String,
     register: bool,
   ) -> LocalRef<Specific>
   where
@@ -62,7 +62,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
 
   fn start_codependent<Specific, A>(
     actor: A,
-    name: ActorName<Unified>,
+    name: String,
   ) -> (LocalRef<Specific>, Sender<Self>)
   where
     A: Actor<Unified, Specific> + Send + 'static,
@@ -89,7 +89,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   fn run_single<Specific, A>(
     self,
     mut actor: A,
-    name: ActorName<Unified>,
+    name: String,
     tx: Sender<ActorMsg<Unified, Specific>>,
     rx: Receiver<ActorMsg<Unified, Specific>>,
     register: bool,
@@ -98,6 +98,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     Specific: 'static + Send + SpecificInterface<Unified>,
     Unified: Case<Specific>,
   {
+    let name = ActorName::new::<Specific>(name);
     let ctx = ActorContext {
       tx: tx,
       name: name.clone(),
@@ -111,7 +112,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
         _ => (),
       };
     }
-    actor.pre_start();
+    actor.pre_start(&ctx);
     loop {
       let recvd = rx.recv().unwrap();
       let msg: Specific = match recvd {

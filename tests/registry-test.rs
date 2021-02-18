@@ -1,10 +1,7 @@
 use aurum::core::{
-  serialize, Actor, ActorContext, Host, Node, RegistryMsg, Socket,
+  serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg, Socket,
 };
-use aurum::{
-  core::{ActorName, Case},
-  unified,
-};
+use aurum::unified;
 use crossbeam::channel::{bounded, unbounded, Sender};
 use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
@@ -23,7 +20,7 @@ struct Echoer {
   echo_recvr: Sender<Echo>,
 }
 impl Actor<RegTestTypes, Echo> for Echoer {
-  fn pre_start(&mut self) {
+  fn pre_start(&mut self, _: &ActorContext<RegTestTypes, Echo>) {
     self.confirm_start.send(()).unwrap();
   }
   fn recv(&mut self, _ctx: &ActorContext<RegTestTypes, Echo>, msg: Echo) {
@@ -43,12 +40,12 @@ fn registry_test() {
   let echo_name = ActorName::new::<Echo>("echoer".to_string());
   let (confirm_tx, confirm_rx) = bounded(1);
   let (tx, rx) = unbounded();
-  node.spawn(
+  node.spawn_local_single(
     Echoer {
       confirm_start: confirm_tx,
       echo_recvr: tx,
     },
-    echo_name.clone(),
+    "echoer".to_string(),
     true,
   );
   let str_ser = serialize("oh no!".to_string()).unwrap();

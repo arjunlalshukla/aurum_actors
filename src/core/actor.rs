@@ -24,9 +24,9 @@ impl<Unified: UnifiedBounds> ActorName<Unified> {
 }
 
 pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg> {
-  fn pre_start(&mut self) {}
-  fn recv(&mut self, ctx: &ActorContext<Unified, Msg>, msg: Msg);
-  fn post_stop(&mut self) {}
+  fn pre_start(&mut self, _: &ActorContext<Unified, Msg>) {}
+  fn recv(&mut self, _: &ActorContext<Unified, Msg>, _: Msg);
+  fn post_stop(&mut self, _: &ActorContext<Unified, Msg>) {}
 }
 
 pub enum ActorMsg<Unified, Specific> {
