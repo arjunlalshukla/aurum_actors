@@ -1,7 +1,7 @@
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
-use crossbeam::channel::Sender;
 use aurum_macros::AurumInterface;
+use crossbeam::channel::Sender;
 use std::collections::HashMap;
 
 pub type SerializedRecvr<Unified> =

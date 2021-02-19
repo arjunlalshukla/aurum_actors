@@ -6,7 +6,31 @@ use std::sync::Arc;
 
 use super::UnifiedBounds;
 
-pub type LocalRef<T> = Arc<dyn Fn(T) -> bool + Send + Sync>;
+//pub type LocalRef<T> = Arc<dyn Fn(T) -> bool + Send + Sync>;
+
+#[derive(Clone)]
+pub struct LocalRef<T: Send> {
+  pub(crate) func: Arc<dyn Fn(T) -> bool + Send + Sync>,
+}
+impl<T: Send> LocalRef<T> {
+  pub fn send(&self, item: T) {
+    (&self.func)(item);
+  }
+
+  pub fn void() -> LocalRef<T> {
+    LocalRef {
+      func: Arc::new(|_| false),
+    }
+  }
+
+  pub fn panic() -> LocalRef<T> {
+    LocalRef {
+      func: Arc::new(|_| {
+        panic!("LocalRef<{}> is a panic", std::any::type_name::<T>())
+      }),
+    }
+  }
+}
 
 pub trait HasInterface<T: Serialize + DeserializeOwned> {}
 
@@ -22,13 +46,13 @@ where
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "Unified: Case<Specific> + Serialize + DeserializeOwned")]
-pub struct ActorRef<Unified: UnifiedBounds, Specific> {
+pub struct ActorRef<Unified: UnifiedBounds, Specific: Send> {
   addr: Address<Unified>,
   interface: Unified,
   #[serde(skip, default)]
   local: Option<LocalRef<Specific>>,
 }
-impl<Unified: UnifiedBounds + Case<Specific>, Specific>
+impl<Unified: UnifiedBounds + Case<Specific>, Specific: Send>
   ActorRef<Unified, Specific>
 {
   pub fn new(
@@ -44,7 +68,7 @@ impl<Unified: UnifiedBounds + Case<Specific>, Specific>
   }
 }
 
-impl<Unified: UnifiedBounds + Case<Specific>, Specific> Debug
+impl<Unified: UnifiedBounds + Case<Specific>, Specific: Send> Debug
   for ActorRef<Unified, Specific>
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

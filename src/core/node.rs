@@ -16,10 +16,8 @@ pub struct Node<Unified: UnifiedBounds> {
 }
 impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   pub fn new(socket: Socket) -> Self {
-    let (reg, reg_node_tx) = Self::start_codependent(
-      Registry::new(),
-      "registry".to_string(),
-    );
+    let (reg, reg_node_tx) =
+      Self::start_codependent(Registry::new(), "registry".to_string());
     let node = Node {
       node: Arc::new(NodeImpl {
         socket: socket,
@@ -37,7 +35,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   }
 
   pub fn registry(&self, msg: RegistryMsg<Unified>) {
-    (&self.node.registry)(msg);
+    &self.node.registry.send(msg);
   }
 
   pub fn spawn_local_single<Specific, A>(
@@ -57,8 +55,6 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     std::thread::spawn(move || node.run_single(actor, name, tx, rx, register));
     ret
   }
-
-
 
   fn start_codependent<Specific, A>(
     actor: A,
@@ -84,8 +80,6 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     ret
   }
 
-
-  
   fn run_single<Specific, A>(
     self,
     mut actor: A,

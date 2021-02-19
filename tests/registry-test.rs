@@ -1,9 +1,10 @@
 use aurum::core::{
-  serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg, Socket,
+  serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg,
+  Socket,
 };
 use aurum::unified;
-use crossbeam::channel::{bounded, unbounded, Sender};
 use aurum_macros::AurumInterface;
+use crossbeam::channel::{bounded, unbounded, Sender};
 use serde::{Deserialize, Serialize};
 
 type RegType = RegistryMsg<RegTestTypes>;

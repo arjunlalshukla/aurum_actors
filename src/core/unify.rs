@@ -34,7 +34,7 @@ impl<
 {
 }
 
-pub fn forge<Unified, Specific, Interface>(
+pub fn forge<Unified, Specific, Interface: Send>(
   s: String,
   n: Socket,
 ) -> ActorRef<Unified, Interface>
