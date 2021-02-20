@@ -6,10 +6,16 @@ use std::path::Path;
 use std::process::Command;
 
 mod aurum_interface;
+mod unify;
 
 #[proc_macro_derive(AurumInterface, attributes(aurum))]
 pub fn aurum_interface(item: TokenStream) -> TokenStream {
   aurum_interface::aurum_interface_impl(syn::parse(item).unwrap())
+}
+
+#[proc_macro]
+pub fn unify(item: TokenStream) -> TokenStream {
+  unify::unify_impl(item)
 }
 
 fn write_and_fmt<S: ToString>(file: String, code: S) -> io::Result<()> {
