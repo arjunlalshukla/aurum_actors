@@ -1,32 +1,27 @@
-use std::u32;
-
 use aurum::core::{
-  Actor, ActorContext, ActorName, Host, LocalRef, Node, RegistryMsg, Socket,
+  Actor, ActorContext, ActorName, Host, LocalRef, Node, Socket,
 };
-use aurum::unified;
-use aurum_macros::AurumInterface;
+use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
 
 const ROUNDS: u32 = 100;
 const RING_SIZE: u16 = 20;
 
-type Reg = RegistryMsg<MsgTypes>;
-
 #[derive(AurumInterface, Clone)]
 #[aurum(local)]
 enum Ball {
-  Ball(u32, ActorName<MsgTypes>),
+  Ball(u32, ActorName<RingTypes>),
 }
-unified!(MsgTypes = Ball | Reg);
+unify!(RingTypes = Ball);
 
 struct Player {
-  tester: Sender<(u32, ActorName<MsgTypes>)>,
+  tester: Sender<(u32, ActorName<RingTypes>)>,
   ring_num: u16,
   next: LocalRef<Ball>,
   leader: Option<LocalRef<Ball>>,
 }
-impl Actor<MsgTypes, Ball> for Player {
-  fn pre_start(&mut self, ctx: &ActorContext<MsgTypes, Ball>) {
+impl Actor<RingTypes, Ball> for Player {
+  fn pre_start(&mut self, ctx: &ActorContext<RingTypes, Ball>) {
     if self.ring_num != 0 {
       self.next = ctx.node.spawn_local_single(
         Player {
@@ -46,7 +41,7 @@ impl Actor<MsgTypes, Ball> for Player {
     }
   }
 
-  fn recv(&mut self, ctx: &ActorContext<MsgTypes, Ball>, msg: Ball) {
+  fn recv(&mut self, ctx: &ActorContext<RingTypes, Ball>, msg: Ball) {
     match msg {
       Ball::Ball(hit_num, sender) => {
         self.tester.send((hit_num, sender)).unwrap();
@@ -61,14 +56,14 @@ impl Actor<MsgTypes, Ball> for Player {
 #[test]
 fn ring() {
   let (tx, rx) = unbounded();
-  let node = Node::<MsgTypes>::new(Socket::new(
+  let node = Node::<RingTypes>::new(Socket::new(
     Host::DNS("localhost".to_string()),
     1000,
     1001,
   ));
   let names = (0..RING_SIZE)
     .rev()
-    .map(|x| ActorName::<MsgTypes>::new::<Ball>(format!("ring-member-{}", x)))
+    .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))
     .collect::<Vec<_>>();
   node.spawn_local_single(
     Player {

@@ -56,21 +56,3 @@ where
 {
   const VARIANT: Self;
 }
-
-// Haskell-style algebraic data types
-#[macro_export]
-macro_rules! unified {
-  ($name:ident = $($part:ident)|*) => {
-    #[derive(serde::Serialize, serde::Deserialize, std::cmp::Eq,
-      std::cmp::PartialEq, std::fmt::Debug, std::hash::Hash, std::clone::Clone
-    )]
-    enum $name {
-      $($part,)*
-    }
-    $(
-      impl aurum::core::Case<$part> for $name {
-        const VARIANT: $name = $name::$part;
-      }
-    )*
-  };
-}

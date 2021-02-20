@@ -2,12 +2,9 @@ use aurum::core::{
   serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg,
   Socket,
 };
-use aurum::unified;
-use aurum_macros::AurumInterface;
+use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{bounded, unbounded, Sender};
 use serde::{Deserialize, Serialize};
-
-type RegType = RegistryMsg<RegTestTypes>;
 
 #[derive(AurumInterface, PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum Echo {
@@ -29,7 +26,7 @@ impl Actor<RegTestTypes, Echo> for Echoer {
   }
 }
 
-unified! {RegTestTypes = Echo | RegType | String}
+unify!(RegTestTypes = Echo | String);
 
 #[test]
 fn registry_test() {
