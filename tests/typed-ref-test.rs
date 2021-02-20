@@ -22,7 +22,7 @@ enum LoggerMsg {
 #[allow(dead_code)]
 enum DataStoreMsg {
   #[aurum]
-  Cmd(DataStoreCmd),
+  Cmd{ cmd: DataStoreCmd},
   #[aurum(local)]
   Subscribe(LocalRef<String>),
 }
@@ -70,7 +70,7 @@ fn serde_test() {
     );
   assert!(matches!(
     de_get.unwrap(),
-    DataStoreMsg::Cmd(DataStoreCmd::Get)
+    DataStoreMsg::Cmd{cmd: DataStoreCmd::Get}
   ));
 
   let ser_put = serialize(DataStoreCmd::Put("put".to_string())).unwrap();
@@ -80,7 +80,7 @@ fn serde_test() {
       ser_put,
     );
   assert!(
-    matches!(de_put, Ok(DataStoreMsg::Cmd(DataStoreCmd::Put(x))) if x.as_str() == "put")
+    matches!(de_put, Ok(DataStoreMsg::Cmd{cmd: DataStoreCmd::Put(x)}) if x.as_str() == "put")
   );
 }
 

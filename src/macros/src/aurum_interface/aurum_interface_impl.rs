@@ -32,18 +32,34 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
     .into_iter()
     .filter_map(|x| AurumVariant::try_from(x).ok())
     .collect::<Vec<AurumVariant>>();
-  let interfaces = translates
-    .iter()
-    .map(|x| x.field.to_token_stream().into())
-    .collect::<Vec<proc_macro2::TokenStream>>();
-  let variants = translates
-    .iter()
-    .map(|x| &x.variant)
-    .collect::<Vec<&Ident>>();
+
+  let from_impls = translates.iter().map(|variant| {
+    let variant_name = &variant.variant_name;
+    let field_type = &variant.field_type;
+    match &variant.field_name {
+      Some(name) => quote! {
+        impl<#generics> std::convert::From<#field_type>
+        for #type_id_with_generics {
+          fn from(item: #field_type) -> #type_id_with_generics {
+            #type_id::#variant_name { #name: item }
+          }
+        }
+      },
+      None => quote! {
+        impl<#generics> std::convert::From<#field_type>
+        for #type_id_with_generics {
+          fn from(item: #field_type) -> #type_id_with_generics {
+            #type_id::#variant_name(item)
+          }
+        }
+      }
+    }
+  });
+
   let mut non_locals = translates
     .iter()
     .filter(|x| x.props.non_local)
-    .map(|x| x.field.to_token_stream().into())
+    .map(|x| x.field_type.to_token_stream().into())
     .collect::<Vec<proc_macro2::TokenStream>>();
   let mut cases = non_locals.clone();
   if type_props.non_local {
@@ -52,14 +68,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
   cases.push(type_id_with_generics.clone());
 
   let code = TokenStream::from(quote! {
-    #(
-      impl<#generics> std::convert::From<#interfaces>
-      for #type_id_with_generics {
-        fn from(item: #interfaces) -> #type_id_with_generics {
-          #type_id::#variants(item)
-        }
-      }
-    )*
+    #(#from_impls)*
 
     #(
       impl<#generics> aurum::core::HasInterface<#non_locals>
