@@ -39,7 +39,8 @@ fn registry_test() {
   let echo_name = ActorName::new::<Echo>("echoer".to_string());
   let (confirm_tx, confirm_rx) = bounded(1);
   let (tx, rx) = unbounded();
-  node.spawn_local_single(
+  node.spawn(
+    false,
     Echoer {
       confirm_start: confirm_tx,
       echo_recvr: tx,

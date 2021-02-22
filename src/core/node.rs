@@ -1,23 +1,20 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, Case, LocalActorMsg, LocalRef,
+  run_secondary, run_single, Actor, ActorContext, ActorMsg, Case, LocalRef,
   Registry, RegistryMsg, Socket, SpecificInterface, UnifiedBounds,
 };
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
-use tokio::sync::mpsc::{
-  unbounded_channel, UnboundedReceiver, UnboundedSender,
-};
-use tokio::sync::oneshot::channel;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-struct NodeImpl<Unified: UnifiedBounds> {
-  socket: Socket,
-  registry: LocalRef<RegistryMsg<Unified>>,
-  rt: Runtime,
+pub(crate) struct NodeImpl<Unified: UnifiedBounds> {
+  pub(crate) socket: Socket,
+  pub(crate) registry: LocalRef<RegistryMsg<Unified>>,
+  pub(crate) rt: Runtime,
 }
 
 #[derive(Clone)]
 pub struct Node<Unified: UnifiedBounds> {
-  node: Arc<NodeImpl<Unified>>,
+  pub(crate) node: Arc<NodeImpl<Unified>>,
 }
 impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   pub fn new(socket: Socket, actor_threads: usize) -> Self {
@@ -50,27 +47,6 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     self.node.registry.send(msg)
   }
 
-  pub fn spawn_local_single<Specific, A>(
-    &self,
-    actor: A,
-    name: String,
-    register: bool,
-  ) -> LocalRef<Specific>
-  where
-    A: Actor<Unified, Specific> + Send + 'static,
-    Specific: 'static + Send + SpecificInterface<Unified>,
-    Unified: Case<Specific>,
-  {
-    let (tx, rx) = unbounded_channel::<ActorMsg<Unified, Specific>>();
-    let ret = ActorContext::<Unified, Specific>::create_local(tx.clone());
-    let node = self.clone();
-    self
-      .node
-      .rt
-      .spawn(node.run_single(actor, name, tx, rx, register));
-    ret
-  }
-
   fn start_codependent<Specific, A>(
     rt: &Runtime,
     actor: A,
@@ -88,58 +64,38 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
       node_tx,
     );
     rt.spawn(async move {
-      node_rx
-        .recv()
-        .await
-        .unwrap()
-        .run_single(actor, name, tx, rx, false)
+      run_single(node_rx.recv().await.unwrap(), actor, name, tx, rx, false)
         .await
     });
     ret
   }
 
-  async fn run_single<Specific, A>(
-    self,
-    mut actor: A,
+  pub fn spawn<Specific, A>(
+    &self,
+    double: bool,
+    actor: A,
     name: String,
-    tx: UnboundedSender<ActorMsg<Unified, Specific>>,
-    mut rx: UnboundedReceiver<ActorMsg<Unified, Specific>>,
     register: bool,
-  ) where
+  ) -> LocalRef<Specific>
+  where
     A: Actor<Unified, Specific> + Send + 'static,
     Specific: 'static + Send + SpecificInterface<Unified>,
     Unified: Case<Specific>,
   {
-    let name = ActorName::new::<Specific>(name);
-    let ctx = ActorContext {
-      tx: tx,
-      name: name.clone(),
-      node: self.clone(),
-    };
-    if register {
-      let (tx, rx) = channel::<()>();
-      self.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx));
-      match rx.await {
-        Err(_) => panic!("Could not register {:?}", name),
-        _ => (),
-      };
+    let (tx, rx) = unbounded_channel::<ActorMsg<Unified, Specific>>();
+    let ret = ActorContext::<Unified, Specific>::create_local(tx.clone());
+    let node = self.clone();
+    if double {
+      self
+        .node
+        .rt
+        .spawn(run_secondary(node, actor, name, tx, rx, register));
+    } else {
+      self
+        .node
+        .rt
+        .spawn(run_single(node, actor, name, tx, rx, register));
     }
-    actor.pre_start(&ctx).await;
-    loop {
-      let recvd = rx.recv().await.unwrap();
-      let msg = match recvd {
-        ActorMsg::Msg(x) => x,
-        ActorMsg::Serial(interface, bytes) => {
-          <Specific as SpecificInterface<Unified>>::deserialize_as(
-            interface, bytes,
-          )
-          .unwrap()
-        }
-      };
-      match msg {
-        LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,
-        _ => panic!("Receive signal not implemented"),
-      };
-    }
+    ret
   }
 }

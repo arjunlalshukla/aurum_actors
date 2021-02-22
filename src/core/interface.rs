@@ -15,6 +15,10 @@ impl<T: Send> LocalRef<T> {
     (&self.func)(LocalActorMsg::Msg(item))
   }
 
+  pub fn eager_kill(&self) -> bool {
+    (&self.func)(LocalActorMsg::EagerKill)
+  }
+
   pub fn void() -> LocalRef<T> {
     LocalRef {
       func: Arc::new(|_| false),

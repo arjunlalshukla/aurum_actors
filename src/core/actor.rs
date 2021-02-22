@@ -31,28 +31,23 @@ pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg: Send> {
   async fn post_stop(&mut self, _: &ActorContext<Unified, Msg>) {}
 }
 
-pub enum ActorMsg<Unified, Specific> {
+pub(crate) enum ActorMsg<Unified, Specific> {
   Msg(LocalActorMsg<Specific>),
   Serial(Unified, Vec<u8>),
+  PrimaryRequest,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "Specific: Serialize + DeserializeOwned")]
 pub enum LocalActorMsg<Specific> {
   Msg(Specific),
-  Kill(bool),
-  Pause(bool),
-  Sleep(bool),
-  Continue,
+  EagerKill,
 }
 impl<Specific: PartialEq> PartialEq for LocalActorMsg<Specific> {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
       (LocalActorMsg::Msg(a), LocalActorMsg::Msg(b)) if a == b => true,
-      (LocalActorMsg::Kill(a), LocalActorMsg::Kill(b)) if a == b => true,
-      (LocalActorMsg::Pause(a), LocalActorMsg::Pause(b)) if a == b => true,
-      (LocalActorMsg::Sleep(a), LocalActorMsg::Sleep(b)) if a == b => true,
-      (LocalActorMsg::Continue, LocalActorMsg::Continue) => true,
+      (LocalActorMsg::EagerKill, LocalActorMsg::EagerKill) => true,
       _ => false,
     }
   }
@@ -62,10 +57,7 @@ impl<Specific: Debug> Debug for LocalActorMsg<Specific> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let s = match self {
       LocalActorMsg::Msg(s) => format!("Msg{:?}", s),
-      LocalActorMsg::Kill(s) => format!("Kill{:?}", s),
-      LocalActorMsg::Pause(s) => format!("Pause{:?}", s),
-      LocalActorMsg::Sleep(s) => format!("Sleep{:?}", s),
-      LocalActorMsg::Continue => String::from("Continue"),
+      LocalActorMsg::EagerKill => format!("EagerKill"),
     };
     f.debug_struct("ActorRef")
       .field("Specific", &std::any::type_name::<Specific>())
@@ -79,15 +71,12 @@ pub fn local_actor_msg_convert<Specific: From<Interface>, Interface>(
 ) -> LocalActorMsg<Specific> {
   match msg {
     LocalActorMsg::Msg(s) => LocalActorMsg::Msg(Specific::from(s)),
-    LocalActorMsg::Kill(t) => LocalActorMsg::Kill(t),
-    LocalActorMsg::Pause(t) => LocalActorMsg::Pause(t),
-    LocalActorMsg::Sleep(t) => LocalActorMsg::Sleep(t),
-    LocalActorMsg::Continue => LocalActorMsg::Continue,
+    LocalActorMsg::EagerKill => LocalActorMsg::EagerKill,
   }
 }
 
 pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
-  pub tx: UnboundedSender<ActorMsg<Unified, Specific>>,
+  pub(crate) tx: UnboundedSender<ActorMsg<Unified, Specific>>,
   pub name: ActorName<Unified>,
   pub node: Node<Unified>,
 }
