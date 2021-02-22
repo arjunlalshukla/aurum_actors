@@ -1,10 +1,9 @@
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
+use async_trait::async_trait;
 use aurum_macros::AurumInterface;
 use std::collections::HashMap;
 use tokio::sync::oneshot::Sender;
-use async_trait::async_trait;
-
 
 pub type SerializedRecvr<Unified> =
   Box<dyn Fn(Unified, Vec<u8>) -> bool + Send>;

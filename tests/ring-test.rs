@@ -58,11 +58,10 @@ impl Actor<RingTypes, Ball> for Player {
 #[test]
 fn ring() {
   let (tx, rx) = unbounded();
-  let node = Node::<RingTypes>::new(Socket::new(
-    Host::DNS("localhost".to_string()),
-    1000,
-    1001,
-  ), 1);
+  let node = Node::<RingTypes>::new(
+    Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
+    1,
+  );
   let names = (0..RING_SIZE)
     .rev()
     .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))

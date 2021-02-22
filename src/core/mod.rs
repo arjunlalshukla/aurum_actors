@@ -1,7 +1,10 @@
 extern crate aurum_macros;
 
 mod actor;
-pub use actor::{Actor, ActorContext, ActorMsg, ActorName};
+pub use actor::{
+  local_actor_msg_convert, Actor, ActorContext, ActorMsg, ActorName,
+  LocalActorMsg,
+};
 
 mod interface;
 pub use interface::{ActorRef, HasInterface, LocalRef, SpecificInterface};

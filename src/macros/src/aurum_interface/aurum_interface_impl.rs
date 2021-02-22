@@ -52,7 +52,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
             #type_id::#variant_name(item)
           }
         }
-      }
+      },
     }
   });
 
@@ -81,7 +81,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
     #where_clause
     {
       fn deserialize_as(item: __Unified, bytes: Vec<u8>) ->
-       std::result::Result<Self, aurum::core::DeserializeError<__Unified>> {
+       std::result::Result<aurum::core::LocalActorMsg<Self>, aurum::core::DeserializeError<__Unified>> {
         #(
           if <__Unified as aurum::core::Case<#non_locals>>::VARIANT == item {
             return aurum::core::deserialize

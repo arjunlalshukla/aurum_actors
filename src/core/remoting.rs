@@ -1,4 +1,6 @@
-use crate::core::{ActorName, Case, UnifiedBounds};
+use crate::core::{
+  local_actor_msg_convert, ActorName, Case, LocalActorMsg, UnifiedBounds,
+};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -21,16 +23,19 @@ where
 pub fn deserialize<Unified, Specific, Interface>(
   item: Unified,
   bytes: Vec<u8>,
-) -> Result<Specific, DeserializeError<Unified>>
+) -> Result<LocalActorMsg<Specific>, DeserializeError<Unified>>
 where
   Unified: Case<Specific> + Case<Interface> + UnifiedBounds,
   Specific: From<Interface>,
   Interface: Serialize + DeserializeOwned,
 {
-  match serde_json::from_slice::<Interface>(bytes.as_slice()) {
-    Ok(res) => Result::Ok(Specific::from(res)),
+  let x = match serde_json::from_slice::<LocalActorMsg<Interface>>(
+    bytes.as_slice(),
+  ) {
+    Ok(res) => Result::Ok(local_actor_msg_convert(res)),
     Err(_) => Result::Err(DeserializeError::Other(item)),
-  }
+  };
+  x
 }
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Host {

@@ -3,12 +3,12 @@ use crate::core::{
   UnifiedBounds,
 };
 use async_trait::async_trait;
-use tokio::sync::mpsc::UnboundedSender;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::RegistryMsg;
 
@@ -32,8 +32,58 @@ pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg: Send> {
 }
 
 pub enum ActorMsg<Unified, Specific> {
-  Msg(Specific),
+  Msg(LocalActorMsg<Specific>),
   Serial(Unified, Vec<u8>),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "Specific: Serialize + DeserializeOwned")]
+pub enum LocalActorMsg<Specific> {
+  Msg(Specific),
+  Kill(bool),
+  Pause(bool),
+  Sleep(bool),
+  Continue,
+}
+impl<Specific: PartialEq> PartialEq for LocalActorMsg<Specific> {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (LocalActorMsg::Msg(a), LocalActorMsg::Msg(b)) if a == b => true,
+      (LocalActorMsg::Kill(a), LocalActorMsg::Kill(b)) if a == b => true,
+      (LocalActorMsg::Pause(a), LocalActorMsg::Pause(b)) if a == b => true,
+      (LocalActorMsg::Sleep(a), LocalActorMsg::Sleep(b)) if a == b => true,
+      (LocalActorMsg::Continue, LocalActorMsg::Continue) => true,
+      _ => false,
+    }
+  }
+}
+impl<Specific: Eq> Eq for LocalActorMsg<Specific> {}
+impl<Specific: Debug> Debug for LocalActorMsg<Specific> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let s = match self {
+      LocalActorMsg::Msg(s) => format!("Msg{:?}", s),
+      LocalActorMsg::Kill(s) => format!("Kill{:?}", s),
+      LocalActorMsg::Pause(s) => format!("Pause{:?}", s),
+      LocalActorMsg::Sleep(s) => format!("Sleep{:?}", s),
+      LocalActorMsg::Continue => String::from("Continue"),
+    };
+    f.debug_struct("ActorRef")
+      .field("Specific", &std::any::type_name::<Specific>())
+      .field("variant", &s)
+      .finish()
+  }
+}
+
+pub fn local_actor_msg_convert<Specific: From<Interface>, Interface>(
+  msg: LocalActorMsg<Interface>,
+) -> LocalActorMsg<Specific> {
+  match msg {
+    LocalActorMsg::Msg(s) => LocalActorMsg::Msg(Specific::from(s)),
+    LocalActorMsg::Kill(t) => LocalActorMsg::Kill(t),
+    LocalActorMsg::Pause(t) => LocalActorMsg::Pause(t),
+    LocalActorMsg::Sleep(t) => LocalActorMsg::Sleep(t),
+    LocalActorMsg::Continue => LocalActorMsg::Continue,
+  }
 }
 
 pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
@@ -51,8 +101,10 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
     Specific: From<T> + 'static,
   {
     LocalRef {
-      func: Arc::new(move |x: T| {
-        sender.send(ActorMsg::Msg(Specific::from(x))).is_ok()
+      func: Arc::new(move |x: LocalActorMsg<T>| {
+        sender
+          .send(ActorMsg::Msg(local_actor_msg_convert(x)))
+          .is_ok()
       }),
     }
   }

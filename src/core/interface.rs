@@ -1,4 +1,4 @@
-use crate::core::{Address, Case, DeserializeError};
+use crate::core::{Address, Case, DeserializeError, LocalActorMsg};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -6,15 +6,13 @@ use std::sync::Arc;
 
 use super::UnifiedBounds;
 
-//pub type LocalRef<T> = Arc<dyn Fn(T) -> bool + Send + Sync>;
-
 #[derive(Clone)]
 pub struct LocalRef<T: Send> {
-  pub(crate) func: Arc<dyn Fn(T) -> bool + Send + Sync>,
+  pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
 }
 impl<T: Send> LocalRef<T> {
   pub fn send(&self, item: T) -> bool {
-    (&self.func)(item)
+    (&self.func)(LocalActorMsg::Msg(item))
   }
 
   pub fn void() -> LocalRef<T> {
@@ -41,7 +39,7 @@ where
   fn deserialize_as(
     interface: Unified,
     bytes: Vec<u8>,
-  ) -> Result<Self, DeserializeError<Unified>>;
+  ) -> Result<LocalActorMsg<Self>, DeserializeError<Unified>>;
 }
 
 #[derive(Clone, Deserialize, Serialize)]

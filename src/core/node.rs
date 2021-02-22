@@ -1,16 +1,18 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, Case, LocalRef, Registry,
-  RegistryMsg, Socket, SpecificInterface, UnifiedBounds,
+  Actor, ActorContext, ActorMsg, ActorName, Case, LocalActorMsg, LocalRef,
+  Registry, RegistryMsg, Socket, SpecificInterface, UnifiedBounds,
 };
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::mpsc::{
+  unbounded_channel, UnboundedReceiver, UnboundedSender,
+};
 use tokio::sync::oneshot::channel;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
 
 struct NodeImpl<Unified: UnifiedBounds> {
   socket: Socket,
   registry: LocalRef<RegistryMsg<Unified>>,
-  rt: Runtime
+  rt: Runtime,
 }
 
 #[derive(Clone)]
@@ -20,18 +22,18 @@ pub struct Node<Unified: UnifiedBounds> {
 impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
   pub fn new(socket: Socket, actor_threads: usize) -> Self {
     let rt = Builder::new_multi_thread()
-    .worker_threads(actor_threads)
-    .thread_name("tokio-thread")
-    .thread_stack_size(3 * 1024 * 1024)
-    .build()
-    .unwrap();
+      .worker_threads(actor_threads)
+      .thread_name("tokio-thread")
+      .thread_stack_size(3 * 1024 * 1024)
+      .build()
+      .unwrap();
     let (reg, reg_node_tx) =
       Self::start_codependent(&rt, Registry::new(), "registry".to_string());
     let node = Node {
       node: Arc::new(NodeImpl {
         socket: socket,
         registry: reg,
-        rt: rt
+        rt: rt,
       }),
     };
     if reg_node_tx.send(node.clone()).is_err() {
@@ -48,8 +50,6 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     self.node.registry.send(msg)
   }
 
-
-
   pub fn spawn_local_single<Specific, A>(
     &self,
     actor: A,
@@ -64,11 +64,12 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     let (tx, rx) = unbounded_channel::<ActorMsg<Unified, Specific>>();
     let ret = ActorContext::<Unified, Specific>::create_local(tx.clone());
     let node = self.clone();
-    self.node.rt.spawn(node.run_single(actor, name, tx, rx, register));
+    self
+      .node
+      .rt
+      .spawn(node.run_single(actor, name, tx, rx, register));
     ret
   }
-
-
 
   fn start_codependent<Specific, A>(
     rt: &Runtime,
@@ -87,12 +88,15 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
       node_tx,
     );
     rt.spawn(async move {
-      node_rx.recv().await.unwrap().run_single(actor, name, tx, rx, false).await
+      node_rx
+        .recv()
+        .await
+        .unwrap()
+        .run_single(actor, name, tx, rx, false)
+        .await
     });
     ret
   }
-
-
 
   async fn run_single<Specific, A>(
     self,
@@ -114,9 +118,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     };
     if register {
       let (tx, rx) = channel::<()>();
-      if !self.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx)) {
-        println!("Could not send to registry");
-      } 
+      self.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx));
       match rx.await {
         Err(_) => panic!("Could not register {:?}", name),
         _ => (),
@@ -125,7 +127,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     actor.pre_start(&ctx).await;
     loop {
       let recvd = rx.recv().await.unwrap();
-      let msg: Specific = match recvd {
+      let msg = match recvd {
         ActorMsg::Msg(x) => x,
         ActorMsg::Serial(interface, bytes) => {
           <Specific as SpecificInterface<Unified>>::deserialize_as(
@@ -134,7 +136,10 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
           .unwrap()
         }
       };
-      actor.recv(&ctx, msg).await;
+      match msg {
+        LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,
+        _ => panic!("Receive signal not implemented"),
+      };
     }
   }
 }

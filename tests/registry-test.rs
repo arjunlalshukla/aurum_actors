@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use aurum::core::{
-  serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg,
-  Socket,
+  serialize, Actor, ActorContext, ActorName, Case, Host, LocalActorMsg, Node,
+  RegistryMsg, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{bounded, unbounded, Sender};
@@ -32,11 +32,10 @@ unify!(RegTestTypes = Echo | String);
 
 #[test]
 fn registry_test() {
-  let node = Node::<RegTestTypes>::new(Socket::new(
-    Host::DNS("localhost".to_string()),
-    1000,
-    1001,
-  ), 1);
+  let node = Node::<RegTestTypes>::new(
+    Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
+    1,
+  );
   let echo_name = ActorName::new::<Echo>("echoer".to_string());
   let (confirm_tx, confirm_rx) = bounded(1);
   let (tx, rx) = unbounded();
@@ -48,7 +47,7 @@ fn registry_test() {
     "echoer".to_string(),
     true,
   );
-  let str_ser = serialize("oh no!".to_string()).unwrap();
+  let str_ser = serialize(LocalActorMsg::Msg("oh no!".to_string())).unwrap();
   confirm_rx.recv().unwrap();
   node.registry(RegistryMsg::Forward(
     echo_name,

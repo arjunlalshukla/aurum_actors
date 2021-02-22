@@ -1,9 +1,9 @@
 use aurum::core::{
-  forge, serialize, Case, Host, LocalRef, Socket, SpecificInterface,
+  forge, serialize, Case, Host, LocalActorMsg, Socket, SpecificInterface,
 };
 use aurum_macros::{unify, AurumInterface};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{any::TypeId, fmt::Debug};
 
 #[derive(
   AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize,
@@ -17,17 +17,17 @@ enum LoggerMsg {
   Error(u32),
 }
 
-#[derive(AurumInterface)]
+#[derive(AurumInterface, PartialEq, Eq, Debug)]
 #[aurum(local)]
 #[allow(dead_code)]
 enum DataStoreMsg {
   #[aurum]
-  Cmd{ cmd: DataStoreCmd},
+  Cmd { cmd: DataStoreCmd },
   #[aurum(local)]
-  Subscribe(LocalRef<String>),
+  Subscribe(TypeId),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 enum DataStoreCmd {
   Get,
   Put(String),
@@ -40,47 +40,62 @@ unify!(
 
 #[test]
 fn serde_test() {
-  let ser_u32 = serialize(5u32).unwrap();
+  let ser_u32 = serialize(LocalActorMsg::Msg(5u32)).unwrap();
   let de_u32 = <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
     <TypedRefTypes as Case<u32>>::VARIANT,
     ser_u32,
   );
-  assert_eq!(de_u32.unwrap(), LoggerMsg::Error(5));
+  assert_eq!(de_u32.unwrap(), LocalActorMsg::Msg(LoggerMsg::Error(5)));
 
-  let ser_string = serialize("oh no!".to_string()).unwrap();
+  let ser_string = serialize(LocalActorMsg::Msg("oh no!".to_string())).unwrap();
   let de_string =
     <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<String>>::VARIANT,
       ser_string,
     );
-  assert_eq!(de_string.unwrap(), LoggerMsg::Warning("oh no!".to_string()));
+  assert_eq!(
+    de_string.unwrap(),
+    LocalActorMsg::Msg(LoggerMsg::Warning("oh no!".to_string()))
+  );
 
-  let ser_info = serialize(LoggerMsg::Info("hello".to_string())).unwrap();
+  let ser_info =
+    serialize(LocalActorMsg::Msg(LoggerMsg::Info("hello".to_string())))
+      .unwrap();
   let de_info = <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
     <TypedRefTypes as Case<LoggerMsg>>::VARIANT,
     ser_info,
   );
-  assert_eq!(de_info.unwrap(), LoggerMsg::Info("hello".to_string()));
+  assert_eq!(
+    de_info.unwrap(),
+    LocalActorMsg::Msg(LoggerMsg::Info("hello".to_string()))
+  );
 
-  let ser_get = serialize(DataStoreCmd::Get).unwrap();
+  let ser_get = serialize(LocalActorMsg::Msg(DataStoreCmd::Get)).unwrap();
   let de_get =
     <DataStoreMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<DataStoreCmd>>::VARIANT,
       ser_get,
     );
-  assert!(matches!(
+  assert_eq!(
     de_get.unwrap(),
-    DataStoreMsg::Cmd{cmd: DataStoreCmd::Get}
-  ));
+    LocalActorMsg::Msg(DataStoreMsg::Cmd {
+      cmd: DataStoreCmd::Get
+    })
+  );
 
-  let ser_put = serialize(DataStoreCmd::Put("put".to_string())).unwrap();
+  let ser_put =
+    serialize(LocalActorMsg::Msg(DataStoreCmd::Put("put".to_string())))
+      .unwrap();
   let de_put =
     <DataStoreMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<DataStoreCmd>>::VARIANT,
       ser_put,
     );
-  assert!(
-    matches!(de_put, Ok(DataStoreMsg::Cmd{cmd: DataStoreCmd::Put(x)}) if x.as_str() == "put")
+  assert_eq!(
+    de_put.unwrap(),
+    LocalActorMsg::Msg(DataStoreMsg::Cmd {
+      cmd: DataStoreCmd::Put(String::from("put"))
+    })
   );
 }
 
