@@ -9,6 +9,7 @@ use super::ActorName;
 pub trait UnifiedBounds:
   'static
   + Send
+  + Sync
   + Debug
   + Clone
   + PartialEq
@@ -22,6 +23,7 @@ pub trait UnifiedBounds:
 impl<
     T: 'static
       + Send
+      + Sync
       + Debug
       + Clone
       + PartialEq

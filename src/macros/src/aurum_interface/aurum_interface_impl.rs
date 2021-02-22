@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2;
 use quote::{quote, ToTokens};
 use std::convert::TryFrom;
-use syn::{DeriveInput, Ident, TypePath};
+use syn::{DeriveInput, TypePath};
 
 use super::{AurumProperties, AurumVariant};
 use crate::write_and_fmt;

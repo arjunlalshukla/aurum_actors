@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use aurum::core::{
   serialize, Actor, ActorContext, ActorName, Case, Host, Node, RegistryMsg,
   Socket,
@@ -17,11 +18,12 @@ struct Echoer {
   confirm_start: Sender<()>,
   echo_recvr: Sender<Echo>,
 }
+#[async_trait]
 impl Actor<RegTestTypes, Echo> for Echoer {
-  fn pre_start(&mut self, _: &ActorContext<RegTestTypes, Echo>) {
+  async fn pre_start(&mut self, _: &ActorContext<RegTestTypes, Echo>) {
     self.confirm_start.send(()).unwrap();
   }
-  fn recv(&mut self, _ctx: &ActorContext<RegTestTypes, Echo>, msg: Echo) {
+  async fn recv(&mut self, _ctx: &ActorContext<RegTestTypes, Echo>, msg: Echo) {
     self.echo_recvr.send(msg).unwrap();
   }
 }
@@ -34,7 +36,7 @@ fn registry_test() {
     Host::DNS("localhost".to_string()),
     1000,
     1001,
-  ));
+  ), 1);
   let echo_name = ActorName::new::<Echo>("echoer".to_string());
   let (confirm_tx, confirm_rx) = bounded(1);
   let (tx, rx) = unbounded();

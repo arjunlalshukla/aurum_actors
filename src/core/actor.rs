@@ -2,7 +2,8 @@ use crate::core::{
   ActorRef, Address, Case, HasInterface, LocalRef, Node, SerializedRecvr,
   UnifiedBounds,
 };
-use crossbeam::channel::Sender;
+use async_trait::async_trait;
+use tokio::sync::mpsc::UnboundedSender;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -23,10 +24,11 @@ impl<Unified: UnifiedBounds> ActorName<Unified> {
   }
 }
 
-pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg> {
-  fn pre_start(&mut self, _: &ActorContext<Unified, Msg>) {}
-  fn recv(&mut self, _: &ActorContext<Unified, Msg>, _: Msg);
-  fn post_stop(&mut self, _: &ActorContext<Unified, Msg>) {}
+#[async_trait]
+pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg: Send> {
+  async fn pre_start(&mut self, _: &ActorContext<Unified, Msg>) {}
+  async fn recv(&mut self, _: &ActorContext<Unified, Msg>, _: Msg);
+  async fn post_stop(&mut self, _: &ActorContext<Unified, Msg>) {}
 }
 
 pub enum ActorMsg<Unified, Specific> {
@@ -35,7 +37,7 @@ pub enum ActorMsg<Unified, Specific> {
 }
 
 pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
-  pub tx: Sender<ActorMsg<Unified, Specific>>,
+  pub tx: UnboundedSender<ActorMsg<Unified, Specific>>,
   pub name: ActorName<Unified>,
   pub node: Node<Unified>,
 }
@@ -43,7 +45,7 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
   ActorContext<Unified, Specific>
 {
   pub(in crate::core) fn create_local<T: Send>(
-    sender: Sender<ActorMsg<Unified, Specific>>,
+    sender: UnboundedSender<ActorMsg<Unified, Specific>>,
   ) -> LocalRef<T>
   where
     Specific: From<T> + 'static,

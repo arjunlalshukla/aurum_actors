@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use aurum::core::{
   Actor, ActorContext, ActorName, Host, LocalRef, Node, Socket,
 };
@@ -20,8 +21,9 @@ struct Player {
   next: LocalRef<Ball>,
   leader: Option<LocalRef<Ball>>,
 }
+#[async_trait]
 impl Actor<RingTypes, Ball> for Player {
-  fn pre_start(&mut self, ctx: &ActorContext<RingTypes, Ball>) {
+  async fn pre_start(&mut self, ctx: &ActorContext<RingTypes, Ball>) {
     if self.ring_num != 0 {
       self.next = ctx.node.spawn_local_single(
         Player {
@@ -41,7 +43,7 @@ impl Actor<RingTypes, Ball> for Player {
     }
   }
 
-  fn recv(&mut self, ctx: &ActorContext<RingTypes, Ball>, msg: Ball) {
+  async fn recv(&mut self, ctx: &ActorContext<RingTypes, Ball>, msg: Ball) {
     match msg {
       Ball::Ball(hit_num, sender) => {
         self.tester.send((hit_num, sender)).unwrap();
@@ -60,7 +62,7 @@ fn ring() {
     Host::DNS("localhost".to_string()),
     1000,
     1001,
-  ));
+  ), 1);
   let names = (0..RING_SIZE)
     .rev()
     .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))

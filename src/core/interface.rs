@@ -13,8 +13,8 @@ pub struct LocalRef<T: Send> {
   pub(crate) func: Arc<dyn Fn(T) -> bool + Send + Sync>,
 }
 impl<T: Send> LocalRef<T> {
-  pub fn send(&self, item: T) {
-    (&self.func)(item);
+  pub fn send(&self, item: T) -> bool {
+    (&self.func)(item)
   }
 
   pub fn void() -> LocalRef<T> {

@@ -1,8 +1,10 @@
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
 use aurum_macros::AurumInterface;
-use crossbeam::channel::Sender;
 use std::collections::HashMap;
+use tokio::sync::oneshot::Sender;
+use async_trait::async_trait;
+
 
 pub type SerializedRecvr<Unified> =
   Box<dyn Fn(Unified, Vec<u8>) -> bool + Send>;
@@ -25,12 +27,13 @@ impl<Unified: UnifiedBounds> Registry<Unified> {
     }
   }
 }
+#[async_trait]
 impl<Unified: UnifiedBounds> Actor<Unified, RegistryMsg<Unified>>
   for Registry<Unified>
 where
   Unified: Case<RegistryMsg<Unified>> + UnifiedBounds,
 {
-  fn recv(
+  async fn recv(
     &mut self,
     _ctx: &ActorContext<Unified, RegistryMsg<Unified>>,
     msg: RegistryMsg<Unified>,
