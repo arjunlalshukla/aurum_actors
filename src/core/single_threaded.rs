@@ -38,6 +38,9 @@ pub(crate) async fn run_single<Unified, Specific, A>(
       ActorMsg::PrimaryRequest => {
         panic!("{:?} single got a primary request", ctx.name)
       }
+      ActorMsg::Die => {
+        panic!("A single threaded actor shouldn't get ActorMsg::Die")
+      }
       ActorMsg::Serial(interface, bytes) => {
         <Specific as SpecificInterface<Unified>>::deserialize_as(
           interface, bytes,
@@ -51,4 +54,5 @@ pub(crate) async fn run_single<Unified, Specific, A>(
     };
   }
   actor.post_stop(&ctx).await;
+  node.registry(RegistryMsg::Deregister(name));
 }

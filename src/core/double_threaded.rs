@@ -51,6 +51,7 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
   loop {
     let msg = match rx.recv().await.unwrap() {
       ActorMsg::Msg(x) => x,
+      ActorMsg::Die => break,
       ActorMsg::PrimaryRequest => {
         if primary_waiting {
           panic!("{:?} single got a primary request", name);
@@ -82,6 +83,7 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
       }
     }
   }
+  node.registry(RegistryMsg::Deregister(name));
 }
 
 async fn run_primary<Specific, A, Unified>(
@@ -93,11 +95,14 @@ async fn run_primary<Specific, A, Unified>(
   Specific: 'static + Send + SpecificInterface<Unified>,
   Unified: Case<Specific>,
 {
-  actor.pre_start(&ctx).await;
-  loop {
-    if ctx.tx.send(ActorMsg::PrimaryRequest).is_err() {
+  let send_to_secondary = |x: ActorMsg<Unified, Specific>| {
+    if ctx.tx.send(x).is_err() {
       panic!("{:?}: secondary is unreachable", ctx.name);
     }
+  };
+  actor.pre_start(&ctx).await;
+  loop {
+    send_to_secondary(ActorMsg::PrimaryRequest);
     let msg: PrimaryMsg<Specific> = match rx.recv().await {
       None => panic!("{:?}: the secondary seems to have crashed", ctx.name),
       Some(x) => x,
@@ -108,4 +113,5 @@ async fn run_primary<Specific, A, Unified>(
     }
   }
   actor.post_stop(&ctx).await;
+  send_to_secondary(ActorMsg::Die);
 }

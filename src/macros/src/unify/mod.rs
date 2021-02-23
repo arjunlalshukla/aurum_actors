@@ -28,10 +28,25 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     .collect::<Vec<_>>();
   let code = TokenStream::from(quote! {
     #[derive(serde::Serialize, serde::Deserialize, std::cmp::Eq,
-      std::cmp::PartialEq, std::fmt::Debug, std::hash::Hash, std::clone::Clone
+      std::cmp::PartialEq, std::hash::Hash, std::clone::Clone
     )]
     enum #unified {
       #(#variants,)*
+    }
+    impl std::fmt::Display for #unified {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let specific = match self {
+          #(
+            #unified::#variants => std::any::type_name::<#specifics>(),
+          )*
+        };
+        write!(f, "{}<{}>", std::any::type_name::<#unified>(), specific)
+      }
+    }
+    impl std::fmt::Debug for #unified {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as std::fmt::Display>::fmt(self, f)
+      }
     }
     #(
       impl aurum::core::Case<#specifics> for #unified {

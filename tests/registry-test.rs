@@ -30,8 +30,8 @@ impl Actor<RegTestTypes, Echo> for Echoer {
 
 unify!(RegTestTypes = Echo | String);
 
-#[test]
-fn registry_test() {
+
+fn registry_test(double: bool) {
   let node = Node::<RegTestTypes>::new(
     Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
     1,
@@ -40,7 +40,7 @@ fn registry_test() {
   let (confirm_tx, confirm_rx) = bounded(1);
   let (tx, rx) = unbounded();
   node.spawn(
-    false,
+    double,
     Echoer {
       confirm_start: confirm_tx,
       echo_recvr: tx,
@@ -59,4 +59,14 @@ fn registry_test() {
     Ok(echo) => assert_eq!(echo, Echo::FullString("oh no!".to_string())),
     Err(_) => panic!("Could not receive!"),
   }
+}
+
+#[test]
+fn registry_single() {
+  registry_test(false);
+}
+
+#[test]
+fn registry_double() {
+  registry_test(true);
 }
