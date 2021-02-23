@@ -83,7 +83,9 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
       }
     }
   }
-  node.registry(RegistryMsg::Deregister(name));
+  if register {
+    node.registry(RegistryMsg::Deregister(name));
+  }
 }
 
 async fn run_primary<Specific, A, Unified>(

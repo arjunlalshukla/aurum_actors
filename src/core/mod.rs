@@ -26,5 +26,7 @@ pub use node::Node;
 mod single_threaded;
 pub(crate) use single_threaded::run_single;
 
+mod udp_receiver;
+
 mod unify;
 pub use unify::{forge, Case, UnifiedBounds};

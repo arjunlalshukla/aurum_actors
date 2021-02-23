@@ -54,5 +54,7 @@ pub(crate) async fn run_single<Unified, Specific, A>(
     };
   }
   actor.post_stop(&ctx).await;
-  node.registry(RegistryMsg::Deregister(name));
+  if register {
+    node.registry(RegistryMsg::Deregister(name));
+  }
 }

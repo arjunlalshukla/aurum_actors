@@ -35,7 +35,7 @@ pub(crate) enum ActorMsg<Unified, Specific> {
   Msg(LocalActorMsg<Specific>),
   Serial(Unified, Vec<u8>),
   PrimaryRequest,
-  Die
+  Die,
 }
 
 #[derive(Serialize, Deserialize)]

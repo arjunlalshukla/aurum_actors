@@ -27,6 +27,7 @@ struct Player {
   next: LocalRef<Ball>,
   leader: Option<LocalRef<Ball>>,
   double: bool,
+  register: bool
 }
 #[async_trait]
 impl Actor<RingTypes, Ball> for Player {
@@ -40,9 +41,10 @@ impl Actor<RingTypes, Ball> for Player {
           next: LocalRef::panic(),
           leader: Some(self.leader.clone().unwrap_or(ctx.local_interface())),
           double: self.double,
+          register: self.register
         },
         format!("ring-member-{}", self.ring_num - 1),
-        true,
+        self.register,
       );
     } else {
       self.next = self.leader.clone().unwrap_or(ctx.local_interface());
@@ -79,7 +81,7 @@ impl Actor<RingTypes, Ball> for Player {
   }
 }
 
-fn ring_test(double: bool) {
+fn ring_test(double: bool, register: bool) {
   let (tx, rx) = unbounded();
   let node = Node::<RingTypes>::new(
     Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
@@ -97,9 +99,10 @@ fn ring_test(double: bool) {
       next: LocalRef::panic(),
       leader: None,
       double: double,
+      register: register
     },
     format!("ring-member-{}", RING_SIZE - 1),
-    true,
+    register,
   );
   for x in 0..ROUNDS {
     for (name, num) in names.iter().zip(0..RING_SIZE) {
@@ -124,11 +127,18 @@ fn ring_test(double: bool) {
 }
 
 #[test]
-fn ring_single() {
-  ring_test(false);
+fn ring_single_registered() {
+  ring_test(false, true);
 }
-
 #[test]
-fn ring_double() {
-  ring_test(true);
+fn ring_single_unregistered() {
+  ring_test(false, false);
+}
+#[test]
+fn ring_double_registered() {
+  ring_test(true, true);
+}
+#[test]
+fn ring_double_unregistered() {
+  ring_test(true, false);
 }

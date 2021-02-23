@@ -5,9 +5,10 @@ authors = ["Arjun Shukla <arjunlalshukla@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-async-trait = "0.1"
-crossbeam = "0.8"
 aurum_macros = { path = "src/macros" }
+async-trait = "0.1"
+byteorder = "1"
+crossbeam = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.2", features = ["sync", "rt", "rt-multi-thread"] }

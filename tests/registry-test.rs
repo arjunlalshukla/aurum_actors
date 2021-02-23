@@ -30,7 +30,6 @@ impl Actor<RegTestTypes, Echo> for Echoer {
 
 unify!(RegTestTypes = Echo | String);
 
-
 fn registry_test(double: bool) {
   let node = Node::<RegTestTypes>::new(
     Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
