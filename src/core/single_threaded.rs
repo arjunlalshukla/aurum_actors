@@ -41,12 +41,12 @@ pub(crate) async fn run_single<Unified, Specific, A>(
       ActorMsg::Die => {
         panic!("A single threaded actor shouldn't get ActorMsg::Die")
       }
-      ActorMsg::Serial(interface, bytes) => {
-        <Specific as SpecificInterface<Unified>>::deserialize_as(
-          interface, bytes,
-        )
-        .unwrap()
-      }
+      ActorMsg::Serial(interface, bytes) => <Specific as SpecificInterface<
+        Unified,
+      >>::deserialize_as(
+        interface, bytes.as_slice()
+      )
+      .unwrap(),
     };
     match msg {
       LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,

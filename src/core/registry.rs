@@ -1,5 +1,8 @@
 use crate as aurum;
-use crate::core::{Actor, ActorContext, ActorName, Case, UnifiedBounds};
+use crate::core::{
+  Actor, ActorContext, ActorName, Case, DatagramHeader, Destination,
+  UnifiedBounds,
+};
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
 use std::collections::HashMap;
@@ -11,7 +14,7 @@ pub type SerializedRecvr<Unified> =
 #[derive(AurumInterface)]
 #[aurum(local)]
 pub enum RegistryMsg<Unified: UnifiedBounds> {
-  Forward(ActorName<Unified>, Unified, Vec<u8>),
+  Forward(DatagramHeader, Vec<u8>),
   Register(ActorName<Unified>, SerializedRecvr<Unified>, Sender<()>),
   Deregister(ActorName<Unified>),
 }
@@ -38,10 +41,27 @@ where
     msg: RegistryMsg<Unified>,
   ) {
     match msg {
-      RegistryMsg::Forward(name, interface, payload) => {
+      RegistryMsg::Forward(header, bytes) => {
+        println!("header: {:?}; butes len: {}", header, bytes.len());
+        let to_de =
+          &bytes[DatagramHeader::SIZE as usize + header.msg_size as usize..];
+        println!("deserialing {} bytes into msg", to_de.len());
+        let Destination { name, interface } = match serde_json::from_slice::<
+          Destination<Unified>,
+        >(to_de)
+        {
+          Ok(x) => x,
+          Err(e) => panic!("Could not deserialize because: {:?}", e.classify()),
+        };
         match self.register.get(&name) {
           Some(recvr) => {
-            if !recvr(interface, payload) {
+            let msg_bytes = bytes
+              .iter()
+              .cloned()
+              .skip(DatagramHeader::SIZE)
+              .take(header.msg_size as usize)
+              .collect();
+            if !recvr(interface, msg_bytes) {
               self.register.remove(&name);
               println!("Forward message to {:?} failed, removing actor", name);
             } else {

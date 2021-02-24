@@ -43,7 +43,7 @@ fn serde_test() {
   let ser_u32 = serialize(LocalActorMsg::Msg(5u32)).unwrap();
   let de_u32 = <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
     <TypedRefTypes as Case<u32>>::VARIANT,
-    ser_u32,
+    ser_u32.as_slice(),
   );
   assert_eq!(de_u32.unwrap(), LocalActorMsg::Msg(LoggerMsg::Error(5)));
 
@@ -51,7 +51,7 @@ fn serde_test() {
   let de_string =
     <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<String>>::VARIANT,
-      ser_string,
+      ser_string.as_slice(),
     );
   assert_eq!(
     de_string.unwrap(),
@@ -63,7 +63,7 @@ fn serde_test() {
       .unwrap();
   let de_info = <LoggerMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
     <TypedRefTypes as Case<LoggerMsg>>::VARIANT,
-    ser_info,
+    ser_info.as_slice(),
   );
   assert_eq!(
     de_info.unwrap(),
@@ -74,7 +74,7 @@ fn serde_test() {
   let de_get =
     <DataStoreMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<DataStoreCmd>>::VARIANT,
-      ser_get,
+      ser_get.as_slice(),
     );
   assert_eq!(
     de_get.unwrap(),
@@ -89,7 +89,7 @@ fn serde_test() {
   let de_put =
     <DataStoreMsg as SpecificInterface<TypedRefTypes>>::deserialize_as(
       <TypedRefTypes as Case<DataStoreCmd>>::VARIANT,
-      ser_put,
+      ser_put.as_slice(),
     );
   assert_eq!(
     de_put.unwrap(),

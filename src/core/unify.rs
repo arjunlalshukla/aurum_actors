@@ -11,6 +11,7 @@ pub trait UnifiedBounds:
   + Send
   + Sync
   + Debug
+  + Copy
   + Clone
   + PartialEq
   + Eq
@@ -25,6 +26,7 @@ impl<
       + Send
       + Sync
       + Debug
+      + Copy
       + Clone
       + PartialEq
       + Eq

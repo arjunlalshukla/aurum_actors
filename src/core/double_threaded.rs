@@ -63,12 +63,12 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
           continue;
         }
       }
-      ActorMsg::Serial(interface, bytes) => {
-        <Specific as SpecificInterface<Unified>>::deserialize_as(
-          interface, bytes,
-        )
-        .unwrap()
-      }
+      ActorMsg::Serial(interface, bytes) => <Specific as SpecificInterface<
+        Unified,
+      >>::deserialize_as(
+        interface, bytes.as_slice()
+      )
+      .unwrap(),
     };
     let pri = match msg {
       LocalActorMsg::Msg(lam) => Some(PrimaryMsg::Msg(lam)),

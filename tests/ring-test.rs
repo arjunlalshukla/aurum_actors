@@ -27,7 +27,7 @@ struct Player {
   next: LocalRef<Ball>,
   leader: Option<LocalRef<Ball>>,
   double: bool,
-  register: bool
+  register: bool,
 }
 #[async_trait]
 impl Actor<RingTypes, Ball> for Player {
@@ -41,7 +41,7 @@ impl Actor<RingTypes, Ball> for Player {
           next: LocalRef::panic(),
           leader: Some(self.leader.clone().unwrap_or(ctx.local_interface())),
           double: self.double,
-          register: self.register
+          register: self.register,
         },
         format!("ring-member-{}", self.ring_num - 1),
         self.register,
@@ -99,7 +99,7 @@ fn ring_test(double: bool, register: bool) {
       next: LocalRef::panic(),
       leader: None,
       double: double,
-      register: register
+      register: register,
     },
     format!("ring-member-{}", RING_SIZE - 1),
     register,
