@@ -1,5 +1,5 @@
 use crate::core::{
-  local_actor_msg_convert, ActorName, Case, LocalActorMsg, UnifiedBounds,
+  local_actor_msg_convert, Case, LocalActorMsg, UnifiedBounds,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -16,11 +16,8 @@ pub enum DeserializeError<Unified: Debug> {
   Other(Unified),
 }
 
-pub fn serialize<T>(item: T) -> Option<Vec<u8>>
-where
-  T: Serialize + DeserializeOwned,
-{
-  serde_json::to_vec(&item).ok()
+pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
+  serde_json::to_vec(item).ok()
 }
 
 pub fn deserialize<Unified, Specific, Interface>(
@@ -65,27 +62,6 @@ impl Socket {
       Host::DNS(s) => lookup_host((s.as_str(), self.udp))
         .await
         .map(|x| x.collect()),
-    }
-  }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[serde(bound = "Unified: UnifiedBounds")]
-pub struct Address<Unified: UnifiedBounds> {
-  pub socket: Socket,
-  pub name: ActorName<Unified>,
-}
-impl<Unified: UnifiedBounds> Address<Unified> {
-  pub fn new<Specific>(
-    sock: Socket,
-    name: ActorName<Unified>,
-  ) -> Address<Unified>
-  where
-    Unified: Case<Specific>,
-  {
-    Address {
-      socket: sock,
-      name: name,
     }
   }
 }

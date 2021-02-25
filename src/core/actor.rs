@@ -1,6 +1,5 @@
 use crate::core::{
-  ActorRef, Address, Case, HasInterface, LocalRef, Node, SerializedRecvr,
-  UnifiedBounds,
+  ActorRef, Case, HasInterface, LocalRef, Node, SerializedRecvr, UnifiedBounds,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
@@ -10,7 +9,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::RegistryMsg;
+use super::{Destination, RegistryMsg};
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "Unified: UnifiedBounds")]
@@ -113,11 +112,14 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
     Unified: Case<T> + Case<RegistryMsg<Unified>>,
     Specific: HasInterface<T> + From<T> + 'static,
   {
-    ActorRef::new(
-      Address::new::<Specific>(self.node.socket().clone(), self.name.clone()),
-      <Unified as Case<T>>::VARIANT,
-      Some(self.local_interface::<T>()),
-    )
+    ActorRef {
+      socket: self.node.socket().clone(),
+      dest: Destination {
+        name: self.name.clone(),
+        interface: <Unified as Case<T>>::VARIANT,
+      },
+      local: Some(self.local_interface::<T>()),
+    }
   }
 
   pub fn ser_recvr(&self) -> SerializedRecvr<Unified> {

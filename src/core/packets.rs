@@ -13,12 +13,12 @@ pub struct MessagePackets {
 }
 impl MessagePackets {
   pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds>(
-    item: T,
+    item: &T,
     dest: &Destination<U>,
   ) -> MessagePackets {
     let mut ser = serialize(item).unwrap();
     let msg_size = ser.len();
-    ser.append(&mut serialize(dest.clone()).unwrap());
+    ser.append(&mut serialize(dest).unwrap());
     MessagePackets {
       msg_size: msg_size as u32,
       dest_size: (ser.len() - msg_size) as u16,
@@ -38,7 +38,7 @@ impl MessagePackets {
     &self.buf[start..end]
   }
 
-  pub async fn send_to(self, socket: UdpSocket, addr: SocketAddr) {
+  pub async fn send_to(self, socket: &UdpSocket, addr: &SocketAddr) {
     if self.buf.len() > (MAX_PACKET_SIZE - DatagramHeader::SIZE) * 0x10000 {
       panic!("Serialized item too large");
     }
@@ -58,8 +58,9 @@ impl MessagePackets {
       dest_size: self.dest_size as u16,
     };
     header.put(&mut first[..DatagramHeader::SIZE]);
+    let len = first.len();
     first[DatagramHeader::SIZE..]
-      .copy_from_slice(&self.buf[..MAX_PACKET_SIZE - DatagramHeader::SIZE]);
+      .copy_from_slice(&self.buf[..len - DatagramHeader::SIZE]);
     socket.send_to(&first, addr).await.unwrap();
   }
 }

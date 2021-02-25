@@ -3,7 +3,9 @@ use serde::Serialize;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::core::{ActorRef, Address, HasInterface, Socket, SpecificInterface};
+use crate::core::{
+  ActorRef, Destination, HasInterface, Socket, SpecificInterface,
+};
 
 use super::ActorName;
 pub trait UnifiedBounds:
@@ -43,18 +45,21 @@ impl<T: Serialize + DeserializeOwned> SerDe for T {}
 
 pub fn forge<Unified, Specific, Interface: Send>(
   s: String,
-  n: Socket,
+  socket: Socket,
 ) -> ActorRef<Unified, Interface>
 where
   Specific: HasInterface<Interface> + SpecificInterface<Unified>,
   Unified: Case<Specific> + Case<Interface> + UnifiedBounds,
   Interface: Serialize + DeserializeOwned,
 {
-  ActorRef::new(
-    Address::new::<Specific>(n, ActorName::new::<Specific>(s)),
-    <Unified as Case<Interface>>::VARIANT,
-    None,
-  )
+  ActorRef {
+    socket: socket,
+    dest: Destination {
+      name: ActorName::new::<Specific>(s),
+      interface: <Unified as Case<Interface>>::VARIANT,
+    },
+    local: None,
+  }
 }
 
 pub trait Case<Specific>
