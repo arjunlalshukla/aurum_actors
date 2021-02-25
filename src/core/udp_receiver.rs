@@ -2,6 +2,8 @@
 use crate::core::{Case, DatagramHeader, Node, RegistryMsg, UnifiedBounds};
 use itertools::Itertools;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::net::Ipv4Addr;
+use tokio::net::UdpSocket;
 use tokio::sync::oneshot::Receiver;
 
 struct Message {
@@ -18,18 +20,9 @@ pub(crate) async fn udp_receiver<
   let node = node.await.unwrap();
   println!("Started udp receiver");
   let mut recvd = HashMap::<u64, Message>::new();
-  let udp = tokio::net::UdpSocket::bind(
-    node
-      .socket()
-      .as_udp_addr()
-      .await
-      .unwrap()
-      .into_iter()
-      .exactly_one()
-      .unwrap(),
-  )
-  .await
-  .unwrap();
+  let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp))
+    .await
+    .unwrap();
   let mut header_buf = [0u8; DatagramHeader::SIZE];
   loop {
     let (len, _) = udp.peek_from(&mut header_buf[..]).await.unwrap();

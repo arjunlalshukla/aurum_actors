@@ -1,36 +1,47 @@
 extern crate aurum_macros;
 
 mod actor;
-pub(crate) use actor::ActorMsg;
-pub use actor::{
-  local_actor_msg_convert, Actor, ActorContext, ActorName, LocalActorMsg,
-};
-
 mod double_threaded;
-pub(crate) use double_threaded::run_secondary;
-
 mod interface;
-pub(crate) use interface::Destination;
-pub use interface::{ActorRef, HasInterface, LocalRef, SpecificInterface};
-
+mod node;
+mod packets;
 mod registry;
-pub use registry::{Registry, RegistryMsg, SerializedRecvr};
-
 mod remoting;
-pub(crate) use remoting::MAX_PACKET_SIZE;
-pub use remoting::{
-  deserialize, serialize, Address, DatagramHeader, DeserializeError, Host,
-  Socket,
+mod single_threaded;
+mod udp_receiver;
+mod unify;
+
+pub(crate) use {
+  actor::ActorMsg,
+  actor::local_actor_msg_convert,
+  double_threaded::run_secondary,
+  interface::Destination,
+  packets::DatagramHeader,
+  registry::SerializedRecvr,
+  remoting::MAX_PACKET_SIZE,
+  remoting::serialize,
+  single_threaded::run_single,
+  udp_receiver::udp_receiver
 };
 
-mod node;
-pub use node::Node;
-
-mod single_threaded;
-pub(crate) use single_threaded::run_single;
-
-mod udp_receiver;
-pub(crate) use udp_receiver::udp_receiver;
-
-mod unify;
-pub use unify::{forge, Case, UnifiedBounds};
+pub use {
+  actor::Actor,
+  actor::ActorContext,
+  actor::ActorName,
+  actor::LocalActorMsg,
+  interface::ActorRef,
+  interface::HasInterface,
+  interface::LocalRef,
+  interface::SpecificInterface,
+  node::Node,
+  registry::Registry,
+  registry::RegistryMsg,
+  remoting::Address,
+  remoting::DeserializeError,
+  remoting::Host,
+  remoting::Socket,
+  remoting::deserialize,
+  unify::Case,
+  unify::UnifiedBounds,
+  unify::forge,
+};

@@ -55,16 +55,13 @@ impl Actor<RingTypes, Ball> for Player {
   }
 
   async fn recv(&mut self, ctx: &ActorContext<RingTypes, Ball>, msg: Ball) {
-    match msg {
-      Ball::Ball(hit_num, sender) => {
-        self
-          .tester
-          .send(TestRecvr::IntraRing(hit_num, sender))
-          .unwrap();
-        if hit_num < (RING_SIZE) as u32 * ROUNDS - 1 {
-          self.next.send(Ball::Ball(hit_num + 1, ctx.name.clone()));
-        }
-      }
+    let Ball::Ball(hit_num, sender) = msg;
+    self
+      .tester
+      .send(TestRecvr::IntraRing(hit_num, sender))
+      .unwrap();
+    if hit_num < (RING_SIZE) as u32 * ROUNDS - 1 {
+      self.next.send(Ball::Ball(hit_num + 1, ctx.name.clone()));
     }
   }
 

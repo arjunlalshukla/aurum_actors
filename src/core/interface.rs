@@ -84,12 +84,11 @@ impl<
   }
 
   pub async fn send(&self, item: Specific) -> Option<bool> {
-    match &self.local {
-      Some(r) => Some(r.send(item)),
-      None => {
-        self.remote_send(item).await;
-        None
-      }
+    if let Some(r) = &self.local {
+      Some(r.send(item))
+    } else {
+      self.remote_send(item).await;
+      None
     }
   }
 

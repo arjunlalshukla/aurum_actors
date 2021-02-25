@@ -53,35 +53,29 @@ where
           Ok(x) => x,
           Err(e) => panic!("Could not deserialize because: {:?}", e.classify()),
         };
-        match self.register.get(&name) {
-          Some(recvr) => {
-            let msg_bytes = bytes
-              .iter()
-              .cloned()
-              .skip(DatagramHeader::SIZE)
-              .take(header.msg_size as usize)
-              .collect();
-            if !recvr(interface, msg_bytes) {
-              self.register.remove(&name);
-              println!("Forward message to {:?} failed, removing actor", name);
-            } else {
-              println!("Forwarded message to {:?}", name);
-            }
+        if let Some(recvr) = self.register.get(&name) {
+          let msg_bytes = bytes
+            .iter()
+            .cloned()
+            .skip(DatagramHeader::SIZE)
+            .take(header.msg_size as usize)
+            .collect();
+          if !recvr(interface, msg_bytes) {
+            self.register.remove(&name);
+            println!("Forward message to {:?} failed, removing actor", name);
+          } else {
+            println!("Forwarded message to {:?}", name);
           }
-          None => {
+        } else {
             println!("Cannot send to {:?}, not in register", name);
-          }
         }
       }
       RegistryMsg::Register(name, channel, confirmation) => {
         println!("Adding actor to registry: {:?}", name);
         self.register.insert(name.clone(), channel);
-        match confirmation.send(()) {
-          Err(_) => {
-            println!("Could not send confirmation, removing from registry");
-            self.register.remove(&name);
-          }
-          _ => (),
+        if let Err(_) = confirmation.send(()) {
+          println!("Could not send confirmation, removing from registry");
+          self.register.remove(&name);
         }
       }
       RegistryMsg::Deregister(name) => {
