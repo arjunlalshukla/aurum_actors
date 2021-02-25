@@ -1,12 +1,67 @@
+use super::{serialize, Destination, UnifiedBounds, MAX_PACKET_SIZE};
+use rand::Rng;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::net::SocketAddr;
+use tokio::net::UdpSocket;
 
-
-struct MsgBuf {
+pub struct MessagePackets {
   msg_size: u32,
   dest_size: u16,
-  buf: Vec<u8>
+  max_seq_num: u16,
+  buf: Vec<u8>,
 }
-impl MsgBuf {
+impl MessagePackets {
+  pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds>(
+    item: T,
+    dest: &Destination<U>,
+  ) -> MessagePackets {
+    let mut ser = serialize(item).unwrap();
+    let msg_size = ser.len();
+    ser.append(&mut serialize(dest.clone()).unwrap());
+    MessagePackets {
+      msg_size: msg_size as u32,
+      dest_size: (ser.len() - msg_size) as u16,
+      max_seq_num: (ser.len() / (MAX_PACKET_SIZE - DatagramHeader::SIZE))
+        as u16,
+      buf: ser,
+    }
+  }
 
+  fn seq_slice(&self, seq_num: u16) -> &[u8] {
+    let start = MAX_PACKET_SIZE * (seq_num as usize) - DatagramHeader::SIZE;
+    let end = if self.max_seq_num == seq_num {
+      self.buf.len()
+    } else {
+      start + MAX_PACKET_SIZE
+    };
+    &self.buf[start..end]
+  }
+
+  pub async fn send_to(self, socket: UdpSocket, addr: SocketAddr) {
+    if self.buf.len() > (MAX_PACKET_SIZE - DatagramHeader::SIZE) * 0x10000 {
+      panic!("Serialized item too large");
+    }
+    if self.max_seq_num != 0 {
+      panic!("More than one packet not supported yet");
+    }
+    let mut first = if self.max_seq_num == 0 {
+      vec![0u8; self.buf.len() + DatagramHeader::SIZE]
+    } else {
+      vec![0u8; MAX_PACKET_SIZE]
+    };
+    let mut header = DatagramHeader {
+      msg_id: rand::thread_rng().gen::<u64>(),
+      seq_num: 0,
+      max_seq_num: 0,
+      msg_size: self.msg_size as u32,
+      dest_size: self.dest_size as u16,
+    };
+    header.put(&mut first[..DatagramHeader::SIZE]);
+    first[DatagramHeader::SIZE..]
+      .copy_from_slice(&self.buf[..MAX_PACKET_SIZE - DatagramHeader::SIZE]);
+    socket.send_to(&first, addr).await.unwrap();
+  }
 }
 
 /*

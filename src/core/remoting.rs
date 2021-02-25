@@ -8,7 +8,7 @@ use std::net::IpAddr;
 use std::{fmt::Debug, net::SocketAddr};
 use tokio::net::lookup_host;
 
-pub(crate) const MAX_PACKET_SIZE: u16 = 65507;
+pub(crate) const MAX_PACKET_SIZE: usize = 65507;
 
 #[derive(Debug)]
 pub enum DeserializeError<Unified: Debug> {

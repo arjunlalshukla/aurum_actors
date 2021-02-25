@@ -38,6 +38,9 @@ impl<
 {
 }
 
+pub trait SerDe: Serialize + DeserializeOwned {}
+impl<T: Serialize + DeserializeOwned> SerDe for T {}
+
 pub fn forge<Unified, Specific, Interface: Send>(
   s: String,
   n: Socket,

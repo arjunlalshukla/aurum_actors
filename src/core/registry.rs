@@ -67,7 +67,7 @@ where
             println!("Forwarded message to {:?}", name);
           }
         } else {
-            println!("Cannot send to {:?}, not in register", name);
+          println!("Cannot send to {:?}, not in register", name);
         }
       }
       RegistryMsg::Register(name, channel, confirmation) => {
