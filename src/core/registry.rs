@@ -1,6 +1,6 @@
 use crate as aurum;
 use crate::core::{
-  Actor, ActorContext, ActorName, Case, DatagramHeader, Destination,
+  Actor, ActorContext, ActorName, Case, Destination, MessageBuilder,
   UnifiedBounds,
 };
 use async_trait::async_trait;
@@ -14,7 +14,7 @@ pub type SerializedRecvr<Unified> =
 #[derive(AurumInterface)]
 #[aurum(local)]
 pub enum RegistryMsg<Unified: UnifiedBounds> {
-  Forward(DatagramHeader, Vec<u8>),
+  Forward(MessageBuilder),
   Register(ActorName<Unified>, SerializedRecvr<Unified>, Sender<()>),
   Deregister(ActorName<Unified>),
 }
@@ -41,30 +41,21 @@ where
     msg: RegistryMsg<Unified>,
   ) {
     match msg {
-      RegistryMsg::Forward(header, bytes) => {
-        println!("header: {:?}; butes len: {}", header, bytes.len());
-        let to_de =
-          &bytes[DatagramHeader::SIZE as usize + header.msg_size as usize..];
-        println!("deserialing {} bytes into msg", to_de.len());
+      RegistryMsg::Forward(msg_builder) => {
         let Destination { name, interface } = match serde_json::from_slice::<
           Destination<Unified>,
-        >(to_de)
+        >(msg_builder.dest())
         {
           Ok(x) => x,
           Err(e) => panic!("Could not deserialize because: {:?}", e.classify()),
         };
         if let Some(recvr) = self.register.get(&name) {
-          let msg_bytes = bytes
-            .iter()
-            .cloned()
-            .skip(DatagramHeader::SIZE)
-            .take(header.msg_size as usize)
-            .collect();
+          let msg_bytes = msg_builder.msg().iter().cloned().collect();
           if !recvr(interface, msg_bytes) {
             self.register.remove(&name);
             println!("Forward message to {:?} failed, removing actor", name);
           } else {
-            println!("Forwarded message to {:?}", name);
+            //println!("Forwarded message to {:?}", name);
           }
         } else {
           println!("Cannot send to {:?}, not in register", name);

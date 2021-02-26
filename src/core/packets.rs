@@ -1,9 +1,12 @@
-use super::{serialize, Destination, UnifiedBounds, MAX_PACKET_SIZE};
+use super::{serialize, Destination, UnifiedBounds};
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
+
+const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE*2;
 
 pub struct MessagePackets {
   msg_size: u32,
@@ -28,22 +31,9 @@ impl MessagePackets {
     }
   }
 
-  fn seq_slice(&self, seq_num: u16) -> &[u8] {
-    let start = MAX_PACKET_SIZE * (seq_num as usize) - DatagramHeader::SIZE;
-    let end = if self.max_seq_num == seq_num {
-      self.buf.len()
-    } else {
-      start + MAX_PACKET_SIZE
-    };
-    &self.buf[start..end]
-  }
-
-  pub async fn send_to(self, socket: &UdpSocket, addr: &SocketAddr) {
+  pub async fn send_to(mut self, socket: &UdpSocket, addr: &SocketAddr) {
     if self.buf.len() > (MAX_PACKET_SIZE - DatagramHeader::SIZE) * 0x10000 {
       panic!("Serialized item too large");
-    }
-    if self.max_seq_num != 0 {
-      panic!("More than one packet not supported yet");
     }
     let mut first = if self.max_seq_num == 0 {
       vec![0u8; self.buf.len() + DatagramHeader::SIZE]
@@ -53,7 +43,7 @@ impl MessagePackets {
     let mut header = DatagramHeader {
       msg_id: rand::thread_rng().gen::<u64>(),
       seq_num: 0,
-      max_seq_num: 0,
+      max_seq_num: self.max_seq_num,
       msg_size: self.msg_size as u32,
       dest_size: self.dest_size as u16,
     };
@@ -62,6 +52,66 @@ impl MessagePackets {
     first[DatagramHeader::SIZE..]
       .copy_from_slice(&self.buf[..len - DatagramHeader::SIZE]);
     socket.send_to(&first, addr).await.unwrap();
+    for i in 1..=self.max_seq_num {
+      header.seq_num = i;
+      let start = header.seq_num as usize
+        * (MAX_PACKET_SIZE - DatagramHeader::SIZE)
+        - DatagramHeader::SIZE;
+      let end = std::cmp::min(start + MAX_PACKET_SIZE, self.buf.len());
+      let slice = &mut self.buf[start..end];
+      header.put(&mut slice[..DatagramHeader::SIZE]);
+      socket.send_to(&slice, addr).await.unwrap();
+    }
+  }
+}
+
+pub struct MessageBuilder {
+  msg_size: u32,
+  max_seq_num: u16,
+  seqs_recvd: HashSet<u16>,
+  buf: Vec<u8>,
+}
+impl MessageBuilder {
+  pub fn new(header: &DatagramHeader) -> MessageBuilder {
+    MessageBuilder {
+      msg_size: header.msg_size,
+      max_seq_num: header.max_seq_num,
+      seqs_recvd: HashSet::new(),
+      buf: vec![
+        0u8;
+        header.msg_size as usize
+          + header.dest_size as usize
+          + DatagramHeader::SIZE
+      ],
+    }
+  }
+
+  pub async fn insert(&mut self, header: &DatagramHeader, socket: &UdpSocket) {
+    self.seqs_recvd.insert(header.seq_num);
+    let start = if header.seq_num == 0 {
+      0
+    } else {
+      header.seq_num as usize * (MAX_PACKET_SIZE - DatagramHeader::SIZE)
+    };
+    let end = std::cmp::min(start + MAX_PACKET_SIZE, self.buf.len());
+    let slice = &mut self.buf[start..end];
+    let mut header_buf = [0u8; DatagramHeader::SIZE];
+    header_buf[..].copy_from_slice(&slice[..DatagramHeader::SIZE]);
+    let _bytes = socket.recv(slice).await.unwrap();
+    &slice[..DatagramHeader::SIZE].copy_from_slice(&header_buf[..]);
+  }
+
+  pub fn finished(&self) -> bool {
+    self.seqs_recvd.len() == (self.max_seq_num as usize + 1)
+  }
+
+  pub fn dest(&self) -> &[u8] {
+    &self.buf[DatagramHeader::SIZE + self.msg_size as usize..]
+  }
+
+  pub fn msg(&self) -> &[u8] {
+    &self.buf
+      [DatagramHeader::SIZE..DatagramHeader::SIZE + self.msg_size as usize]
   }
 }
 

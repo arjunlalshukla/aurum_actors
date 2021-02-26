@@ -14,8 +14,8 @@ mod unify;
 pub(crate) use {
   actor::local_actor_msg_convert, actor::ActorMsg,
   double_threaded::run_secondary, interface::Destination,
-  packets::DatagramHeader, packets::MessagePackets, registry::SerializedRecvr,
-  remoting::serialize, remoting::MAX_PACKET_SIZE, single_threaded::run_single,
+  packets::DatagramHeader, packets::MessageBuilder, packets::MessagePackets,
+  registry::SerializedRecvr, remoting::serialize, single_threaded::run_single,
   udp_receiver::udp_receiver,
 };
 
