@@ -63,10 +63,10 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
           continue;
         }
       }
-      ActorMsg::Serial(interface, bytes) => <Specific as SpecificInterface<
+      ActorMsg::Serial(interface, mb) => <Specific as SpecificInterface<
         Unified,
       >>::deserialize_as(
-        interface, bytes.as_slice()
+        interface, mb.msg()
       )
       .unwrap(),
     };

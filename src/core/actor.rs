@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorRef, Case, HasInterface, LocalRef, Node, SerializedRecvr, UnifiedBounds,
+  ActorRef, Case, HasInterface, LocalRef, MessageBuilder, Node, SerializedRecvr, UnifiedBounds,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
@@ -32,7 +32,7 @@ pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg: Send> {
 
 pub(crate) enum ActorMsg<Unified, Specific> {
   Msg(LocalActorMsg<Specific>),
-  Serial(Unified, Vec<u8>),
+  Serial(Unified, MessageBuilder),
   PrimaryRequest,
   Die,
 }
@@ -124,8 +124,8 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
 
   pub fn ser_recvr(&self) -> SerializedRecvr<Unified> {
     let sender = self.tx.clone();
-    Box::new(move |unified: Unified, vec: Vec<u8>| {
-      sender.send(ActorMsg::Serial(unified, vec)).is_ok()
+    Box::new(move |unified: Unified, mb: MessageBuilder| {
+      sender.send(ActorMsg::Serial(unified, mb)).is_ok()
     })
   }
 }

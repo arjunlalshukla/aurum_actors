@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use tokio::sync::oneshot::Sender;
 
 pub type SerializedRecvr<Unified> =
-  Box<dyn Fn(Unified, Vec<u8>) -> bool + Send>;
+  Box<dyn Fn(Unified, MessageBuilder) -> bool + Send>;
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -50,8 +50,7 @@ where
           Err(e) => panic!("Could not deserialize because: {:?}", e.classify()),
         };
         if let Some(recvr) = self.register.get(&name) {
-          let msg_bytes = msg_builder.msg().iter().cloned().collect();
-          if !recvr(interface, msg_bytes) {
+          if !recvr(interface, msg_builder) {
             self.register.remove(&name);
             println!("Forward message to {:?} failed, removing actor", name);
           } else {
