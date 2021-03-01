@@ -1,5 +1,6 @@
 use crate::core::{
-  ActorRef, Case, HasInterface, LocalRef, MessageBuilder, Node, SerializedRecvr, UnifiedBounds,
+  ActorRef, Case, HasInterface, LocalRef, MessageBuilder, Node,
+  SerializedRecvr, UnifiedBounds,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;

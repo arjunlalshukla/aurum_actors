@@ -1,0 +1,3 @@
+[env]
+# can be defined as kcov, tarpaulin, ...
+CARGO_MAKE_COVERAGE_PROVIDER = "kcov"

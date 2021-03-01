@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE*2;
+const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
 
 pub struct MessagePackets {
   msg_size: u32,

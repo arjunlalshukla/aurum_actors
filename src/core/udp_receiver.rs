@@ -1,13 +1,8 @@
-#![allow(dead_code, unused_variables, unused_mut, unused_imports)]
 use crate::core::{
   Case, DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds,
 };
-use itertools::Itertools;
+use std::collections::{hash_map::Entry, HashMap};
 use std::net::Ipv4Addr;
-use std::{
-  borrow::BorrowMut,
-  collections::{hash_map::Entry, HashMap, HashSet},
-};
 use tokio::net::UdpSocket;
 use tokio::sync::oneshot::Receiver;
 
@@ -31,7 +26,7 @@ pub(crate) async fn udp_receiver<
     }
     let header = DatagramHeader::from(&header_buf[..]);
     let msg = match recvd.entry(header.msg_id) {
-      Entry::Occupied(mut o) => {
+      Entry::Occupied(o) => {
         let mb = o.into_mut();
         mb.insert(&header, &udp).await;
         mb

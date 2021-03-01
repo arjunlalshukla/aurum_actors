@@ -42,13 +42,11 @@ where
   ) {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
-        let Destination { name, interface } = match serde_json::from_slice::<
-          Destination<Unified>,
-        >(msg_builder.dest())
-        {
-          Ok(x) => x,
-          Err(e) => panic!("Could not deserialize because: {:?}", e.classify()),
-        };
+        let Destination { name, interface } =
+          serde_json::from_slice::<Destination<Unified>>(msg_builder.dest())
+            .unwrap_or_else(|e| {
+              panic!("Could not deserialize because: {:?}", e.classify())
+            });
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);
