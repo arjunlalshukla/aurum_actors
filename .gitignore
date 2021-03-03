@@ -1,2 +1,4 @@
 code-gen/
 Cargo.lock
+coverage.html
+cobertura.xml
