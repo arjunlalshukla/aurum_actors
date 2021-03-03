@@ -37,7 +37,7 @@ unify!(RemoteTestTypes = RemoteLoggerMsg | std::string::String | u32);
 
 fn actor_ref_test(double: bool, port: u16) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 1001);
-  let node = Node::<RemoteTestTypes>::new(socket.clone(), 1);
+  let node = Node::<RemoteTestTypes>::new(socket.clone(), 1).unwrap();
   let _lgr_msg = forge::<RemoteTestTypes, RemoteLoggerMsg, RemoteLoggerMsg>(
     "logger".to_string(),
     socket.clone(),

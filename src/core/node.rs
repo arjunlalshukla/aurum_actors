@@ -2,6 +2,7 @@ use crate::core::{
   run_secondary, run_single, udp_receiver, Actor, ActorContext, ActorMsg, Case,
   LocalRef, Registry, RegistryMsg, Socket, SpecificInterface, UnifiedBounds,
 };
+use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
@@ -17,16 +18,13 @@ pub struct Node<Unified: UnifiedBounds> {
   pub(crate) node: Arc<NodeImpl<Unified>>,
 }
 impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
-  pub fn new(socket: Socket, actor_threads: usize) -> Self {
+  pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
       .worker_threads(actor_threads)
       .thread_name("tokio-thread")
       .thread_stack_size(3 * 1024 * 1024)
-      .build()
-      .unwrap();
-    let (udp_tx, udp_rx) = tokio::sync::oneshot::channel();
-    rt.spawn(udp_receiver::<Unified>(udp_rx));
+      .build()?;
     let (reg, reg_node_tx) =
       Self::start_codependent(&rt, Registry::new(), "registry".to_string());
     let node = Node {
@@ -36,14 +34,11 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
         rt: rt,
       }),
     };
-    if reg_node_tx.send(node.clone()).is_err() {
-      panic!("Could not send node to registry");
-    }
-    if udp_tx.send(node.clone()).is_err() {
-      panic!("Could not send node to udp receiver");
-    }
-    println!("Started node");
-    node
+    reg_node_tx
+      .send(node.clone())
+      .map_err(|_| Error::new(ErrorKind::NotFound, "Registry"))?;
+    node.node.rt.spawn(udp_receiver::<Unified>(node.clone()));
+    Ok(node)
   }
 
   pub fn socket(&self) -> &Socket {

@@ -3,6 +3,7 @@ use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
@@ -87,6 +88,9 @@ impl MessageBuilder {
   }
 
   pub async fn insert(&mut self, header: &DatagramHeader, socket: &UdpSocket) {
+    if self.seqs_recvd.contains(&header.seq_num) {
+      return;
+    }
     self.seqs_recvd.insert(header.seq_num);
     let start = if header.seq_num == 0 {
       0
@@ -157,10 +161,11 @@ impl DatagramHeader {
     buf[17] = self.dest_size as u8;
   }
 }
-impl From<&[u8]> for DatagramHeader {
-  fn from(buf: &[u8]) -> Self {
+impl TryFrom<&[u8]> for DatagramHeader {
+  type Error = ();
+  fn try_from(buf: &[u8]) -> Result<Self, ()> {
     if buf.len() != Self::SIZE {
-      panic!("Datagram de buf: {}, expected {}", buf.len(), Self::SIZE);
+      return Err(());
     }
     let mut ret = DatagramHeader {
       msg_id: 0,
@@ -187,7 +192,11 @@ impl From<&[u8]> for DatagramHeader {
     ret.msg_size |= buf[15] as u32;
     ret.dest_size |= (buf[16] as u16) << 8;
     ret.dest_size |= buf[17] as u16;
-    ret
+    if ret.seq_num > ret.max_seq_num || ret.dest_size == 0 {
+      Err(())
+    } else {
+      Ok(ret)
+    }
   }
 }
 
@@ -195,12 +204,12 @@ impl From<&[u8]> for DatagramHeader {
 fn test_datagram_header_serde() {
   let header = DatagramHeader {
     msg_id: 0x0f0e0d0c0b0a0908,
-    seq_num: 0xea01,
-    max_seq_num: 0x90f4,
+    seq_num: 0x90f4,
+    max_seq_num: 0xea01,
     msg_size: 0x8b5d7015,
     dest_size: 0x8531,
   };
   let mut buf = [0u8; DatagramHeader::SIZE];
   header.put(&mut buf);
-  assert_eq!(header, DatagramHeader::from(&buf[..]));
+  assert_eq!(Ok(header), DatagramHeader::try_from(&buf[..]));
 }

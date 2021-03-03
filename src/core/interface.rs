@@ -2,14 +2,20 @@ use crate::core::{Case, DeserializeError, LocalActorMsg};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::sync::Arc;
-use std::{fmt::Debug, net::SocketAddr};
 
 use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
 
-#[derive(Clone)]
 pub struct LocalRef<T: Send> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
+}
+impl<T: Send> Clone for LocalRef<T> {
+  fn clone(&self) -> Self {
+    LocalRef {
+      func: self.func.clone(),
+    }
+  }
 }
 impl<T: Send> LocalRef<T> {
   pub fn send(&self, item: T) -> bool {
@@ -71,6 +77,10 @@ where
   Unified: UnifiedBounds + Case<Specific>,
   Specific: Send + Serialize + DeserializeOwned,
 {
+  pub fn local(&self) -> Option<LocalRef<Specific>> {
+    self.local.clone()
+  }
+
   pub async fn send(&self, item: Specific) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
@@ -81,14 +91,16 @@ where
   }
 
   async fn remote_send(&self, item: Specific) {
-    let socks = self.socket.as_udp_addr().await.unwrap();
-    let sock: SocketAddr = match socks.iter().exactly_one() {
-      Ok(x) => x.clone(),
-      Err(_) => panic!("multiple addrs: {:?}", socks),
-    };
-    let udp = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+    let addrs = self.socket.as_udp_addr().await.unwrap();
+    let addr = addrs
+      .iter()
+      .exactly_one()
+      .expect(format!("multiple addrs: {:?}", addrs).as_str());
+    let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+      .await
+      .unwrap();
     MessagePackets::new(&LocalActorMsg::Msg(item), &self.dest)
-      .send_to(&udp, &sock)
+      .send_to(&udp, addr)
       .await;
   }
 }

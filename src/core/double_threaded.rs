@@ -34,10 +34,8 @@ pub(crate) async fn run_secondary<Specific, A, Unified>(
   if register {
     let (tx, rx) = channel::<()>();
     node.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx));
-    match rx.await {
-      Err(_) => panic!("Could not register {:?}", name),
-      _ => (),
-    };
+    rx.await
+      .expect(format!("Could not register {:?}", name).as_str());
   }
   let mut queue = VecDeque::<PrimaryMsg<Specific>>::new();
   let mut primary_waiting = false;
