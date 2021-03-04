@@ -8,42 +8,40 @@ use aurum_macros::AurumInterface;
 use std::collections::HashMap;
 use tokio::sync::oneshot::Sender;
 
-pub type SerializedRecvr<Unified> =
-  Box<dyn Fn(Unified, MessageBuilder) -> bool + Send>;
+pub type SerializedRecvr<U> = Box<dyn Fn(U, MessageBuilder) -> bool + Send>;
 
 #[derive(AurumInterface)]
 #[aurum(local)]
-pub enum RegistryMsg<Unified: UnifiedBounds> {
+pub enum RegistryMsg<U: UnifiedBounds> {
   Forward(MessageBuilder),
-  Register(ActorName<Unified>, SerializedRecvr<Unified>, Sender<()>),
-  Deregister(ActorName<Unified>),
+  Register(ActorName<U>, SerializedRecvr<U>, Sender<()>),
+  Deregister(ActorName<U>),
 }
 
-pub struct Registry<Unified: UnifiedBounds> {
-  pub register: HashMap<ActorName<Unified>, SerializedRecvr<Unified>>,
+pub struct Registry<U: UnifiedBounds> {
+  pub register: HashMap<ActorName<U>, SerializedRecvr<U>>,
 }
-impl<Unified: UnifiedBounds> Registry<Unified> {
-  pub fn new() -> Registry<Unified> {
+impl<U: UnifiedBounds> Registry<U> {
+  pub fn new() -> Registry<U> {
     Registry {
       register: HashMap::new(),
     }
   }
 }
 #[async_trait]
-impl<Unified: UnifiedBounds> Actor<Unified, RegistryMsg<Unified>>
-  for Registry<Unified>
+impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U>
 where
-  Unified: Case<RegistryMsg<Unified>> + UnifiedBounds,
+  U: Case<RegistryMsg<U>> + UnifiedBounds,
 {
   async fn recv(
     &mut self,
-    _ctx: &ActorContext<Unified, RegistryMsg<Unified>>,
-    msg: RegistryMsg<Unified>,
+    _ctx: &ActorContext<U, RegistryMsg<U>>,
+    msg: RegistryMsg<U>,
   ) {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
         let Destination { name, interface } =
-          serde_json::from_slice::<Destination<Unified>>(msg_builder.dest())
+          serde_json::from_slice::<Destination<U>>(msg_builder.dest())
             .unwrap_or_else(|e| {
               panic!("Could not deserialize because: {:?}", e.classify())
             });

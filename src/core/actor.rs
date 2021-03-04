@@ -13,38 +13,38 @@ use tokio::sync::mpsc::UnboundedSender;
 use super::{Destination, RegistryMsg};
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-#[serde(bound = "Unified: UnifiedBounds")]
-pub struct ActorName<Unified>(Unified, String);
-impl<Unified: UnifiedBounds> ActorName<Unified> {
-  pub fn new<T>(s: String) -> ActorName<Unified>
+#[serde(bound = "U: UnifiedBounds")]
+pub struct ActorName<U>(U, String);
+impl<U: UnifiedBounds> ActorName<U> {
+  pub fn new<T>(s: String) -> ActorName<U>
   where
-    Unified: Case<T>,
+    U: Case<T>,
   {
-    ActorName(<Unified as Case<T>>::VARIANT, s)
+    ActorName(<U as Case<T>>::VARIANT, s)
   }
 }
 
 #[async_trait]
-pub trait Actor<Unified: Case<Msg> + UnifiedBounds, Msg: Send> {
-  async fn pre_start(&mut self, _: &ActorContext<Unified, Msg>) {}
-  async fn recv(&mut self, _: &ActorContext<Unified, Msg>, _: Msg);
-  async fn post_stop(&mut self, _: &ActorContext<Unified, Msg>) {}
+pub trait Actor<U: Case<Msg> + UnifiedBounds, Msg: Send> {
+  async fn pre_start(&mut self, _: &ActorContext<U, Msg>) {}
+  async fn recv(&mut self, _: &ActorContext<U, Msg>, _: Msg);
+  async fn post_stop(&mut self, _: &ActorContext<U, Msg>) {}
 }
 
-pub(crate) enum ActorMsg<Unified, Specific> {
-  Msg(LocalActorMsg<Specific>),
-  Serial(Unified, MessageBuilder),
+pub(crate) enum ActorMsg<U, S> {
+  Msg(LocalActorMsg<S>),
+  Serial(U, MessageBuilder),
   PrimaryRequest,
   Die,
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound = "Specific: Serialize + DeserializeOwned")]
-pub enum LocalActorMsg<Specific> {
-  Msg(Specific),
+#[serde(bound = "S: Serialize + DeserializeOwned")]
+pub enum LocalActorMsg<S> {
+  Msg(S),
   EagerKill,
 }
-impl<Specific: PartialEq> PartialEq for LocalActorMsg<Specific> {
+impl<S: PartialEq> PartialEq for LocalActorMsg<S> {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
       (LocalActorMsg::Msg(a), LocalActorMsg::Msg(b)) if a == b => true,
@@ -53,42 +53,40 @@ impl<Specific: PartialEq> PartialEq for LocalActorMsg<Specific> {
     }
   }
 }
-impl<Specific: Eq> Eq for LocalActorMsg<Specific> {}
-impl<Specific: Debug> Debug for LocalActorMsg<Specific> {
+impl<S: Eq> Eq for LocalActorMsg<S> {}
+impl<S: Debug> Debug for LocalActorMsg<S> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let s = match self {
       LocalActorMsg::Msg(s) => format!("Msg{:?}", s),
       LocalActorMsg::EagerKill => format!("EagerKill"),
     };
     f.debug_struct("ActorRef")
-      .field("Specific", &std::any::type_name::<Specific>())
+      .field("Specific", &std::any::type_name::<S>())
       .field("variant", &s)
       .finish()
   }
 }
 
-pub fn local_actor_msg_convert<Specific: From<Interface>, Interface>(
+pub fn local_actor_msg_convert<S: From<Interface>, Interface>(
   msg: LocalActorMsg<Interface>,
-) -> LocalActorMsg<Specific> {
+) -> LocalActorMsg<S> {
   match msg {
-    LocalActorMsg::Msg(s) => LocalActorMsg::Msg(Specific::from(s)),
+    LocalActorMsg::Msg(s) => LocalActorMsg::Msg(S::from(s)),
     LocalActorMsg::EagerKill => LocalActorMsg::EagerKill,
   }
 }
 
-pub struct ActorContext<Unified: Case<Specific> + UnifiedBounds, Specific> {
-  pub(crate) tx: UnboundedSender<ActorMsg<Unified, Specific>>,
-  pub name: ActorName<Unified>,
-  pub node: Node<Unified>,
+pub struct ActorContext<U: Case<S> + UnifiedBounds, S> {
+  pub(crate) tx: UnboundedSender<ActorMsg<U, S>>,
+  pub name: ActorName<U>,
+  pub node: Node<U>,
 }
-impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
-  ActorContext<Unified, Specific>
-{
+impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
   pub(in crate::core) fn create_local<T: Send>(
-    sender: UnboundedSender<ActorMsg<Unified, Specific>>,
+    sender: UnboundedSender<ActorMsg<U, S>>,
   ) -> LocalRef<T>
   where
-    Specific: From<T> + 'static,
+    S: From<T> + 'static,
   {
     LocalRef {
       func: Arc::new(move |x: LocalActorMsg<T>| {
@@ -101,31 +99,31 @@ impl<Unified: Case<Specific> + UnifiedBounds, Specific: 'static + Send>
 
   pub fn local_interface<T: Send>(&self) -> LocalRef<T>
   where
-    Specific: From<T> + 'static,
+    S: From<T> + 'static,
   {
     Self::create_local::<T>(self.tx.clone())
   }
 
   pub fn interface<T: Send + Serialize + DeserializeOwned>(
     &self,
-  ) -> ActorRef<Unified, T>
+  ) -> ActorRef<U, T>
   where
-    Unified: Case<T> + Case<RegistryMsg<Unified>>,
-    Specific: HasInterface<T> + From<T> + 'static,
+    U: Case<T> + Case<RegistryMsg<U>>,
+    S: HasInterface<T> + From<T> + 'static,
   {
     ActorRef {
       socket: self.node.socket().clone(),
       dest: Destination {
         name: self.name.clone(),
-        interface: <Unified as Case<T>>::VARIANT,
+        interface: <U as Case<T>>::VARIANT,
       },
       local: Some(self.local_interface::<T>()),
     }
   }
 
-  pub fn ser_recvr(&self) -> SerializedRecvr<Unified> {
+  pub fn ser_recvr(&self) -> SerializedRecvr<U> {
     let sender = self.tx.clone();
-    Box::new(move |unified: Unified, mb: MessageBuilder| {
+    Box::new(move |unified: U, mb: MessageBuilder| {
       sender.send(ActorMsg::Serial(unified, mb)).is_ok()
     })
   }

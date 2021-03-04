@@ -43,45 +43,45 @@ impl<T: Send> LocalRef<T> {
 
 pub trait HasInterface<T: Serialize + DeserializeOwned> {}
 
-pub trait SpecificInterface<Unified: Debug>
+pub trait SpecificInterface<U: Debug>
 where
   Self: Sized,
 {
   fn deserialize_as(
-    interface: Unified,
+    interface: U,
     bytes: &[u8],
-  ) -> Result<LocalActorMsg<Self>, DeserializeError<Unified>>;
+  ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
-#[serde(bound = "Unified: Serialize + DeserializeOwned")]
-pub struct Destination<Unified: UnifiedBounds> {
-  pub name: ActorName<Unified>,
-  pub interface: Unified,
+#[serde(bound = "U: Serialize + DeserializeOwned")]
+pub struct Destination<U: UnifiedBounds> {
+  pub name: ActorName<U>,
+  pub interface: U,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(bound = "Unified: Case<Specific> + Serialize + DeserializeOwned")]
-pub struct ActorRef<Unified, Specific>
+#[serde(bound = "U: Case<S> + Serialize + DeserializeOwned")]
+pub struct ActorRef<U, S>
 where
-  Unified: UnifiedBounds,
-  Specific: Send + Serialize + DeserializeOwned,
+  U: UnifiedBounds,
+  S: Send + Serialize + DeserializeOwned,
 {
   pub(in crate::core) socket: Socket,
-  pub(in crate::core) dest: Destination<Unified>,
+  pub(in crate::core) dest: Destination<U>,
   #[serde(skip, default)]
-  pub(in crate::core) local: Option<LocalRef<Specific>>,
+  pub(in crate::core) local: Option<LocalRef<S>>,
 }
-impl<Unified, Specific> ActorRef<Unified, Specific>
+impl<U, S> ActorRef<U, S>
 where
-  Unified: UnifiedBounds + Case<Specific>,
-  Specific: Send + Serialize + DeserializeOwned,
+  U: UnifiedBounds + Case<S>,
+  S: Send + Serialize + DeserializeOwned,
 {
-  pub fn local(&self) -> Option<LocalRef<Specific>> {
+  pub fn local(&self) -> Option<LocalRef<S>> {
     self.local.clone()
   }
 
-  pub async fn send(&self, item: Specific) -> Option<bool> {
+  pub async fn send(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
@@ -90,7 +90,7 @@ where
     }
   }
 
-  async fn remote_send(&self, item: Specific) {
+  async fn remote_send(&self, item: S) {
     let addrs = self.socket.as_udp_addr().await.unwrap();
     let addr = addrs
       .iter()
@@ -104,15 +104,15 @@ where
       .await;
   }
 }
-impl<Unified, Specific> Debug for ActorRef<Unified, Specific>
+impl<U, S> Debug for ActorRef<U, S>
 where
-  Unified: UnifiedBounds + Case<Specific>,
-  Specific: Send + Serialize + DeserializeOwned,
+  U: UnifiedBounds + Case<S>,
+  S: Send + Serialize + DeserializeOwned,
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("ActorRef")
-      .field("Unified", &std::any::type_name::<Unified>())
-      .field("Specific", &std::any::type_name::<Specific>())
+      .field("Unified", &std::any::type_name::<U>())
+      .field("Specific", &std::any::type_name::<S>())
       .field("socket", &self.socket)
       .field("dest", &self.dest)
       .field("has_local", &self.local.is_some())

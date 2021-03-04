@@ -11,11 +11,10 @@ use tokio::task::JoinHandle;
 
 const MSG_TIMEOUT: Duration = Duration::from_millis(1000);
 
-pub(crate) async fn udp_receiver<
-  Unified: UnifiedBounds + Case<RegistryMsg<Unified>>,
->(
-  node: Node<Unified>,
-) {
+pub(crate) async fn udp_receiver<U>(node: Node<U>)
+where
+  U: UnifiedBounds + Case<RegistryMsg<U>>,
+{
   let mut recvd =
     HashMap::<u64, (Option<JoinHandle<()>>, MessageBuilder)>::new();
   let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp))

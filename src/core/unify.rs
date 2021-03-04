@@ -43,26 +43,26 @@ impl<
 pub trait SerDe: Serialize + DeserializeOwned {}
 impl<T: Serialize + DeserializeOwned> SerDe for T {}
 
-pub fn forge<Unified, Specific, Interface: Send>(
+pub fn forge<U, S, Interface: Send>(
   s: String,
   socket: Socket,
-) -> ActorRef<Unified, Interface>
+) -> ActorRef<U, Interface>
 where
-  Specific: HasInterface<Interface> + SpecificInterface<Unified>,
-  Unified: Case<Specific> + Case<Interface> + UnifiedBounds,
+  S: HasInterface<Interface> + SpecificInterface<U>,
+  U: Case<S> + Case<Interface> + UnifiedBounds,
   Interface: Serialize + DeserializeOwned,
 {
   ActorRef {
     socket: socket,
     dest: Destination {
-      name: ActorName::new::<Specific>(s),
-      interface: <Unified as Case<Interface>>::VARIANT,
+      name: ActorName::new::<S>(s),
+      interface: <U as Case<Interface>>::VARIANT,
     },
     local: None,
   }
 }
 
-pub trait Case<Specific>
+pub trait Case<S>
 where
   Self: UnifiedBounds,
 {

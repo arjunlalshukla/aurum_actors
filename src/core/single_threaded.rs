@@ -5,19 +5,19 @@ use crate::core::{
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel;
 
-pub(crate) async fn run_single<Unified, Specific, A>(
-  node: Node<Unified>,
+pub(crate) async fn run_single<U, S, A>(
+  node: Node<U>,
   mut actor: A,
   name: String,
-  tx: UnboundedSender<ActorMsg<Unified, Specific>>,
-  mut rx: UnboundedReceiver<ActorMsg<Unified, Specific>>,
+  tx: UnboundedSender<ActorMsg<U, S>>,
+  mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
-  A: Actor<Unified, Specific> + Send + 'static,
-  Specific: 'static + Send + SpecificInterface<Unified>,
-  Unified: Case<RegistryMsg<Unified>> + UnifiedBounds + Case<Specific>,
+  A: Actor<U, S> + Send + 'static,
+  S: 'static + Send + SpecificInterface<U>,
+  U: Case<RegistryMsg<U>> + UnifiedBounds + Case<S>,
 {
-  let name = ActorName::new::<Specific>(name);
+  let name = ActorName::new::<S>(name);
   let ctx = ActorContext {
     tx: tx,
     name: name.clone(),
@@ -39,12 +39,10 @@ pub(crate) async fn run_single<Unified, Specific, A>(
       ActorMsg::Die => {
         panic!("A single threaded actor shouldn't get ActorMsg::Die")
       }
-      ActorMsg::Serial(interface, mb) => <Specific as SpecificInterface<
-        Unified,
-      >>::deserialize_as(
-        interface, mb.msg()
-      )
-      .unwrap(),
+      ActorMsg::Serial(interface, mb) => {
+        <S as SpecificInterface<U>>::deserialize_as(interface, mb.msg())
+          .unwrap()
+      }
     };
     match msg {
       LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,

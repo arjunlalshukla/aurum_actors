@@ -9,22 +9,22 @@ use std::{fmt::Debug, net::SocketAddr};
 use tokio::net::lookup_host;
 
 #[derive(Debug)]
-pub enum DeserializeError<Unified: Debug> {
-  IncompatibleInterface(Unified),
-  Other(Unified),
+pub enum DeserializeError<U: Debug> {
+  IncompatibleInterface(U),
+  Other(U),
 }
 
 pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
   serde_json::to_vec(item).ok()
 }
 
-pub fn deserialize<Unified, Specific, Interface>(
-  item: Unified,
+pub fn deserialize<U, S, Interface>(
+  item: U,
   bytes: &[u8],
-) -> Result<LocalActorMsg<Specific>, DeserializeError<Unified>>
+) -> Result<LocalActorMsg<S>, DeserializeError<U>>
 where
-  Unified: Case<Specific> + Case<Interface> + UnifiedBounds,
-  Specific: From<Interface>,
+  U: Case<S> + Case<Interface> + UnifiedBounds,
+  S: From<Interface>,
   Interface: Serialize + DeserializeOwned,
 {
   match serde_json::from_slice::<LocalActorMsg<Interface>>(bytes) {

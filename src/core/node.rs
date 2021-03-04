@@ -7,17 +7,17 @@ use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-pub(crate) struct NodeImpl<Unified: UnifiedBounds> {
+pub(crate) struct NodeImpl<U: UnifiedBounds> {
   pub(crate) socket: Socket,
-  pub(crate) registry: LocalRef<RegistryMsg<Unified>>,
+  pub(crate) registry: LocalRef<RegistryMsg<U>>,
   pub(crate) rt: Runtime,
 }
 
 #[derive(Clone)]
-pub struct Node<Unified: UnifiedBounds> {
-  pub(crate) node: Arc<NodeImpl<Unified>>,
+pub struct Node<U: UnifiedBounds> {
+  pub(crate) node: Arc<NodeImpl<U>>,
 }
-impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
+impl<U: UnifiedBounds + Case<RegistryMsg<U>>> Node<U> {
   pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
@@ -37,7 +37,7 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     reg_node_tx
       .send(node.clone())
       .map_err(|_| Error::new(ErrorKind::NotFound, "Registry"))?;
-    node.node.rt.spawn(udp_receiver::<Unified>(node.clone()));
+    node.node.rt.spawn(udp_receiver::<U>(node.clone()));
     Ok(node)
   }
 
@@ -45,26 +45,23 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     &self.node.socket
   }
 
-  pub fn registry(&self, msg: RegistryMsg<Unified>) -> bool {
+  pub fn registry(&self, msg: RegistryMsg<U>) -> bool {
     self.node.registry.send(msg)
   }
 
-  fn start_codependent<Specific, A>(
+  fn start_codependent<S, A>(
     rt: &Runtime,
     actor: A,
     name: String,
-  ) -> (LocalRef<Specific>, UnboundedSender<Self>)
+  ) -> (LocalRef<S>, UnboundedSender<Self>)
   where
-    A: Actor<Unified, Specific> + Send + 'static,
-    Specific: 'static + Send + SpecificInterface<Unified>,
-    Unified: Case<Specific>,
+    A: Actor<U, S> + Send + 'static,
+    S: 'static + Send + SpecificInterface<U>,
+    U: Case<S>,
   {
-    let (tx, rx) = unbounded_channel::<ActorMsg<Unified, Specific>>();
-    let (node_tx, mut node_rx) = unbounded_channel::<Node<Unified>>();
-    let ret = (
-      ActorContext::<Unified, Specific>::create_local(tx.clone()),
-      node_tx,
-    );
+    let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
+    let (node_tx, mut node_rx) = unbounded_channel::<Node<U>>();
+    let ret = (ActorContext::<U, S>::create_local(tx.clone()), node_tx);
     rt.spawn(async move {
       run_single(node_rx.recv().await.unwrap(), actor, name, tx, rx, false)
         .await
@@ -72,20 +69,20 @@ impl<Unified: UnifiedBounds + Case<RegistryMsg<Unified>>> Node<Unified> {
     ret
   }
 
-  pub fn spawn<Specific, A>(
+  pub fn spawn<S, A>(
     &self,
     double: bool,
     actor: A,
     name: String,
     register: bool,
-  ) -> LocalRef<Specific>
+  ) -> LocalRef<S>
   where
-    A: Actor<Unified, Specific> + Send + 'static,
-    Specific: 'static + Send + SpecificInterface<Unified>,
-    Unified: Case<Specific>,
+    A: Actor<U, S> + Send + 'static,
+    S: 'static + Send + SpecificInterface<U>,
+    U: Case<S>,
   {
-    let (tx, rx) = unbounded_channel::<ActorMsg<Unified, Specific>>();
-    let ret = ActorContext::<Unified, Specific>::create_local(tx.clone());
+    let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
+    let ret = ActorContext::<U, S>::create_local(tx.clone());
     let node = self.clone();
     if double {
       self
