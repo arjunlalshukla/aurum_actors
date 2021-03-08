@@ -17,7 +17,7 @@ pub(crate) struct NodeImpl<U: UnifiedBounds> {
 pub struct Node<U: UnifiedBounds> {
   pub(crate) node: Arc<NodeImpl<U>>,
 }
-impl<U: UnifiedBounds + Case<RegistryMsg<U>>> Node<U> {
+impl<U: UnifiedBounds> Node<U> {
   pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()

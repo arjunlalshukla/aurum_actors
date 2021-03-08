@@ -1,11 +1,11 @@
-use crate::core::{Case, DeserializeError, LocalActorMsg};
+use crate::core::{ActorSignal, Case, DeserializeError, LocalActorMsg};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
+use super::{Actor, ActorName, MessagePackets, Socket, UnifiedBounds};
 
 pub struct LocalRef<T: Send> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
@@ -22,8 +22,8 @@ impl<T: Send> LocalRef<T> {
     (&self.func)(LocalActorMsg::Msg(item))
   }
 
-  pub fn eager_kill(&self) -> bool {
-    (&self.func)(LocalActorMsg::EagerKill)
+  pub fn signal(&self, sig: ActorSignal) -> bool {
+    (&self.func)(LocalActorMsg::Signal(sig))
   }
 
   pub fn void() -> LocalRef<T> {
@@ -53,7 +53,7 @@ where
   ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Eq, PartialEq, Deserialize, Hash, Serialize, Debug)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct Destination<U: UnifiedBounds> {
   pub name: ActorName<U>,
@@ -61,36 +61,34 @@ pub struct Destination<U: UnifiedBounds> {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(bound = "U: Case<S> + Serialize + DeserializeOwned")]
-pub struct ActorRef<U, S>
-where
-  U: UnifiedBounds,
-  S: Send + Serialize + DeserializeOwned,
-{
+#[serde(bound = "U: Serialize + DeserializeOwned")]
+pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send> {
   pub(in crate::core) socket: Socket,
   pub(in crate::core) dest: Destination<U>,
   #[serde(skip, default)]
   pub(in crate::core) local: Option<LocalRef<S>>,
 }
-impl<U, S> ActorRef<U, S>
-where
-  U: UnifiedBounds + Case<S>,
-  S: Send + Serialize + DeserializeOwned,
-{
+impl<U: UnifiedBounds + Case<S>, S: Send> ActorRef<U, S> {
   pub fn local(&self) -> Option<LocalRef<S>> {
     self.local.clone()
   }
 
-  pub async fn send(&self, item: S) -> Option<bool> {
+  pub async fn send(&self, item: S) -> Option<bool>
+  where
+    S: Serialize + DeserializeOwned,
+  {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      self.remote_send(item).await;
+      self.remote_send(LocalActorMsg::Msg(item)).await;
       None
     }
   }
 
-  async fn remote_send(&self, item: S) {
+  async fn remote_send(&self, msg: LocalActorMsg<S>)
+  where
+    S: Serialize + DeserializeOwned,
+  {
     let addrs = self.socket.as_udp_addr().await.unwrap();
     let addr = addrs
       .iter()
@@ -99,9 +97,34 @@ where
     let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
       .await
       .unwrap();
-    MessagePackets::new(&LocalActorMsg::Msg(item), &self.dest)
+    MessagePackets::new(&msg, &self.dest)
       .send_to(&udp, addr)
       .await;
+  }
+}
+impl<U, S> std::cmp::PartialEq for ActorRef<U, S>
+where
+  U: UnifiedBounds + Case<S>,
+  S: Send + Serialize + DeserializeOwned,
+{
+  fn eq(&self, other: &Self) -> bool {
+    self.socket == other.socket && self.dest == other.dest
+  }
+}
+impl<U, S> std::cmp::Eq for ActorRef<U, S>
+where
+  U: UnifiedBounds + Case<S>,
+  S: Send + Serialize + DeserializeOwned,
+{
+}
+impl<U, S> std::hash::Hash for ActorRef<U, S>
+where
+  U: UnifiedBounds + Case<S>,
+  S: Send + Serialize + DeserializeOwned,
+{
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.socket.hash(state);
+    self.dest.hash(state);
   }
 }
 impl<U, S> Debug for ActorRef<U, S>

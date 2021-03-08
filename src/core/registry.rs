@@ -1,7 +1,6 @@
 use crate as aurum;
 use crate::core::{
-  Actor, ActorContext, ActorName, Case, Destination, MessageBuilder,
-  UnifiedBounds,
+  Actor, ActorContext, ActorName, Destination, MessageBuilder, UnifiedBounds,
 };
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
@@ -29,10 +28,7 @@ impl<U: UnifiedBounds> Registry<U> {
   }
 }
 #[async_trait]
-impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U>
-where
-  U: Case<RegistryMsg<U>> + UnifiedBounds,
-{
+impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
   async fn recv(
     &mut self,
     _ctx: &ActorContext<U, RegistryMsg<U>>,

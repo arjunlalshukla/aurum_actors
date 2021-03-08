@@ -20,7 +20,7 @@ pub(crate) use {
 };
 
 pub use {
-  actor::Actor, actor::ActorContext, actor::ActorName, actor::LocalActorMsg,
+  actor::Actor, actor::ActorContext, actor::ActorName, actor::ActorSignal, actor::LocalActorMsg,
   interface::ActorRef, interface::HasInterface, interface::LocalRef,
   interface::SpecificInterface, node::Node, registry::Registry,
   registry::RegistryMsg, remoting::deserialize, remoting::DeserializeError,

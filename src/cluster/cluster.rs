@@ -1,4 +1,4 @@
-#![allow(unused_imports, dead_code, unused_variables)]
+//#![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorRef, Case, LocalRef, Socket};
@@ -7,25 +7,31 @@ use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
 
 trait UnifiedBounds:
-  crate::core::UnifiedBounds + Case<ClusterMsg> + Case<IntraClusterMsg>
+  crate::core::UnifiedBounds
+  + Case<ClusterMsg<Self>>
+  + Case<IntraClusterMsg<Self>>
 {
 }
 impl<T> UnifiedBounds for T where
-  T: crate::core::UnifiedBounds + Case<ClusterMsg> + Case<IntraClusterMsg>
+  T: crate::core::UnifiedBounds
+    + Case<ClusterMsg<Self>>
+    + Case<IntraClusterMsg<Self>>
 {
 }
 
 #[derive(AurumInterface)]
 #[aurum(local)]
-enum ClusterMsg {
+enum ClusterMsg<U: UnifiedBounds> {
   #[aurum]
-  IntraMsg(IntraClusterMsg),
+  IntraMsg(IntraClusterMsg<U>),
   #[aurum(local)]
   LocalCmd(ClusterCmd),
 }
 
 #[derive(Serialize, Deserialize)]
-enum IntraClusterMsg {
+#[serde(bound = "U: UnifiedBounds")]
+enum IntraClusterMsg<U: UnifiedBounds> {
+  Join(ActorRef<U, IntraClusterMsg<U>>),
   Heartbeat,
 }
 
@@ -40,20 +46,21 @@ enum ClusterEventType {}
 enum ClusterEvent {}
 
 struct Cluster<U: UnifiedBounds> {
-  members: Vec<ActorRef<U, IntraClusterMsg>>,
+  seeds: Vec<ActorRef<U, IntraClusterMsg<U>>>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
 }
 
 #[async_trait]
-impl<U: UnifiedBounds> Actor<U, ClusterMsg> for Cluster<U> {
-  async fn recv(&mut self, _: &ActorContext<U, ClusterMsg>, msg: ClusterMsg) {
+impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
+  async fn recv(
+    &mut self,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+    msg: ClusterMsg<U>,
+  ) {
+    let cmd = ctx.local_interface::<ClusterCmd>();
+    let intra = ctx.interface::<IntraClusterMsg<U>>();
     match msg {
-      ClusterMsg::IntraMsg(IntraClusterMsg::Heartbeat) => {}
-      ClusterMsg::LocalCmd(ClusterCmd::Subscribe(s, _)) => {
-        self.subscribers.push(s)
-      }
-      ClusterMsg::LocalCmd(ClusterCmd::Leave) => {}
-      ClusterMsg::LocalCmd(ClusterCmd::Join(sockets)) => {}
+      _ => {}
     }
   }
 }

@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorRef, Case, HasInterface, LocalRef, MessageBuilder, Node,
+  ActorRef, Case, Destination, HasInterface, LocalRef, MessageBuilder, Node,
   SerializedRecvr, UnifiedBounds,
 };
 use async_trait::async_trait;
@@ -10,9 +10,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Destination, RegistryMsg};
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedBounds")]
 pub struct ActorName<U>(U, String);
 impl<U: UnifiedBounds> ActorName<U> {
@@ -38,27 +36,31 @@ pub(crate) enum ActorMsg<U, S> {
   Die,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum ActorSignal {
+  Term
+}
+
+#[derive(Eq, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
 pub enum LocalActorMsg<S> {
   Msg(S),
-  EagerKill,
+  Signal(ActorSignal),
 }
 impl<S: PartialEq> PartialEq for LocalActorMsg<S> {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
-      (LocalActorMsg::Msg(a), LocalActorMsg::Msg(b)) if a == b => true,
-      (LocalActorMsg::EagerKill, LocalActorMsg::EagerKill) => true,
+      (LocalActorMsg::Msg(a), LocalActorMsg::Msg(b)) => a == b,
+      (LocalActorMsg::Signal(a), LocalActorMsg::Signal(b)) => a == b,
       _ => false,
     }
   }
 }
-impl<S: Eq> Eq for LocalActorMsg<S> {}
 impl<S: Debug> Debug for LocalActorMsg<S> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let s = match self {
-      LocalActorMsg::Msg(s) => format!("Msg{:?}", s),
-      LocalActorMsg::EagerKill => format!("EagerKill"),
+      LocalActorMsg::Msg(s) => format!("Msg({:?})", s),
+      LocalActorMsg::Signal(s) => format!("Signal({:?})", s),
     };
     f.debug_struct("ActorRef")
       .field("Specific", &std::any::type_name::<S>())
@@ -72,7 +74,7 @@ pub fn local_actor_msg_convert<S: From<Interface>, Interface>(
 ) -> LocalActorMsg<S> {
   match msg {
     LocalActorMsg::Msg(s) => LocalActorMsg::Msg(S::from(s)),
-    LocalActorMsg::EagerKill => LocalActorMsg::EagerKill,
+    LocalActorMsg::Signal(s) => LocalActorMsg::Signal(s),
   }
 }
 
@@ -108,7 +110,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
     &self,
   ) -> ActorRef<U, T>
   where
-    U: Case<T> + Case<RegistryMsg<U>>,
+    U: Case<T>,
     S: HasInterface<T> + From<T> + 'static,
   {
     ActorRef {

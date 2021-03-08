@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorName, Host, LocalRef, Node, Socket,
+  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
@@ -67,7 +67,7 @@ impl Actor<RingTypes, Ball> for Player {
 
   async fn post_stop(&mut self, ctx: &ActorContext<RingTypes, Ball>) {
     if self.ring_num != 0 {
-      if !self.next.eager_kill() {
+      if !self.next.signal(ActorSignal::Term) {
         panic!("{:?} could not send kill message to next", ctx.name);
       }
     }
@@ -118,7 +118,7 @@ fn ring_test(double: bool, register: bool) {
       }
     }
   }
-  leader.eager_kill();
+  leader.signal(ActorSignal::Term);
   for name in names {
     assert_eq!(rx.recv(), Ok(TestRecvr::IAmDying(name.clone())));
   }

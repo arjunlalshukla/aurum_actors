@@ -7,7 +7,7 @@ use crate::core::{
   ActorRef, Destination, HasInterface, Socket, SpecificInterface,
 };
 
-use super::ActorName;
+use super::{ActorName, RegistryMsg};
 pub trait UnifiedBounds:
   'static
   + Send
@@ -21,22 +21,27 @@ pub trait UnifiedBounds:
   + Debug
   + Serialize
   + DeserializeOwned
+  + PartialOrd
+  + Ord
+  + Case<RegistryMsg<Self>>
 {
 }
-impl<
-    T: 'static
-      + Send
-      + Sync
-      + Debug
-      + Copy
-      + Clone
-      + PartialEq
-      + Eq
-      + Hash
-      + Debug
-      + Serialize
-      + DeserializeOwned,
-  > UnifiedBounds for T
+impl<T> UnifiedBounds for T where T: 
+'static
++ Send
++ Sync
++ Debug
++ Copy
++ Clone
++ PartialEq
++ Eq
++ Hash
++ Debug
++ Serialize
++ DeserializeOwned
++ PartialOrd
++ Ord
++ Case<RegistryMsg<Self>>,
 {
 }
 
@@ -62,9 +67,6 @@ where
   }
 }
 
-pub trait Case<S>
-where
-  Self: UnifiedBounds,
-{
+pub trait Case<S> {
   const VARIANT: Self;
 }

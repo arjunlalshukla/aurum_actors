@@ -1,5 +1,5 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, Case, LocalActorMsg, Node,
+  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg, Node,
   RegistryMsg, SpecificInterface, UnifiedBounds,
 };
 use std::collections::VecDeque;
@@ -23,7 +23,7 @@ pub(crate) async fn run_secondary<S, A, U>(
 ) where
   A: Actor<U, S> + Send + 'static,
   S: 'static + Send + SpecificInterface<U>,
-  U: UnifiedBounds + Case<RegistryMsg<U>> + Case<S>,
+  U: UnifiedBounds + Case<S>,
 {
   let name = ActorName::new::<S>(name);
   let ctx = ActorContext {
@@ -68,7 +68,7 @@ pub(crate) async fn run_secondary<S, A, U>(
     };
     let pri = match msg {
       LocalActorMsg::Msg(lam) => Some(PrimaryMsg::Msg(lam)),
-      LocalActorMsg::EagerKill => Some(PrimaryMsg::Die),
+      LocalActorMsg::Signal(ActorSignal::Term) => Some(PrimaryMsg::Die),
     };
     for pri in pri.into_iter() {
       if primary_waiting {
@@ -91,7 +91,7 @@ async fn run_primary<S, A, U>(
 ) where
   A: Actor<U, S> + Send + 'static,
   S: 'static + Send + SpecificInterface<U>,
-  U: Case<S>,
+  U: UnifiedBounds + Case<S>,
 {
   let send_to_secondary = |x: ActorMsg<U, S>| {
     if ctx.tx.send(x).is_err() {

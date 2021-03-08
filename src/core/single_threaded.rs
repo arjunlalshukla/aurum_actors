@@ -1,5 +1,5 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, Case, LocalActorMsg, Node,
+  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg, Node,
   RegistryMsg, SpecificInterface, UnifiedBounds,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -15,7 +15,7 @@ pub(crate) async fn run_single<U, S, A>(
 ) where
   A: Actor<U, S> + Send + 'static,
   S: 'static + Send + SpecificInterface<U>,
-  U: Case<RegistryMsg<U>> + UnifiedBounds + Case<S>,
+  U: UnifiedBounds + Case<S>,
 {
   let name = ActorName::new::<S>(name);
   let ctx = ActorContext {
@@ -46,7 +46,7 @@ pub(crate) async fn run_single<U, S, A>(
     };
     match msg {
       LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,
-      LocalActorMsg::EagerKill => break,
+      LocalActorMsg::Signal(ActorSignal::Term) => break,
     };
   }
   actor.post_stop(&ctx).await;
