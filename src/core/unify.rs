@@ -26,22 +26,22 @@ pub trait UnifiedBounds:
   + Case<RegistryMsg<Self>>
 {
 }
-impl<T> UnifiedBounds for T where T: 
-'static
-+ Send
-+ Sync
-+ Debug
-+ Copy
-+ Clone
-+ PartialEq
-+ Eq
-+ Hash
-+ Debug
-+ Serialize
-+ DeserializeOwned
-+ PartialOrd
-+ Ord
-+ Case<RegistryMsg<Self>>,
+impl<T> UnifiedBounds for T where
+  T: 'static
+    + Send
+    + Sync
+    + Debug
+    + Copy
+    + Clone
+    + PartialEq
+    + Eq
+    + Hash
+    + Debug
+    + Serialize
+    + DeserializeOwned
+    + PartialOrd
+    + Ord
+    + Case<RegistryMsg<Self>>
 {
 }
 

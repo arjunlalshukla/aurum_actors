@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::{Actor, ActorName, MessagePackets, Socket, UnifiedBounds};
+use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
 
 pub struct LocalRef<T: Send> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,

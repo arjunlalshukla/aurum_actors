@@ -10,7 +10,9 @@ use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
+#[derive(
+  Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize,
+)]
 #[serde(bound = "U: UnifiedBounds")]
 pub struct ActorName<U>(U, String);
 impl<U: UnifiedBounds> ActorName<U> {
@@ -38,7 +40,7 @@ pub(crate) enum ActorMsg<U, S> {
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ActorSignal {
-  Term
+  Term,
 }
 
 #[derive(Eq, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg, Node,
-  RegistryMsg, SpecificInterface, UnifiedBounds,
+  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg,
+  Node, RegistryMsg, SpecificInterface, UnifiedBounds,
 };
 use std::collections::VecDeque;
 use tokio::sync::mpsc::{

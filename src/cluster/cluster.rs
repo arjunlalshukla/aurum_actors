@@ -1,4 +1,4 @@
-//#![allow(unused_imports, dead_code, unused_variables)]
+#![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
 use crate::core::{Actor, ActorContext, ActorRef, Case, LocalRef, Socket};

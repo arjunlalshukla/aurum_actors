@@ -1,3 +1,5 @@
+#![allow(unused_imports, dead_code, unused_variables)]
+
 use std::iter::repeat;
 use std::{
   collections::VecDeque,

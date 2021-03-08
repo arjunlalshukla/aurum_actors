@@ -1,5 +1,5 @@
 use crate::core::{
-  Case, DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds,
+  DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds,
 };
 use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
