@@ -70,11 +70,6 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
   let code = TokenStream::from(quote! {
     #(#from_impls)*
 
-    #(
-      impl<#generics> aurum::core::HasInterface<#non_locals>
-      for #type_id_with_generics {}
-    )*
-
     impl<__Unified, #generics> aurum::core::SpecificInterface<__Unified>
     for #type_id_with_generics
     where __Unified: aurum::core::UnifiedBounds #(+ aurum::core::Case<#cases>)* ,

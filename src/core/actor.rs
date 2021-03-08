@@ -1,6 +1,6 @@
 use crate::core::{
-  ActorRef, Case, Destination, HasInterface, LocalRef, MessageBuilder, Node,
-  SerializedRecvr, UnifiedBounds,
+  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr,
+  UnifiedBounds,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
@@ -108,12 +108,10 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
     Self::create_local::<T>(self.tx.clone())
   }
 
-  pub fn interface<T: Send + Serialize + DeserializeOwned>(
-    &self,
-  ) -> ActorRef<U, T>
+  pub fn interface<T: Send>(&self) -> ActorRef<U, T>
   where
     U: Case<T>,
-    S: HasInterface<T> + From<T>,
+    S: From<T>,
   {
     ActorRef {
       socket: self.node.socket().clone(),

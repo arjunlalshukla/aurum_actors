@@ -1,4 +1,6 @@
-use crate::core::{ActorSignal, Case, DeserializeError, LocalActorMsg};
+use crate::core::{
+  local_actor_msg_convert, ActorSignal, Case, DeserializeError, LocalActorMsg,
+};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -9,23 +11,35 @@ use std::sync::Arc;
 
 use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
 
-pub struct LocalRef<T: Send> {
+pub struct LocalRef<T: Send + 'static> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
 }
-impl<T: Send> Clone for LocalRef<T> {
+impl<T: Send + 'static> Clone for LocalRef<T> {
   fn clone(&self) -> Self {
     LocalRef {
       func: self.func.clone(),
     }
   }
 }
-impl<T: Send> LocalRef<T> {
+impl<T: Send + 'static> LocalRef<T> {
   pub fn send(&self, item: T) -> bool {
     (&self.func)(LocalActorMsg::Msg(item))
   }
 
   pub fn signal(&self, sig: ActorSignal) -> bool {
     (&self.func)(LocalActorMsg::Signal(sig))
+  }
+
+  pub fn transform<I: Send + 'static>(&self) -> LocalRef<I>
+  where
+    T: From<I>,
+  {
+    let func = self.func.clone();
+    LocalRef {
+      func: Arc::new(move |x: LocalActorMsg<I>| {
+        func(local_actor_msg_convert(x))
+      }),
+    }
   }
 
   pub fn void() -> LocalRef<T> {
@@ -42,8 +56,6 @@ impl<T: Send> LocalRef<T> {
     }
   }
 }
-
-pub trait HasInterface<T: Serialize + DeserializeOwned> {}
 
 pub trait SpecificInterface<U: Debug>
 where
@@ -64,20 +76,20 @@ pub struct Destination<U: UnifiedBounds> {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send> {
+pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send + 'static> {
   pub(in crate::core) socket: Socket,
   pub(in crate::core) dest: Destination<U>,
   #[serde(skip, default)]
   pub(in crate::core) local: Option<LocalRef<S>>,
 }
-impl<U: UnifiedBounds + Case<S>, S: Send> ActorRef<U, S> {
+impl<U: UnifiedBounds + Case<S>, S: Send + 'static> ActorRef<U, S> {
   pub fn local(&self) -> &Option<LocalRef<S>> {
     &self.local
   }
 }
 impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
 where
-  S: Send + Serialize + DeserializeOwned,
+  S: Send + Serialize + DeserializeOwned + 'static,
 {
   pub async fn send(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {

@@ -1,10 +1,14 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
-use crate::core::{Actor, ActorContext, ActorRef, Case, LocalRef, Node, Socket};
+use crate::core::{
+  forge, Actor, ActorContext, ActorRef, Case, LocalRef, Node, Socket,
+};
+use crate::cluster::{IntervalStorage};
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 trait UnifiedBounds:
   crate::core::UnifiedBounds
@@ -35,19 +39,19 @@ enum IntraClusterMsg<U: UnifiedBounds> {
   Heartbeat,
 }
 
-enum ClusterCmd {
-  Join(Vec<Socket>),
+pub enum ClusterCmd {
   Leave,
   Subscribe(LocalRef<ClusterEvent>, Vec<ClusterEventType>),
 }
 
-enum ClusterEventType {}
+pub enum ClusterEventType {}
 
-enum ClusterEvent {}
+pub enum ClusterEvent {}
 
 struct Cluster<U: UnifiedBounds> {
   seeds: Vec<ActorRef<U, IntraClusterMsg<U>>>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
+  members: HashMap<ActorRef<U, IntraClusterMsg<U>>, IntervalStorage>
 }
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
@@ -64,7 +68,24 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   }
 }
 impl<U: UnifiedBounds> Cluster<U> {
-  pub fn new(node: &Node<U>) {
-    
+  pub async fn new(
+    node: &Node<U>,
+    name: String,
+    seeds: Vec<Socket>,
+  ) -> LocalRef<ClusterCmd> {
+    let c = Cluster {
+      seeds: seeds
+        .into_iter()
+        .map(|x| forge::<U, ClusterMsg<U>, _>(name.clone(), x))
+        .collect(),
+      subscribers: vec![],
+      members: HashMap::new()
+    };
+    node
+      .spawn(false, c, name, true)
+      .local()
+      .clone()
+      .unwrap()
+      .transform()
   }
 }

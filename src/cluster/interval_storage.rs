@@ -6,7 +6,7 @@ use std::{
   time::{Duration, Instant},
 };
 
-struct IntervalStorage {
+pub struct IntervalStorage {
   capacity: usize,
   intervals: VecDeque<u64>,
   sum: u64,

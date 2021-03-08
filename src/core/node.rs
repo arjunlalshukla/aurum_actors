@@ -1,6 +1,7 @@
 use crate::core::{
-  run_secondary, run_single, udp_receiver, Actor, ActorContext, ActorMsg, Case,
-  LocalRef, Registry, RegistryMsg, Socket, SpecificInterface, UnifiedBounds,
+  run_secondary, run_single, udp_receiver, Actor, ActorContext, ActorMsg,
+  ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket,
+  SpecificInterface, UnifiedBounds,
 };
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
@@ -63,8 +64,12 @@ impl<U: UnifiedBounds> Node<U> {
     let (node_tx, mut node_rx) = unbounded_channel::<Node<U>>();
     let ret = (ActorContext::<U, S>::create_local(tx.clone()), node_tx);
     rt.spawn(async move {
-      run_single(node_rx.recv().await.unwrap(), actor, name, tx, rx, false)
-        .await
+      let ctx = ActorContext {
+        tx: tx,
+        name: ActorName::new::<S>(name),
+        node: node_rx.recv().await.unwrap(),
+      };
+      run_single(actor, ctx, rx, false).await
     });
     ret
   }
@@ -75,25 +80,23 @@ impl<U: UnifiedBounds> Node<U> {
     actor: A,
     name: String,
     register: bool,
-  ) -> LocalRef<S>
+  ) -> ActorRef<U, S>
   where
-    A: Actor<U, S> + Send + 'static,
-    S: 'static + Send + SpecificInterface<U>,
     U: Case<S>,
+    S: 'static + Send + SpecificInterface<U>,
+    A: Actor<U, S> + Send + 'static,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
-    let ret = ActorContext::<U, S>::create_local(tx.clone());
-    let node = self.clone();
+    let ctx = ActorContext {
+      tx: tx,
+      name: ActorName::new::<S>(name),
+      node: self.clone(),
+    };
+    let ret = ctx.interface();
     if double {
-      self
-        .node
-        .rt
-        .spawn(run_secondary(node, actor, name, tx, rx, register));
+      self.node.rt.spawn(run_secondary(actor, ctx, rx, register));
     } else {
-      self
-        .node
-        .rt
-        .spawn(run_single(node, actor, name, tx, rx, register));
+      self.node.rt.spawn(run_single(actor, ctx, rx, register));
     }
     ret
   }

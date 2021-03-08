@@ -30,8 +30,7 @@ pub(crate) use {
 // Needed for macros
 #[rustfmt::skip]
 pub use {
-  actor::LocalActorMsg, 
-  interface::HasInterface,
+  actor::LocalActorMsg,
   interface::SpecificInterface, 
   registry::RegistryMsg,
   remoting::deserialize,

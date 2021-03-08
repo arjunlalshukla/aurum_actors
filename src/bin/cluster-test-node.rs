@@ -13,5 +13,4 @@ fn main() {
   let port = args.next().unwrap().parse::<u16>().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
-  
 }

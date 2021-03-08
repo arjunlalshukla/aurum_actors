@@ -1,15 +1,13 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg,
-  Node, RegistryMsg, SpecificInterface, UnifiedBounds,
+  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
+  SpecificInterface, UnifiedBounds,
 };
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot::channel;
 
 pub(crate) async fn run_single<U, S, A>(
-  node: Node<U>,
   mut actor: A,
-  name: String,
-  tx: UnboundedSender<ActorMsg<U, S>>,
+  ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
@@ -17,17 +15,15 @@ pub(crate) async fn run_single<U, S, A>(
   S: 'static + Send + SpecificInterface<U>,
   U: UnifiedBounds + Case<S>,
 {
-  let name = ActorName::new::<S>(name);
-  let ctx = ActorContext {
-    tx: tx,
-    name: name.clone(),
-    node: node.clone(),
-  };
   if register {
     let (tx, rx) = channel::<()>();
-    node.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx));
+    ctx.node.registry(RegistryMsg::Register(
+      ctx.name.clone(),
+      ctx.ser_recvr(),
+      tx,
+    ));
     rx.await
-      .expect(format!("Could not register {:?}", name).as_str());
+      .expect(format!("Could not register {:?}", ctx.name).as_str());
   }
   actor.pre_start(&ctx).await;
   loop {
@@ -51,6 +47,6 @@ pub(crate) async fn run_single<U, S, A>(
   }
   actor.post_stop(&ctx).await;
   if register {
-    node.registry(RegistryMsg::Deregister(name));
+    ctx.node.registry(RegistryMsg::Deregister(ctx.name));
   }
 }

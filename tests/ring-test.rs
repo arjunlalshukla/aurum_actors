@@ -33,19 +33,24 @@ struct Player {
 impl Actor<RingTypes, Ball> for Player {
   async fn pre_start(&mut self, ctx: &ActorContext<RingTypes, Ball>) {
     if self.ring_num != 0 {
-      self.next = ctx.node.spawn(
-        self.double,
-        Player {
-          tester: self.tester.clone(),
-          ring_num: self.ring_num - 1,
-          next: LocalRef::panic(),
-          leader: Some(self.leader.clone().unwrap_or(ctx.local_interface())),
-          double: self.double,
-          register: self.register,
-        },
-        format!("ring-member-{}", self.ring_num - 1),
-        self.register,
-      );
+      self.next = ctx
+        .node
+        .spawn(
+          self.double,
+          Player {
+            tester: self.tester.clone(),
+            ring_num: self.ring_num - 1,
+            next: LocalRef::panic(),
+            leader: Some(self.leader.clone().unwrap_or(ctx.local_interface())),
+            double: self.double,
+            register: self.register,
+          },
+          format!("ring-member-{}", self.ring_num - 1),
+          self.register,
+        )
+        .local()
+        .clone()
+        .unwrap();
     } else {
       self.next = self.leader.clone().unwrap_or(ctx.local_interface());
     }
@@ -89,19 +94,23 @@ fn ring_test(double: bool, register: bool) {
     .rev()
     .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))
     .collect::<Vec<_>>();
-  let leader = node.spawn(
-    double,
-    Player {
-      tester: tx,
-      ring_num: RING_SIZE - 1,
-      next: LocalRef::panic(),
-      leader: None,
-      double: double,
-      register: register,
-    },
-    format!("ring-member-{}", RING_SIZE - 1),
-    register,
-  );
+  let leader = node
+    .spawn(
+      double,
+      Player {
+        tester: tx,
+        ring_num: RING_SIZE - 1,
+        next: LocalRef::panic(),
+        leader: None,
+        double: double,
+        register: register,
+      },
+      format!("ring-member-{}", RING_SIZE - 1),
+      register,
+    )
+    .local()
+    .clone()
+    .unwrap();
   for x in 0..ROUNDS {
     for (name, num) in names.iter().zip(0..RING_SIZE) {
       match rx.recv() {

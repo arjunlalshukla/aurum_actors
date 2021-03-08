@@ -1,11 +1,9 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorName, ActorSignal, Case, LocalActorMsg,
-  Node, RegistryMsg, SpecificInterface, UnifiedBounds,
+  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
+  SpecificInterface, UnifiedBounds,
 };
 use std::collections::VecDeque;
-use tokio::sync::mpsc::{
-  unbounded_channel, UnboundedReceiver, UnboundedSender,
-};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::oneshot::channel;
 
 enum PrimaryMsg<S> {
@@ -13,34 +11,31 @@ enum PrimaryMsg<S> {
   Die,
 }
 
-pub(crate) async fn run_secondary<S, A, U>(
-  node: Node<U>,
+pub(crate) async fn run_secondary<U, S, A>(
   actor: A,
-  //ctx: ActorContext<>
-  name: String,
-  tx: UnboundedSender<ActorMsg<U, S>>,
+  ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
-  A: Actor<U, S> + Send + 'static,
-  S: 'static + Send + SpecificInterface<U>,
   U: UnifiedBounds + Case<S>,
+  S: 'static + Send + SpecificInterface<U>,
+  A: Actor<U, S> + Send + 'static,
 {
-  let name = ActorName::new::<S>(name);
-  let ctx = ActorContext {
-    tx: tx,
-    name: name.clone(),
-    node: node.clone(),
-  };
   if register {
     let (tx, rx) = channel::<()>();
-    node.registry(RegistryMsg::Register(name.clone(), ctx.ser_recvr(), tx));
+    ctx.node.registry(RegistryMsg::Register(
+      ctx.name.clone(),
+      ctx.ser_recvr(),
+      tx,
+    ));
     rx.await
-      .expect(format!("Could not register {:?}", name).as_str());
+      .expect(format!("Could not register {:?}", ctx.name).as_str());
   }
   let mut queue = VecDeque::<PrimaryMsg<S>>::new();
   let mut primary_waiting = false;
   let (primary_tx, primary_rx) = unbounded_channel::<PrimaryMsg<S>>();
+  let node = ctx.node.clone();
+  let name = ctx.name.clone();
   node.node.rt.spawn(run_primary(actor, ctx, primary_rx));
   let send_to_primary = |msg: PrimaryMsg<S>| {
     if primary_tx.send(msg).is_err() {
@@ -85,14 +80,14 @@ pub(crate) async fn run_secondary<S, A, U>(
   }
 }
 
-async fn run_primary<S, A, U>(
+async fn run_primary<U, S, A>(
   mut actor: A,
   ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<PrimaryMsg<S>>,
 ) where
-  A: Actor<U, S> + Send + 'static,
-  S: 'static + Send + SpecificInterface<U>,
   U: UnifiedBounds + Case<S>,
+  S: 'static + Send + SpecificInterface<U>,
+  A: Actor<U, S> + Send + 'static,
 {
   let send_to_secondary = |x: ActorMsg<U, S>| {
     if ctx.tx.send(x).is_err() {
