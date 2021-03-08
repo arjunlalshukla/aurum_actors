@@ -48,20 +48,17 @@ impl<T> UnifiedBounds for T where
 pub trait SerDe: Serialize + DeserializeOwned {}
 impl<T: Serialize + DeserializeOwned> SerDe for T {}
 
-pub fn forge<U, S, Interface: Send>(
-  s: String,
-  socket: Socket,
-) -> ActorRef<U, Interface>
+pub fn forge<U, S, I>(s: String, socket: Socket) -> ActorRef<U, I>
 where
-  S: HasInterface<Interface> + SpecificInterface<U>,
-  U: Case<S> + Case<Interface> + UnifiedBounds,
-  Interface: Serialize + DeserializeOwned,
+  U: Case<S> + Case<I> + UnifiedBounds,
+  S: HasInterface<I> + SpecificInterface<U>,
+  I: Send + Serialize + DeserializeOwned,
 {
   ActorRef {
     socket: socket,
     dest: Destination {
       name: ActorName::new::<S>(s),
-      interface: <U as Case<Interface>>::VARIANT,
+      interface: <U as Case<I>>::VARIANT,
     },
     local: None,
   }

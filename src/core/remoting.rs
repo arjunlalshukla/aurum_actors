@@ -18,16 +18,16 @@ pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
   serde_json::to_vec(item).ok()
 }
 
-pub fn deserialize<U, S, Interface>(
+pub fn deserialize<U, S, I>(
   item: U,
   bytes: &[u8],
 ) -> Result<LocalActorMsg<S>, DeserializeError<U>>
 where
-  U: Case<S> + Case<Interface> + UnifiedBounds,
-  S: From<Interface>,
-  Interface: Serialize + DeserializeOwned,
+  U: Case<S> + Case<I> + UnifiedBounds,
+  S: From<I>,
+  I: Serialize + DeserializeOwned,
 {
-  match serde_json::from_slice::<LocalActorMsg<Interface>>(bytes) {
+  match serde_json::from_slice::<LocalActorMsg<I>>(bytes) {
     Ok(res) => Result::Ok(local_actor_msg_convert(res)),
     Err(_) => Result::Err(DeserializeError::Other(item)),
   }

@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
-use crate::core::{Actor, ActorContext, ActorRef, Case, LocalRef, Socket};
+use crate::core::{Actor, ActorContext, ActorRef, Case, LocalRef, Node, Socket};
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
@@ -49,7 +49,6 @@ struct Cluster<U: UnifiedBounds> {
   seeds: Vec<ActorRef<U, IntraClusterMsg<U>>>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
 }
-
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn recv(
@@ -62,5 +61,10 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
     match msg {
       _ => {}
     }
+  }
+}
+impl<U: UnifiedBounds> Cluster<U> {
+  pub fn new(node: &Node<U>) {
+    
   }
 }

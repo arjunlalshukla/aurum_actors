@@ -2,7 +2,9 @@ use crate::core::{ActorSignal, Case, DeserializeError, LocalActorMsg};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::cmp::PartialEq;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
@@ -69,14 +71,15 @@ pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send> {
   pub(in crate::core) local: Option<LocalRef<S>>,
 }
 impl<U: UnifiedBounds + Case<S>, S: Send> ActorRef<U, S> {
-  pub fn local(&self) -> Option<LocalRef<S>> {
-    self.local.clone()
+  pub fn local(&self) -> &Option<LocalRef<S>> {
+    &self.local
   }
-
-  pub async fn send(&self, item: S) -> Option<bool>
-  where
-    S: Serialize + DeserializeOwned,
-  {
+}
+impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
+where
+  S: Send + Serialize + DeserializeOwned,
+{
+  pub async fn send(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
@@ -85,10 +88,16 @@ impl<U: UnifiedBounds + Case<S>, S: Send> ActorRef<U, S> {
     }
   }
 
-  async fn remote_send(&self, msg: LocalActorMsg<S>)
-  where
-    S: Serialize + DeserializeOwned,
-  {
+  pub async fn signal(&self, sig: ActorSignal) -> Option<bool> {
+    if let Some(r) = &self.local {
+      Some(r.signal(sig))
+    } else {
+      self.remote_send(LocalActorMsg::Signal(sig)).await;
+      None
+    }
+  }
+
+  async fn remote_send(&self, msg: LocalActorMsg<S>) {
     let addrs = self.socket.as_udp_addr().await.unwrap();
     let addr = addrs
       .iter()
@@ -102,36 +111,19 @@ impl<U: UnifiedBounds + Case<S>, S: Send> ActorRef<U, S> {
       .await;
   }
 }
-impl<U, S> std::cmp::PartialEq for ActorRef<U, S>
-where
-  U: UnifiedBounds + Case<S>,
-  S: Send + Serialize + DeserializeOwned,
-{
+impl<U: UnifiedBounds + Case<S>, S: Send> PartialEq for ActorRef<U, S> {
   fn eq(&self, other: &Self) -> bool {
     self.socket == other.socket && self.dest == other.dest
   }
 }
-impl<U, S> std::cmp::Eq for ActorRef<U, S>
-where
-  U: UnifiedBounds + Case<S>,
-  S: Send + Serialize + DeserializeOwned,
-{
-}
-impl<U, S> std::hash::Hash for ActorRef<U, S>
-where
-  U: UnifiedBounds + Case<S>,
-  S: Send + Serialize + DeserializeOwned,
-{
+impl<U: UnifiedBounds + Case<S>, S: Send> Eq for ActorRef<U, S> {}
+impl<U: UnifiedBounds + Case<S>, S: Send> Hash for ActorRef<U, S> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     self.socket.hash(state);
     self.dest.hash(state);
   }
 }
-impl<U, S> Debug for ActorRef<U, S>
-where
-  U: UnifiedBounds + Case<S>,
-  S: Send + Serialize + DeserializeOwned,
-{
+impl<U: UnifiedBounds + Case<S>, S: Send> Debug for ActorRef<U, S> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("ActorRef")
       .field("Unified", &std::any::type_name::<U>())

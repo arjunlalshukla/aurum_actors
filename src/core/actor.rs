@@ -38,7 +38,7 @@ pub(crate) enum ActorMsg<U, S> {
   Die,
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ActorSignal {
   Term,
 }
@@ -71,8 +71,8 @@ impl<S: Debug> Debug for LocalActorMsg<S> {
   }
 }
 
-pub fn local_actor_msg_convert<S: From<Interface>, Interface>(
-  msg: LocalActorMsg<Interface>,
+pub fn local_actor_msg_convert<S: From<I>, I>(
+  msg: LocalActorMsg<I>,
 ) -> LocalActorMsg<S> {
   match msg {
     LocalActorMsg::Msg(s) => LocalActorMsg::Msg(S::from(s)),
@@ -90,7 +90,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
     sender: UnboundedSender<ActorMsg<U, S>>,
   ) -> LocalRef<T>
   where
-    S: From<T> + 'static,
+    S: From<T>,
   {
     LocalRef {
       func: Arc::new(move |x: LocalActorMsg<T>| {
@@ -103,7 +103,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
 
   pub fn local_interface<T: Send>(&self) -> LocalRef<T>
   where
-    S: From<T> + 'static,
+    S: From<T>,
   {
     Self::create_local::<T>(self.tx.clone())
   }
@@ -113,7 +113,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
   ) -> ActorRef<U, T>
   where
     U: Case<T>,
-    S: HasInterface<T> + From<T> + 'static,
+    S: HasInterface<T> + From<T>,
   {
     ActorRef {
       socket: self.node.socket().clone(),
