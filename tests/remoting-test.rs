@@ -59,17 +59,17 @@ fn actor_ref_test(double: bool, port: u16) {
 
   let mut expected = HashSet::new();
   for e in 0..errors {
-    block_on(_err_msg.send(e));
+    block_on(_err_msg.move_to(e));
     expected.insert(RemoteLoggerMsg::Error(e));
   }
   for w in 0..warnings {
     let to_send = format!("warning-{}", w);
-    block_on(_warn_msg.send(to_send.clone()));
+    block_on(_warn_msg.send(&to_send));
     expected.insert(RemoteLoggerMsg::Warning(to_send));
   }
   for i in 0..infos {
     let to_send = RemoteLoggerMsg::Info(format!("info-{}", i));
-    block_on(_lgr_msg.send(to_send.clone()));
+    block_on(_lgr_msg.move_to(to_send.clone()));
     expected.insert(to_send);
   }
 

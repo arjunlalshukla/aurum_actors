@@ -1,10 +1,10 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
+use crate::cluster::IntervalStorage;
 use crate::core::{
   forge, Actor, ActorContext, ActorRef, Case, LocalRef, Node, Socket,
 };
-use crate::cluster::{IntervalStorage};
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
 use serde::{Deserialize, Serialize};
@@ -51,7 +51,7 @@ pub enum ClusterEvent {}
 struct Cluster<U: UnifiedBounds> {
   seeds: Vec<ActorRef<U, IntraClusterMsg<U>>>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
-  members: HashMap<ActorRef<U, IntraClusterMsg<U>>, IntervalStorage>
+  members: HashMap<ActorRef<U, IntraClusterMsg<U>>, IntervalStorage>,
 }
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
@@ -79,7 +79,7 @@ impl<U: UnifiedBounds> Cluster<U> {
         .map(|x| forge::<U, ClusterMsg<U>, _>(name.clone(), x))
         .collect(),
       subscribers: vec![],
-      members: HashMap::new()
+      members: HashMap::new(),
     };
     node
       .spawn(false, c, name, true)

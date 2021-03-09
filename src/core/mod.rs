@@ -6,7 +6,6 @@ mod interface;
 mod node;
 mod packets;
 mod registry;
-mod remoting;
 mod single_threaded;
 mod udp_receiver;
 mod unify;
@@ -20,9 +19,9 @@ pub(crate) use {
   packets::DatagramHeader, 
   packets::MessageBuilder, 
   packets::MessagePackets,
+  packets::deserialize,
   registry::Registry, 
-  registry::SerializedRecvr, 
-  remoting::serialize, 
+  registry::SerializedRecvr,
   single_threaded::run_single,
   udp_receiver::udp_receiver,
 };
@@ -33,8 +32,9 @@ pub use {
   actor::LocalActorMsg,
   interface::SpecificInterface, 
   registry::RegistryMsg,
-  remoting::deserialize,
-  remoting::DeserializeError, 
+  packets::deserialize_msg,
+  packets::DeserializeError, 
+  packets::Interpretations,
   unify::Case, 
   unify::UnifiedBounds,
 };
@@ -47,9 +47,9 @@ pub use {
   actor::ActorName, 
   actor::ActorSignal,
   interface::ActorRef, 
+  interface::Host, 
   interface::LocalRef, 
+  interface::Socket, 
   node::Node,
-  remoting::Host, 
-  remoting::Socket, 
   unify::forge,
 };

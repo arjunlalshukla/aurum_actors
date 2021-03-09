@@ -36,8 +36,12 @@ pub(crate) async fn run_single<U, S, A>(
         panic!("A single threaded actor shouldn't get ActorMsg::Die")
       }
       ActorMsg::Serial(interface, mb) => {
-        <S as SpecificInterface<U>>::deserialize_as(interface, mb.msg())
-          .unwrap()
+        <S as SpecificInterface<U>>::deserialize_as(
+          interface,
+          mb.intp,
+          mb.msg(),
+        )
+        .unwrap()
       }
     };
     match msg {

@@ -29,7 +29,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
   let code = TokenStream::from(quote! {
     #[derive(
       serde::Serialize, serde::Deserialize, std::cmp::Eq,
-      std::cmp::PartialEq, std::hash::Hash, std::clone::Clone, 
+      std::cmp::PartialEq, std::hash::Hash, std::clone::Clone,
       std::marker::Copy, std::cmp::PartialOrd, std::cmp::Ord
     )]
     enum #unified {

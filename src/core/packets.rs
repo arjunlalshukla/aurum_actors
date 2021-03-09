@@ -1,23 +1,63 @@
-use super::{serialize, Destination, UnifiedBounds};
+use super::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedBounds};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
 const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
+
+#[derive(Debug)]
+pub enum DeserializeError<U: Debug> {
+  IncompatibleInterface(U),
+  Other(U),
+}
+
+pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
+  serde_json::to_vec(item).ok()
+}
+
+pub fn deserialize<T: Serialize + DeserializeOwned>(bytes: &[u8]) -> Option<T> {
+  serde_json::from_slice::<T>(bytes).ok()
+}
+
+pub fn deserialize_msg<U, S, I>(
+  interface: U,
+  intp: Interpretations,
+  bytes: &[u8],
+) -> Result<LocalActorMsg<S>, DeserializeError<U>>
+where
+  U: Case<S> + Case<I> + UnifiedBounds,
+  S: From<I>,
+  I: Serialize + DeserializeOwned,
+{
+  match intp {
+    Interpretations::Message => match deserialize::<I>(bytes) {
+      Some(res) => Result::Ok(LocalActorMsg::Msg(S::from(res))),
+      None => Result::Err(DeserializeError::Other(interface)),
+    },
+    Interpretations::Signal => match deserialize::<ActorSignal>(bytes) {
+      Some(res) => Result::Ok(LocalActorMsg::Signal(res)),
+      None => Result::Err(DeserializeError::Other(interface)),
+    },
+  }
+}
 
 pub struct MessagePackets {
   msg_size: u32,
   dest_size: u16,
   max_seq_num: u16,
   buf: Vec<u8>,
+  intp: Interpretations,
 }
 impl MessagePackets {
   pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds>(
     item: &T,
+    intp: Interpretations,
     dest: &Destination<U>,
   ) -> MessagePackets {
     let mut ser = serialize(item).unwrap();
@@ -29,6 +69,7 @@ impl MessagePackets {
       max_seq_num: (ser.len() / (MAX_PACKET_SIZE - DatagramHeader::SIZE))
         as u16,
       buf: ser,
+      intp: intp,
     }
   }
 
@@ -47,6 +88,7 @@ impl MessagePackets {
       max_seq_num: self.max_seq_num,
       msg_size: self.msg_size as u32,
       dest_size: self.dest_size as u16,
+      intp: self.intp,
     };
     header.put(&mut first[..DatagramHeader::SIZE]);
     let len = first.len();
@@ -71,6 +113,7 @@ pub struct MessageBuilder {
   max_seq_num: u16,
   seqs_recvd: HashSet<u16>,
   buf: Vec<u8>,
+  pub intp: Interpretations,
 }
 impl MessageBuilder {
   pub fn new(header: &DatagramHeader) -> MessageBuilder {
@@ -84,6 +127,7 @@ impl MessageBuilder {
           + header.dest_size as usize
           + DatagramHeader::SIZE
       ],
+      intp: header.intp,
     }
   }
 
@@ -119,6 +163,15 @@ impl MessageBuilder {
   }
 }
 
+#[derive(
+  Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive,
+)]
+#[repr(u8)]
+pub enum Interpretations {
+  Message = 0,
+  Signal = 1,
+}
+
 /*
 We can't use Serde here because we need to know exactly how big the byte slice
 is. Serde hides that as an implementation detail. Datagrams consist of 2
@@ -133,10 +186,11 @@ pub struct DatagramHeader {
   pub max_seq_num: u16,
   pub msg_size: u32,
   pub dest_size: u16,
+  pub intp: Interpretations,
 }
 // Serialization is big endian
 impl DatagramHeader {
-  pub const SIZE: usize = 18;
+  pub const SIZE: usize = 19;
   pub fn put(&self, buf: &mut [u8]) {
     if buf.len() != Self::SIZE {
       panic!("Datagram ser buf: {}, expected {}", buf.len(), Self::SIZE);
@@ -159,6 +213,7 @@ impl DatagramHeader {
     buf[15] = self.msg_size as u8;
     buf[16] = (self.dest_size >> 8) as u8;
     buf[17] = self.dest_size as u8;
+    buf[18] = self.intp.into();
   }
 }
 impl TryFrom<&[u8]> for DatagramHeader {
@@ -173,6 +228,7 @@ impl TryFrom<&[u8]> for DatagramHeader {
       max_seq_num: 0,
       msg_size: 0,
       dest_size: 0,
+      intp: Interpretations::try_from(buf[18]).map_err(|_| ())?,
     };
     ret.msg_id |= (buf[0] as u64) << 56;
     ret.msg_id |= (buf[1] as u64) << 48;
@@ -208,6 +264,7 @@ fn test_datagram_header_serde() {
     max_seq_num: 0xea01,
     msg_size: 0x8b5d7015,
     dest_size: 0x8531,
+    intp: Interpretations::Message,
   };
   let mut buf = [0u8; DatagramHeader::SIZE];
   header.put(&mut buf);

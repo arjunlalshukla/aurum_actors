@@ -1,5 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, ActorSignal, Case, DeserializeError, LocalActorMsg,
+  local_actor_msg_convert, ActorSignal, Case, DeserializeError,
+  Interpretations, LocalActorMsg,
 };
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -7,9 +8,11 @@ use serde::{Deserialize, Serialize};
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
+use tokio::net::lookup_host;
 
-use super::{ActorName, MessagePackets, Socket, UnifiedBounds};
+use super::{ActorName, MessagePackets, UnifiedBounds};
 
 pub struct LocalRef<T: Send + 'static> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
@@ -63,8 +66,40 @@ where
 {
   fn deserialize_as(
     interface: U,
+    intp: Interpretations,
     bytes: &[u8],
   ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Host {
+  DNS(String),
+  IP(IpAddr),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct Socket {
+  pub host: Host,
+  pub udp: u16,
+  pub tcp: u16,
+}
+impl Socket {
+  pub fn new(host: Host, udp: u16, tcp: u16) -> Socket {
+    Socket {
+      host: host,
+      udp: udp,
+      tcp: tcp,
+    }
+  }
+
+  pub async fn as_udp_addr(&self) -> std::io::Result<Vec<SocketAddr>> {
+    match &self.host {
+      Host::IP(ip) => Ok(vec![SocketAddr::new(*ip, self.udp)]),
+      Host::DNS(s) => lookup_host((s.as_str(), self.udp))
+        .await
+        .map(|x| x.collect()),
+    }
+  }
 }
 
 #[derive(Clone, Eq, PartialEq, Deserialize, Hash, Serialize, Debug)]
@@ -91,11 +126,23 @@ impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
 where
   S: Send + Serialize + DeserializeOwned + 'static,
 {
-  pub async fn send(&self, item: S) -> Option<bool> {
+  pub async fn send(&self, item: &S) -> Option<bool>
+  where
+    S: Clone,
+  {
+    if let Some(r) = &self.local {
+      Some(r.send(item.clone()))
+    } else {
+      self.remote_send(Interpretations::Message, item).await;
+      None
+    }
+  }
+
+  pub async fn move_to(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      self.remote_send(LocalActorMsg::Msg(item)).await;
+      self.remote_send(Interpretations::Message, &item).await;
       None
     }
   }
@@ -104,12 +151,15 @@ where
     if let Some(r) = &self.local {
       Some(r.signal(sig))
     } else {
-      self.remote_send(LocalActorMsg::Signal(sig)).await;
+      self.remote_send(Interpretations::Signal, &sig).await;
       None
     }
   }
 
-  async fn remote_send(&self, msg: LocalActorMsg<S>) {
+  async fn remote_send<T>(&self, intp: Interpretations, msg: &T)
+  where
+    T: Serialize + DeserializeOwned,
+  {
     let addrs = self.socket.as_udp_addr().await.unwrap();
     let addr = addrs
       .iter()
@@ -118,7 +168,7 @@ where
     let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
       .await
       .unwrap();
-    MessagePackets::new(&msg, &self.dest)
+    MessagePackets::new(msg, intp, &self.dest)
       .send_to(&udp, addr)
       .await;
   }

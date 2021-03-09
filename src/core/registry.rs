@@ -1,6 +1,7 @@
 use crate as aurum;
 use crate::core::{
-  Actor, ActorContext, ActorName, Destination, MessageBuilder, UnifiedBounds,
+  deserialize, Actor, ActorContext, ActorName, Destination, MessageBuilder,
+  UnifiedBounds,
 };
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
@@ -37,10 +38,7 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
         let Destination { name, interface } =
-          serde_json::from_slice::<Destination<U>>(msg_builder.dest())
-            .unwrap_or_else(|e| {
-              panic!("Could not deserialize because: {:?}", e.classify())
-            });
+          deserialize::<Destination<U>>(msg_builder.dest()).unwrap();
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);
