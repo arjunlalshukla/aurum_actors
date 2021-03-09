@@ -133,16 +133,20 @@ where
     if let Some(r) = &self.local {
       Some(r.send(item.clone()))
     } else {
-      self.remote_send(Interpretations::Message, item).await;
+      self.udp_send(Interpretations::Message, item).await;
       None
     }
+  }
+
+  pub async fn remote_send(&self, item: &S) {
+    self.udp_send(Interpretations::Message, item).await;
   }
 
   pub async fn move_to(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      self.remote_send(Interpretations::Message, &item).await;
+      self.udp_send(Interpretations::Message, &item).await;
       None
     }
   }
@@ -151,12 +155,12 @@ where
     if let Some(r) = &self.local {
       Some(r.signal(sig))
     } else {
-      self.remote_send(Interpretations::Signal, &sig).await;
+      self.udp_send(Interpretations::Signal, &sig).await;
       None
     }
   }
 
-  async fn remote_send<T>(&self, intp: Interpretations, msg: &T)
+  async fn udp_send<T>(&self, intp: Interpretations, msg: &T)
   where
     T: Serialize + DeserializeOwned,
   {

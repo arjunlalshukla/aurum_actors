@@ -1,11 +1,13 @@
 use async_trait::async_trait;
-use aurum::core::{forge, Actor, ActorContext, Host, Node, Socket};
+use aurum::core::{
+  forge, Actor, ActorContext, ActorSignal, Host, Node, Socket,
+};
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio_test::block_on;
 
 #[derive(
@@ -17,7 +19,7 @@ enum RemoteLoggerMsg {
   #[aurum]
   Warning(String),
   #[aurum]
-  Error(u32),
+  Error(i32),
 }
 struct Logger {
   tester: Sender<RemoteLoggerMsg>,
@@ -31,9 +33,16 @@ impl Actor<RemoteTestTypes, RemoteLoggerMsg> for Logger {
   ) {
     self.tester.send(msg).unwrap();
   }
+
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<RemoteTestTypes, RemoteLoggerMsg>,
+  ) {
+    self.tester.send(RemoteLoggerMsg::Error(-1)).unwrap();
+  }
 }
 
-unify!(RemoteTestTypes = RemoteLoggerMsg | std::string::String | u32);
+unify!(RemoteTestTypes = RemoteLoggerMsg | std::string::String | i32);
 
 fn actor_ref_test(double: bool, port: u16) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 1001);
@@ -42,7 +51,7 @@ fn actor_ref_test(double: bool, port: u16) {
     "logger".to_string(),
     socket.clone(),
   );
-  let _err_msg = forge::<RemoteTestTypes, RemoteLoggerMsg, u32>(
+  let _err_msg = forge::<RemoteTestTypes, RemoteLoggerMsg, i32>(
     "logger".to_string(),
     socket.clone(),
   );
@@ -69,21 +78,19 @@ fn actor_ref_test(double: bool, port: u16) {
   }
   for i in 0..infos {
     let to_send = RemoteLoggerMsg::Info(format!("info-{}", i));
-    block_on(_lgr_msg.move_to(to_send.clone()));
+    block_on(_lgr_msg.remote_send(&to_send));
     expected.insert(to_send);
   }
+  block_on(_lgr_msg.signal(ActorSignal::Term));
+  expected.insert(RemoteLoggerMsg::Error(-1));
 
-  let start = Instant::now();
   let timeout = Duration::from_secs(5);
   let mut recvd = HashSet::new();
   loop {
-    if start.elapsed() > timeout {
-      panic!("test timed out");
-    }
     if recvd.len() == expected.len() && recvd == expected {
       break;
     }
-    recvd.insert(rx.recv().unwrap());
+    recvd.insert(rx.recv_timeout(timeout).unwrap());
   }
 }
 
