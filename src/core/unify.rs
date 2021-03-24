@@ -3,9 +3,10 @@ use serde::Serialize;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::core::{ActorRef, Destination, Socket, SpecificInterface};
-
-use super::{ActorName, RegistryMsg};
+use crate::core::{
+  ActorRef, DeserializeError, Destination, Interpretations, LocalActorMsg,
+  RegistryMsg, Socket,
+};
 pub trait UnifiedBounds:
   'static
   + Send
@@ -43,25 +44,30 @@ impl<T> UnifiedBounds for T where
 {
 }
 
-pub trait SerDe: Serialize + DeserializeOwned {}
-impl<T: Serialize + DeserializeOwned> SerDe for T {}
-
 pub fn forge<U, S, I>(s: String, socket: Socket) -> ActorRef<U, I>
 where
   U: Case<S> + Case<I> + UnifiedBounds,
   S: From<I> + SpecificInterface<U>,
-  I: Send + Serialize + DeserializeOwned,
+  I: Send,
 {
   ActorRef {
     socket: socket,
-    dest: Destination {
-      name: ActorName::new::<S>(s),
-      interface: <U as Case<I>>::VARIANT,
-    },
+    dest: Destination::new::<S, I>(s),
     local: None,
   }
 }
 
 pub trait Case<S> {
   const VARIANT: Self;
+}
+
+pub trait SpecificInterface<U: Debug>
+where
+  Self: Sized,
+{
+  fn deserialize_as(
+    interface: U,
+    intp: Interpretations,
+    bytes: &[u8],
+  ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
 }

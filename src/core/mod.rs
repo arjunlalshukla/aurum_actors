@@ -30,12 +30,12 @@ pub(crate) use {
 #[rustfmt::skip]
 pub use {
   actor::LocalActorMsg,
-  interface::SpecificInterface, 
   registry::RegistryMsg,
   packets::deserialize_msg,
   packets::DeserializeError, 
   packets::Interpretations,
   unify::Case, 
+  unify::SpecificInterface, 
   unify::UnifiedBounds,
 };
 
@@ -50,6 +50,8 @@ pub use {
   interface::Host, 
   interface::LocalRef, 
   interface::Socket, 
+  interface::udp_msg,
+  interface::udp_signal,
   node::Node,
   unify::forge,
 };

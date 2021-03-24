@@ -3,10 +3,10 @@ use proc_macro::TokenStream;
 use proc_macro2::{self, Span};
 use quote::{quote, ToTokens};
 use syn::parse::Parse;
-use syn::{punctuated::Punctuated, Ident, Token, TypePath};
+use syn::{punctuated::Punctuated, Ident, Token, TypePath, Visibility};
 
 pub fn unify_impl(toks: TokenStream) -> TokenStream {
-  let UnifiedType { unified, specifics } =
+  let UnifiedType { unified, specifics, vis } =
     syn::parse::<UnifiedType>(toks).unwrap();
   let mut specifics = specifics
     .into_iter()
@@ -14,6 +14,12 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     .collect::<Vec<proc_macro2::TokenStream>>();
   specifics.push(quote! {
     aurum::core::RegistryMsg<#unified>
+  });
+  specifics.push(quote! {
+    aurum::cluster::ClusterMsg<#unified>
+  });
+  specifics.push(quote! {
+    aurum::cluster::IntraClusterMsg<#unified>
   });
   let variants = std::iter::repeat(('A'..='B').collect::<Vec<_>>())
     .take((specifics.len() as f64).log(1.9).ceil() as usize)
@@ -32,7 +38,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       std::cmp::PartialEq, std::hash::Hash, std::clone::Clone,
       std::marker::Copy, std::cmp::PartialOrd, std::cmp::Ord
     )]
-    enum #unified {
+    #vis enum #unified {
       #(#variants,)*
     }
     impl std::fmt::Display for #unified {
@@ -63,9 +69,11 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
 struct UnifiedType {
   unified: Ident,
   specifics: Vec<SpecificType>,
+  vis: Visibility
 }
 impl Parse for UnifiedType {
   fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+    let vis = input.parse::<Visibility>()?;
     let unified = input.parse::<Ident>()?;
     input.parse::<Token![=]>()?;
     let specifics =
@@ -75,6 +83,7 @@ impl Parse for UnifiedType {
     Ok(UnifiedType {
       unified: unified,
       specifics: specifics,
+      vis: vis
     })
   }
 }

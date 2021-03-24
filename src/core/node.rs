@@ -22,6 +22,7 @@ impl<U: UnifiedBounds> Node<U> {
   pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
+      .enable_time()
       .worker_threads(actor_threads)
       .thread_name("tokio-thread")
       .thread_stack_size(3 * 1024 * 1024)
@@ -48,6 +49,10 @@ impl<U: UnifiedBounds> Node<U> {
 
   pub fn registry(&self, msg: RegistryMsg<U>) -> bool {
     self.node.registry.send(msg)
+  }
+
+  pub fn rt(&self) -> &Runtime {
+    &self.node.rt
   }
 
   fn start_codependent<S, A>(

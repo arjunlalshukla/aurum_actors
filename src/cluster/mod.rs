@@ -1,4 +1,5 @@
 mod cluster;
+mod gossip;
 mod interval_storage;
 
 #[rustfmt::skip]
@@ -8,7 +9,11 @@ pub(crate) use {
 
 #[rustfmt::skip]
 pub use {
+  cluster::Cluster,
   cluster::ClusterCmd,
   cluster::ClusterEvent,
-  cluster::ClusterEventType
+  cluster::ClusterEventType,
+  cluster::ClusterMsg,
+  cluster::IntraClusterMsg,
+  cluster::UnifiedBounds
 };

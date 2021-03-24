@@ -1,6 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, ActorSignal, Case, DeserializeError,
-  Interpretations, LocalActorMsg,
+  local_actor_msg_convert, ActorSignal, Case, Interpretations, LocalActorMsg,
+  SpecificInterface,
 };
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -60,17 +60,6 @@ impl<T: Send + 'static> LocalRef<T> {
   }
 }
 
-pub trait SpecificInterface<U: Debug>
-where
-  Self: Sized,
-{
-  fn deserialize_as(
-    interface: U,
-    intp: Interpretations,
-    bytes: &[u8],
-  ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Host {
   DNS(String),
@@ -108,6 +97,58 @@ pub struct Destination<U: UnifiedBounds> {
   pub name: ActorName<U>,
   pub interface: U,
 }
+impl<U: UnifiedBounds> Destination<U> {
+  pub fn new<S, I>(s: String) -> Destination<U>
+  where
+    U: Case<S> + Case<I> + UnifiedBounds,
+    S: From<I> + SpecificInterface<U>,
+    I: Send,
+  {
+    Destination {
+      name: ActorName::new::<S>(s),
+      interface: <U as Case<I>>::VARIANT,
+    }
+  }
+}
+
+pub async fn udp_msg<U: UnifiedBounds, T>(
+  socket: &Socket,
+  dest: &Destination<U>,
+  msg: &T,
+) where
+  T: Serialize + DeserializeOwned,
+{
+  udp_send(&socket, &dest, Interpretations::Message, msg).await;
+}
+
+pub async fn udp_signal<U: UnifiedBounds>(
+  socket: &Socket,
+  dest: &Destination<U>,
+  sig: &ActorSignal,
+) {
+  udp_send(&socket, &dest, Interpretations::Signal, sig).await;
+}
+
+async fn udp_send<U: UnifiedBounds, T>(
+  socket: &Socket,
+  dest: &Destination<U>,
+  intp: Interpretations,
+  msg: &T,
+) where
+  T: Serialize + DeserializeOwned,
+{
+  let addrs = socket.as_udp_addr().await.unwrap();
+  let addr = addrs
+    .iter()
+    .exactly_one()
+    .expect(format!("multiple addrs: {:?}", addrs).as_str());
+  let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+    .await
+    .unwrap();
+  MessagePackets::new(msg, intp, dest)
+    .send_to(&udp, addr)
+    .await;
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
@@ -133,20 +174,20 @@ where
     if let Some(r) = &self.local {
       Some(r.send(item.clone()))
     } else {
-      self.udp_send(Interpretations::Message, item).await;
+      udp_msg(&self.socket, &self.dest, item).await;
       None
     }
   }
 
   pub async fn remote_send(&self, item: &S) {
-    self.udp_send(Interpretations::Message, item).await;
+    udp_msg(&self.socket, &self.dest, item).await;
   }
 
   pub async fn move_to(&self, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      self.udp_send(Interpretations::Message, &item).await;
+      udp_msg(&self.socket, &self.dest, &item).await;
       None
     }
   }
@@ -155,26 +196,9 @@ where
     if let Some(r) = &self.local {
       Some(r.signal(sig))
     } else {
-      self.udp_send(Interpretations::Signal, &sig).await;
+      udp_signal(&self.socket, &self.dest, &sig).await;
       None
     }
-  }
-
-  async fn udp_send<T>(&self, intp: Interpretations, msg: &T)
-  where
-    T: Serialize + DeserializeOwned,
-  {
-    let addrs = self.socket.as_udp_addr().await.unwrap();
-    let addr = addrs
-      .iter()
-      .exactly_one()
-      .expect(format!("multiple addrs: {:?}", addrs).as_str());
-    let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-      .await
-      .unwrap();
-    MessagePackets::new(msg, intp, &self.dest)
-      .send_to(&udp, addr)
-      .await;
   }
 }
 impl<U: UnifiedBounds + Case<S>, S: Send> PartialEq for ActorRef<U, S> {

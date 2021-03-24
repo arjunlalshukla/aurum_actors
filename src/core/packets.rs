@@ -5,11 +5,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::convert::TryFrom;
+//use std::env::var;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
 const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
+//static packet_drop: f64 = var("AURUM_PACKET_DROP").map(|x| x.parse().ok()).ok().flatten().unwrap_or(0.0);
 
 #[derive(Debug)]
 pub enum DeserializeError<U: Debug> {
