@@ -39,6 +39,7 @@ impl Actor<RemoteTestTypes, RemoteLoggerMsg> for Logger {
     _: &ActorContext<RemoteTestTypes, RemoteLoggerMsg>,
   ) {
     self.tester.send(RemoteLoggerMsg::Error(-1)).unwrap();
+    println!("I am dead.");
   }
 }
 
@@ -90,7 +91,9 @@ fn actor_ref_test(double: bool, port: u16) {
     if recvd.len() == expected.len() && recvd == expected {
       break;
     }
-    recvd.insert(rx.recv_timeout(timeout).unwrap());
+    let msg = rx.recv_timeout(timeout).unwrap();
+    println!("Received message: {:?}", msg);
+    recvd.insert(msg);
   }
 }
 
