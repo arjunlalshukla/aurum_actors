@@ -82,8 +82,6 @@ fn actor_ref_test(double: bool, port: u16) {
     block_on(_lgr_msg.remote_send(&to_send));
     expected.insert(to_send);
   }
-  block_on(_lgr_msg.signal(ActorSignal::Term));
-  expected.insert(RemoteLoggerMsg::Error(-1));
 
   let timeout = Duration::from_secs(5);
   let mut recvd = HashSet::new();
@@ -95,6 +93,9 @@ fn actor_ref_test(double: bool, port: u16) {
     println!("Received message: {:?}", msg);
     recvd.insert(msg);
   }
+  block_on(_lgr_msg.signal(ActorSignal::Term));
+  let msg = rx.recv_timeout(timeout).unwrap();
+  assert_eq!(msg, RemoteLoggerMsg::Error(-1));
 }
 
 #[test]

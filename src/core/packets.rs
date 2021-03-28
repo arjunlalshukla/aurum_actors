@@ -172,7 +172,7 @@ impl MessagePackets {
 
 pub struct MessageBuilder {
   msg_size: u32,
-  max_seq_num: u16,
+  pub max_seq_num: u16,
   seqs_recvd: HashSet<u16>,
   buf: Vec<u8>,
   pub intp: Interpretations,
