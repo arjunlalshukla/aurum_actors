@@ -12,6 +12,7 @@ crdts = "*"
 crossbeam = "*"
 im = { version = "*", features = ["serde"] }
 itertools = "*"
+lazy_static = "*"
 num_enum = "*"
 rand = "*"
 serde = { version = "*", features = ["derive"] }

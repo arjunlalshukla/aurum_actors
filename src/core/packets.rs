@@ -1,17 +1,17 @@
 use super::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedBounds};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::convert::TryFrom;
-//use std::env::var;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::UdpSocket;
 
 const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
-//static packet_drop: f64 = var("AURUM_PACKET_DROP").map(|x| x.parse().ok()).ok().flatten().unwrap_or(0.0);
 
 #[derive(Debug)]
 pub enum DeserializeError<U: Debug> {
@@ -75,7 +75,7 @@ impl MessagePackets {
     }
   }
 
-  pub async fn send_to(mut self, socket: &UdpSocket, addr: &SocketAddr) {
+  pub async fn move_to(mut self, socket: &UdpSocket, addr: &SocketAddr) {
     if self.buf.len() > (MAX_PACKET_SIZE - DatagramHeader::SIZE) * 0x10000 {
       panic!("Serialized item too large");
     }
@@ -106,6 +106,66 @@ impl MessagePackets {
       let slice = &mut self.buf[start..end];
       header.put(&mut slice[..DatagramHeader::SIZE]);
       socket.send_to(&slice, addr).await.unwrap();
+    }
+  }
+
+  /*
+  pub async fn send_to(&self, socket: &UdpSocket, addr: &SocketAddr) {
+    //self.send(socket, addr, 0..=self.max_seq_num).await;
+  }
+  */
+
+  pub async fn send_to_unreliable(
+    &self,
+    socket: &UdpSocket,
+    addr: &SocketAddr,
+    dur: &Option<(Duration, Duration)>,
+    fail_prob: f64,
+  ) {
+    let mut nums = (0..=self.max_seq_num).collect::<Vec<_>>();
+    nums.shuffle(&mut rand::thread_rng());
+    //println!("Nums: {:?}", nums);
+    self.send(socket, addr, nums, dur, fail_prob).await;
+  }
+
+  async fn send<I>(
+    &self,
+    socket: &UdpSocket,
+    addr: &SocketAddr,
+    idxs: I,
+    dur: &Option<(Duration, Duration)>,
+    fail_prob: f64,
+  ) where
+    I: IntoIterator<Item = u16>,
+  {
+    let mut header = DatagramHeader {
+      msg_id: rand::thread_rng().gen::<u64>(),
+      seq_num: 0,
+      max_seq_num: self.max_seq_num,
+      msg_size: self.msg_size as u32,
+      dest_size: self.dest_size as u16,
+      intp: self.intp,
+    };
+    //println!("Sending msg with id: {}", header.msg_id);
+    let mut buf: [u8; MAX_PACKET_SIZE] = [0u8; MAX_PACKET_SIZE];
+    for i in idxs {
+      if rand::random::<f64>() >= fail_prob {
+        header.seq_num = i;
+        header.put(&mut buf[..DatagramHeader::SIZE]);
+        let start =
+          header.seq_num as usize * (MAX_PACKET_SIZE - DatagramHeader::SIZE);
+        let end = std::cmp::min(
+          start + MAX_PACKET_SIZE - DatagramHeader::SIZE,
+          self.buf.len(),
+        );
+        let size = end - start;
+        buf[DatagramHeader::SIZE..DatagramHeader::SIZE + size]
+          .copy_from_slice(&self.buf[start..end]);
+        socket
+          .send_to(&buf[..DatagramHeader::SIZE + size], addr)
+          .await
+          .unwrap();
+      }
     }
   }
 }

@@ -13,7 +13,7 @@ const MSG_TIMEOUT: Duration = Duration::from_millis(1000);
 
 pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
   let mut recvd =
-    HashMap::<u64, (Option<JoinHandle<()>>, MessageBuilder)>::new();
+    HashMap::<u64, (JoinHandle<()>, MessageBuilder)>::new();
   let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp))
     .await
     .unwrap();
@@ -32,28 +32,33 @@ pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
             continue;
           }
         };
-        let hdl_mb = match recvd.entry(header.msg_id) {
-          Entry::Occupied(o) => {
-            let hdl_mb = o.into_mut();
-            hdl_mb.1.insert(&header, &udp).await;
-            hdl_mb
+        //println!("Got header {:?}", header);
+        if header.max_seq_num == 0 {
+          let mut mb = MessageBuilder::new(&header);
+          mb.insert(&header, &udp).await;
+          node.registry(RegistryMsg::Forward(mb));
+        } else {
+          match recvd.entry(header.msg_id) {
+            Entry::Occupied(mut o) => {
+              let hdl_mb = o.get_mut();
+              hdl_mb.1.insert(&header, &udp).await;
+              if hdl_mb.1.finished() {
+                let (_, (hdl, mb)) = o.remove_entry();
+                hdl.abort();
+                node.registry(RegistryMsg::Forward(mb));
+              }
+            }
+            Entry::Vacant(v) => {
+              let mut mb = MessageBuilder::new(&header);
+              mb.insert(&header, &udp).await;
+              let tx = tx.clone();
+              let hdl = node.node.rt.spawn(async move {
+                tokio::time::sleep(MSG_TIMEOUT).await;
+                tx.send(header.msg_id).unwrap();
+              });
+              v.insert((hdl, mb));
+            }
           }
-          Entry::Vacant(v) => {
-            let mut mb = MessageBuilder::new(&header);
-            mb.insert(&header, &udp).await;
-            v.insert((None, mb))
-          }
-        };
-        if hdl_mb.1.finished() {
-          let hdl_mb = recvd.remove(&header.msg_id).unwrap();
-          hdl_mb.0.iter().for_each(|x| x.abort());
-          node.registry(RegistryMsg::Forward(hdl_mb.1));
-        } else if hdl_mb.0.is_none() {
-          let tx = tx.clone();
-          hdl_mb.0 = Some(node.node.rt.spawn(async move {
-            tokio::time::sleep(MSG_TIMEOUT).await;
-            tx.send(header.msg_id).unwrap();
-          }));
         }
       }
       msg_id = rx.recv() => {

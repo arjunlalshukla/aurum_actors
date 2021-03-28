@@ -5,7 +5,7 @@ use crate::core::{
 };
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use tokio::sync::oneshot::Sender;
 
 pub type SerializedRecvr<U> = Box<dyn Fn(U, MessageBuilder) -> bool + Send>;
@@ -44,18 +44,25 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
             self.register.remove(&name);
             println!("Forward message to {:?} failed, removing actor", name);
           } else {
-            //println!("Forwarded message to {:?}", name);
+            println!("Forwarded message to {:?}", name);
           }
         } else {
           println!("Cannot send to {:?}, not in register", name);
         }
       }
       RegistryMsg::Register(name, channel, confirmation) => {
-        println!("Adding actor to registry: {:?}", name);
-        self.register.insert(name.clone(), channel);
-        if let Err(_) = confirmation.send(()) {
-          println!("Could not send confirmation, removing from registry");
-          self.register.remove(&name);
+        match self.register.entry(name) {
+          Entry::Occupied(o) => {
+            println!("Registry failed - already registered: {:?}", o.key());
+          }
+          Entry::Vacant(v) => {
+            if let Err(_) = confirmation.send(()) {
+              println!("Register confirmation failed: {:?}", v.key());
+            } else {
+              println!("Adding actor to registry: {:?}", v.key());
+              v.insert(channel);
+            }
+          }
         }
       }
       RegistryMsg::Deregister(name) => {

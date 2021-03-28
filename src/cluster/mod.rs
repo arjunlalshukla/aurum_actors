@@ -1,10 +1,14 @@
 mod cluster;
 mod gossip;
 mod interval_storage;
+mod testing;
+
 
 #[rustfmt::skip]
 pub(crate) use {
-  interval_storage::IntervalStorage
+  interval_storage::IntervalStorage,
+  testing::DELAY,
+  testing::PACKET_DROP,
 };
 
 #[rustfmt::skip]

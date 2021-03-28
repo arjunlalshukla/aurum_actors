@@ -1,11 +1,12 @@
 extern crate aurum_macros;
 
 mod actor;
+mod actor_ref;
 mod double_threaded;
-mod interface;
 mod node;
 mod packets;
 mod registry;
+mod remoting;
 mod single_threaded;
 mod udp_receiver;
 mod unify;
@@ -15,7 +16,7 @@ pub(crate) use {
   actor::local_actor_msg_convert, 
   actor::ActorMsg,
   double_threaded::run_secondary, 
-  interface::Destination,
+  remoting::Destination,
   packets::DatagramHeader, 
   packets::MessageBuilder, 
   packets::MessagePackets,
@@ -46,12 +47,14 @@ pub use {
   actor::ActorContext, 
   actor::ActorName, 
   actor::ActorSignal,
-  interface::ActorRef, 
-  interface::Host, 
-  interface::LocalRef, 
-  interface::Socket, 
-  interface::udp_msg,
-  interface::udp_signal,
+  actor_ref::ActorRef, 
+  actor_ref::LocalRef, 
+  remoting::Host, 
+  remoting::Socket, 
+  remoting::udp_msg,
+  remoting::udp_signal,
+  remoting::udp_msg_unreliable,
+  remoting::udp_signal_unreliable,
   node::Node,
   unify::forge,
 };

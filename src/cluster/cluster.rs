@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
-use crate as aurum;
+use crate::{self as aurum, udp_send};
 use crate::cluster::IntervalStorage;
 use crate::core::{
   forge, udp_msg, Actor, ActorContext, ActorRef, Case, Destination, LocalRef,
@@ -62,7 +62,7 @@ pub enum ClusterEvent {
 struct InCluster {
   trackees: HashMap<Socket, IntervalStorage>,
   members: im::HashSet<Socket>,
-  ring: BTreeMap<u64, Socket>
+  ring: BTreeMap<u64, Socket>,
 }
 
 // Looking through the consistent hashing ring, log(n) time.
@@ -151,7 +151,7 @@ impl<U: UnifiedBounds> Cluster<U> {
   pub async fn start(&self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     let msg = IntraClusterMsg::Heartbeat(ctx.interface());
     for s in self.common.seeds.iter() {
-      udp_msg(s, &self.common.dest, &msg).await;
+      udp_send!(true, s, &self.common.dest, &msg);
     }
   }
 
