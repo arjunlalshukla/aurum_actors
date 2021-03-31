@@ -13,6 +13,7 @@ crossbeam = "*"
 im = { version = "*", features = ["serde"] }
 itertools = "*"
 lazy_static = "*"
+linked-hash-map = "*"
 num_enum = "*"
 once_cell = "*"
 rand = "*"
