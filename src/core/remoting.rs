@@ -11,13 +11,17 @@ use tokio::net::lookup_host;
 
 use super::{ActorName, MessagePackets, UnifiedBounds};
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(
+  Clone, Debug, Deserialize, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize,
+)]
 pub enum Host {
   DNS(String),
   IP(IpAddr),
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(
+  Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Ord, PartialOrd,
+)]
 pub struct Socket {
   pub host: Host,
   pub udp: u16,

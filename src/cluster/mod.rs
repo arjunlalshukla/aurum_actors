@@ -1,12 +1,15 @@
 mod cluster;
 mod gossip;
 mod interval_storage;
+mod node_ring;
 mod testing;
-
 
 #[rustfmt::skip]
 pub(crate) use {
+  cluster::Member,
+  gossip::MachineState,
   interval_storage::IntervalStorage,
+  node_ring::NodeRing,
   testing::DELAY,
   testing::PACKET_DROP,
 };

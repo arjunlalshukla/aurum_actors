@@ -12,8 +12,7 @@ use tokio::task::JoinHandle;
 const MSG_TIMEOUT: Duration = Duration::from_millis(1000);
 
 pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
-  let mut recvd =
-    HashMap::<u64, (JoinHandle<()>, MessageBuilder)>::new();
+  let mut recvd = HashMap::<u64, (JoinHandle<()>, MessageBuilder)>::new();
   let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp))
     .await
     .unwrap();
@@ -52,7 +51,7 @@ pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
               let mut mb = MessageBuilder::new(&header);
               mb.insert(&header, &udp).await;
               let tx = tx.clone();
-              let hdl = node.node.rt.spawn(async move {
+              let hdl = node.rt().spawn(async move {
                 tokio::time::sleep(MSG_TIMEOUT).await;
                 tx.send(header.msg_id).unwrap();
               });

@@ -3,20 +3,22 @@ use crate::core::{
   ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket,
   SpecificInterface, UnifiedBounds,
 };
+use rand;
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-pub(crate) struct NodeImpl<U: UnifiedBounds> {
-  pub(crate) socket: Socket,
-  pub(crate) registry: LocalRef<RegistryMsg<U>>,
-  pub(crate) rt: Runtime,
+struct NodeImpl<U: UnifiedBounds> {
+  socket: Socket,
+  registry: LocalRef<RegistryMsg<U>>,
+  rt: Runtime,
+  id: u64,
 }
 
 #[derive(Clone)]
 pub struct Node<U: UnifiedBounds> {
-  pub(crate) node: Arc<NodeImpl<U>>,
+  node: Arc<NodeImpl<U>>,
 }
 impl<U: UnifiedBounds> Node<U> {
   pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
@@ -34,6 +36,7 @@ impl<U: UnifiedBounds> Node<U> {
         socket: socket,
         registry: reg,
         rt: rt,
+        id: rand::random(),
       }),
     };
     reg_node_tx
@@ -53,6 +56,10 @@ impl<U: UnifiedBounds> Node<U> {
 
   pub fn rt(&self) -> &Runtime {
     &self.node.rt
+  }
+
+  pub fn id(&self) -> u64 {
+    self.node.id
   }
 
   fn start_codependent<S, A>(

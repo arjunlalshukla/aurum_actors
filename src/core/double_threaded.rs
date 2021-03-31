@@ -36,7 +36,7 @@ pub(crate) async fn run_secondary<U, S, A>(
   let (primary_tx, primary_rx) = unbounded_channel::<PrimaryMsg<S>>();
   let node = ctx.node.clone();
   let name = ctx.name.clone();
-  node.node.rt.spawn(run_primary(actor, ctx, primary_rx));
+  node.rt().spawn(run_primary(actor, ctx, primary_rx));
   let send_to_primary = |msg: PrimaryMsg<S>| {
     if primary_tx.send(msg).is_err() {
       panic!("{:?} lost connection with primary", name);

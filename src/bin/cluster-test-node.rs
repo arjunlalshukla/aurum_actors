@@ -18,7 +18,7 @@ impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
     &mut self,
     ctx: &ActorContext<ClusterNodeTypes, ClusterEvent>,
   ) {
-    Cluster::new(&ctx.node, "test".to_string(), self.seeds.clone(), 10.0)
+    Cluster::new(&ctx.node, "test".to_string(), self.seeds.clone(), 10.0, 3)
       .await
       .send(ClusterCmd::Subscribe(ctx.local_interface()));
   }

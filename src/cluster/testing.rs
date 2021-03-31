@@ -1,16 +1,18 @@
-use crate::core::{ActorRef};
-use lazy_static::lazy_static;
+use crate::core::ActorRef;
+use once_cell::sync::Lazy;
 use std::env::var;
 use std::time::Duration;
 
-lazy_static! {
-  pub(crate) static ref PACKET_DROP: f64 = var("AURUM_PACKET_DROP")
+pub static PACKET_DROP: Lazy<f64> = Lazy::new(|| {
+  var("AURUM_PACKET_DROP")
     .map(|x| x.parse().ok())
     .ok()
     .flatten()
-    .unwrap_or(0.0);
-  
-  pub(crate) static ref DELAY: Option<(Duration, Duration)> = var("AURUM_MIN_DELAY")
+    .unwrap_or(0.0)
+});
+
+pub static DELAY: Lazy<Option<(Duration, Duration)>> = Lazy::new(|| {
+  var("AURUM_MIN_DELAY")
     .map(|x| x.parse().ok().map(Duration::from_millis))
     .ok()
     .flatten()
@@ -18,10 +20,10 @@ lazy_static! {
       var("AURUM_MAX_DELAY")
         .map(|x| x.parse().ok().map(Duration::from_millis))
         .ok()
-        .flatten()
+        .flatten(),
     )
-    .filter(|(x, y)| x <= y);
-  }
+    .filter(|(x, y)| x <= y)
+});
 
 #[macro_export]
 macro_rules! actor_send {
@@ -41,11 +43,11 @@ macro_rules! udp_send {
       udp_msg($socket, $dest, $msg).await
     } else {
       aurum::core::udp_msg_unreliable(
-        $socket, 
-        $dest, 
-        $msg, 
-        &*aurum::cluster::DELAY, 
-        *aurum::cluster::PACKET_DROP
+        $socket,
+        $dest,
+        $msg,
+        &aurum::cluster::DELAY,
+        *aurum::cluster::PACKET_DROP,
       )
       .await
     }

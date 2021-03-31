@@ -14,8 +14,11 @@ im = { version = "*", features = ["serde"] }
 itertools = "*"
 lazy_static = "*"
 num_enum = "*"
+once_cell = "*"
 rand = "*"
+rand_chacha = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"
+wyhash = "*"

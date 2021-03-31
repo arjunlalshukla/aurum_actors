@@ -133,7 +133,7 @@ impl MessagePackets {
     socket: &UdpSocket,
     addr: &SocketAddr,
     idxs: I,
-    dur: &Option<(Duration, Duration)>,
+    _dur: &Option<(Duration, Duration)>,
     fail_prob: f64,
   ) where
     I: IntoIterator<Item = u16>,

@@ -12,10 +12,10 @@ use std::time::Duration;
 
 use super::udp_msg_unreliable;
 
-pub struct LocalRef<T: Send + 'static> {
+pub struct LocalRef<T> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
 }
-impl<T: Send + 'static> Clone for LocalRef<T> {
+impl<T> Clone for LocalRef<T> {
   fn clone(&self) -> Self {
     LocalRef {
       func: self.func.clone(),
@@ -60,7 +60,7 @@ impl<T: Send + 'static> LocalRef<T> {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send + 'static> {
+pub struct ActorRef<U: UnifiedBounds + Case<S>, S> {
   pub(in crate::core) socket: Socket,
   pub(in crate::core) dest: Destination<U>,
   #[serde(skip, default)]
@@ -69,6 +69,23 @@ pub struct ActorRef<U: UnifiedBounds + Case<S>, S: Send + 'static> {
 impl<U: UnifiedBounds + Case<S>, S: Send + 'static> ActorRef<U, S> {
   pub fn local(&self) -> &Option<LocalRef<S>> {
     &self.local
+  }
+}
+impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
+where
+  S: Serialize + DeserializeOwned,
+{
+  pub async fn remote_send(&self, item: &S) {
+    udp_msg(&self.socket, &self.dest, item).await;
+  }
+
+  pub async fn remote_unreliable(
+    &self,
+    item: &S,
+    dur: &Option<(Duration, Duration)>,
+    fail_prob: f64,
+  ) {
+    udp_msg_unreliable(&self.socket, &self.dest, item, dur, fail_prob).await;
   }
 }
 impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
@@ -85,14 +102,6 @@ where
       udp_msg(&self.socket, &self.dest, item).await;
       None
     }
-  }
-
-  pub async fn remote_send(&self, item: &S) {
-    udp_msg(&self.socket, &self.dest, item).await;
-  }
-
-  pub async fn remote_unreliable(&self, item: &S, dur: &Option<(Duration, Duration)>, fail_prob: f64) {
-    udp_msg_unreliable(&self.socket, &self.dest, item, dur, fail_prob).await;
   }
 
   pub async fn move_to(&self, item: S) -> Option<bool> {
