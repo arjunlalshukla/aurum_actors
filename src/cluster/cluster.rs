@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
-use crate::cluster::{IntervalStorage, MachineState, NodeRing};
+use crate::cluster::{Gossip, IntervalStorage, MachineState, NodeRing};
 use crate::core::{
   forge, udp_msg, Actor, ActorContext, ActorRef, Case, Destination, LocalRef,
   Node, Socket,
@@ -32,16 +32,24 @@ impl<T> UnifiedBounds for T where
 {
 }
 
-#[derive(
-  Serialize, Deserialize, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Debug,
-)]
+#[derive(Serialize, Deserialize, Hash, Eq, Clone, Ord, PartialOrd, Debug)]
 pub struct Member {
   pub socket: Socket,
   pub id: u64,
   pub vnodes: u32,
 }
-
-type ClusterState = im::HashMap<Member, MachineState>;
+impl PartialEq for Member {
+  fn eq(&self, other: &Self) -> bool {
+    // Should pretty much always take this path. Branch prediction hints?
+    if self.id != other.id {
+      return false;
+    }
+    if self.socket != other.socket {
+      return false;
+    }
+    self.vnodes == other.vnodes
+  }
+}
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -58,7 +66,7 @@ pub enum ClusterMsg<U: UnifiedBounds> {
 pub enum IntraClusterMsg<U: UnifiedBounds> {
   Heartbeat(Socket),
   ReqHeartbeat(ActorRef<U, IntraClusterMsg<U>>),
-  State(ClusterState),
+  State(Gossip),
   Ping(Socket),
 }
 
@@ -80,8 +88,8 @@ pub enum ClusterEvent {
 }
 
 struct InCluster {
-  charges: HashMap<Socket, IntervalStorage>,
-  members: im::HashSet<Socket>,
+  charges: HashMap<Member, IntervalStorage>,
+  gossip: Gossip,
   ring: NodeRing,
 }
 
@@ -93,6 +101,7 @@ struct Pinging {
 enum InteractionState {
   InCluster(InCluster),
   Pinging(Pinging),
+  Left,
 }
 
 struct NodeState<U: UnifiedBounds> {
@@ -125,6 +134,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
           InteractionState::Pinging(ref mut state) => {
             Self::pinging(&mut self.common, state, ctx, msg).await
           }
+          InteractionState::Left => None,
         };
         if let Some(s) = new_state {
           self.state = s;
@@ -169,7 +179,7 @@ impl<U: UnifiedBounds> Cluster<U> {
       .transform()
   }
 
-  pub async fn start(&self, ctx: &ActorContext<U, ClusterMsg<U>>) {
+  async fn start(&self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     let msg: IntraClusterMsg<U> = Ping(ctx.node.socket().clone());
     for s in self.common.seeds.iter() {
       udp_send!(false, s, &self.common.dest, &msg);

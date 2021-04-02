@@ -6,7 +6,6 @@ cargo tarpaulin \
   --exclude-files code-gen/* \
   --exclude-files tests/* \
   --exclude-files src/macros/* \
-  --exclude-files src/cluster/* \
   --exclude-files src/bin/* \
   --out Xml;
 "

@@ -1,12 +1,11 @@
-use crate::{
-  cluster::Member,
-  core::{Host, Socket},
-};
+use crate::cluster::Member;
+#[cfg(test)]
+use crate::core::{Host, Socket};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::{collections::BTreeMap, mem};
 use wyhash::{wyrng, WyHash};
 
 pub struct NodeRing {
@@ -139,9 +138,17 @@ fn test_node_ring() {
   expected_successors.push(vec![5003, 5004, 5001]);
   expected_successors.push(vec![5002, 5004, 5001]);
   expected_successors.push(vec![5003, 5001, 5000]);
+  expected_successors.iter_mut().for_each(|v| v.sort());
   let successors = members
     .iter()
-    .map(|m| ring.node_managers(m).iter().map(|x| x.socket.udp).collect())
+    .map(|m| {
+      ring
+        .node_managers(m)
+        .iter()
+        .map(|x| x.socket.udp)
+        .sorted()
+        .collect()
+    })
     .collect::<Vec<Vec<u16>>>();
   assert_eq!(expected_successors, successors);
   drop(expected_successors);
@@ -152,9 +159,17 @@ fn test_node_ring() {
   expected_charges.push(vec![5003, 5000, 5001]);
   expected_charges.push(vec![5000, 5001, 5004, 5002]);
   expected_charges.push(vec![5002, 5003]);
+  expected_charges.iter_mut().for_each(|v| v.sort());
   let charges = members
     .iter()
-    .map(|m| ring.charges(m).iter().map(|x| x.socket.udp).collect())
+    .map(|m| {
+      ring
+        .charges(m)
+        .iter()
+        .map(|x| x.socket.udp)
+        .sorted()
+        .collect()
+    })
     .collect::<Vec<Vec<u16>>>();
   assert_eq!(expected_charges, charges);
   for m in members.iter() {

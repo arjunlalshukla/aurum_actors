@@ -6,10 +6,9 @@ mod testing;
 
 #[rustfmt::skip]
 pub(crate) use {
-  cluster::Member,
+  gossip::Gossip,
   gossip::MachineState,
   interval_storage::IntervalStorage,
-  node_ring::NodeRing,
   testing::DELAY,
   testing::PACKET_DROP,
 };
@@ -22,5 +21,7 @@ pub use {
   cluster::ClusterEventType,
   cluster::ClusterMsg,
   cluster::IntraClusterMsg,
-  cluster::UnifiedBounds
+  cluster::Member,
+  cluster::UnifiedBounds,
+  node_ring::NodeRing,
 };
