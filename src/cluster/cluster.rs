@@ -56,7 +56,7 @@ const INTERVAL_INIT: Duration = Duration::from_millis(50);
 const INTERVAL_TIMES: usize = 2;
 const GOSSIP_DISPERSE: usize = 5;
 const RELIABLE: bool = true;
-const PING_DELAY: Duration = Duration::from_millis(1000);
+const PING_DELAY: Duration = Duration::from_millis(5000);
 const NUM_PINGS: u32 = 3;
 
 #[derive(AurumInterface)]
@@ -76,7 +76,7 @@ pub enum IntraClusterMsg<U: UnifiedBounds> {
   Heartbeat(Member),
   ReqHeartbeat(ActorRef<U, IntraClusterMsg<U>>),
   State(Gossip),
-  Ping(Member),
+  Ping(Arc<Member>),
 }
 
 pub enum ClusterCmd {
@@ -99,6 +99,17 @@ struct InCluster {
   ring: NodeRing,
 } 
 impl InCluster {
+  
+  fn alone<U: UnifiedBounds>(common: &NodeState<U>) -> InCluster {
+    let mut ring = NodeRing::new(common.rep_factor);
+    ring.insert(common.member.clone());
+    InCluster {
+      charges: HashMap::new(),
+      gossip: Gossip {states: btreemap! {common.member.clone() => Up}},
+      ring: ring,
+    }
+  }
+
   async fn process<U: UnifiedBounds>(
     &mut self,
     common: &mut NodeState<U>,
@@ -200,7 +211,7 @@ impl InteractionState {
 }
 
 struct NodeState<U: UnifiedBounds> {
-  member: Member,
+  member: Arc<Member>,
   dest: Destination<U>,
   seeds: Vec<Socket>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
@@ -217,7 +228,9 @@ impl<U: UnifiedBounds> NodeState<U> {
     let msg: IntraClusterMsg<U> = State(gossip.clone());
     let members = gossip
       .states
-      .keys()
+      .iter()
+      .filter(|(m, s)| (**m) != self.member && s < &&Leaving)
+      .map(|(m, _)| m)
       .choose_multiple(&mut rand::thread_rng(), GOSSIP_DISPERSE)
       .into_iter();
     for member in members {
@@ -234,8 +247,15 @@ pub struct Cluster<U: UnifiedBounds> {
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    if let InteractionState::Pinging(png) = &mut self.state {
+    if self.common.seeds.is_empty() {
+      self.all_alone();
+    } else {
+      let mut png = Pinging {
+        count: self.common.ping_attempts,
+        timeout: ctx.node.rt().spawn(async {}),
+      };
       png.ping(&self.common, ctx).await;
+      self.state = InteractionState::Pinging(png);
     }
   }
 
@@ -256,15 +276,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
           if png.count != 0 {
             png.ping(&self.common, ctx).await;
           } else {
-            self.common.notify(ClusterEvent::Alone);
-            let arc = Arc::new(self.common.member.clone());
-            let mut ring = NodeRing::new(self.common.rep_factor);
-            ring.insert(arc.clone());
-            self.state = InteractionState::InCluster(InCluster {
-              charges: HashMap::new(),
-              gossip: Gossip {states: btreemap! {arc => Up}},
-              ring: ring,
-            });
+            self.all_alone();
           }
         }
       }
@@ -287,11 +299,11 @@ impl<U: UnifiedBounds> Cluster<U> {
   ) -> LocalRef<ClusterCmd> {
     let c = Cluster {
       common: NodeState {
-        member: Member {
+        member: Arc::new(Member {
           socket: node.socket().clone(),
           id: rand::random(),
           vnodes: vnodes,
-        },
+        }),
         dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
           name.clone(),
         ),
@@ -301,10 +313,7 @@ impl<U: UnifiedBounds> Cluster<U> {
         ping_attempts: NUM_PINGS,
         phi: phi,
       },
-      state: InteractionState::Pinging(Pinging {
-        count: NUM_PINGS,
-        timeout: node.rt().spawn(async {}),
-      }),
+      state: InteractionState::Left,
     };
     node
       .spawn(false, c, name, true)
@@ -312,5 +321,10 @@ impl<U: UnifiedBounds> Cluster<U> {
       .clone()
       .unwrap()
       .transform()
+  }
+
+  fn all_alone(&mut self) {
+    self.common.notify(ClusterEvent::Alone);
+    self.state = InteractionState::InCluster(InCluster::alone(&self.common));
   }
 }

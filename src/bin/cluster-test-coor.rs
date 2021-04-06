@@ -93,8 +93,8 @@ fn main() {
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
   let nodes = vec![
     (Spawn(4000, vec![]), dur(5_000)),
+    (Spawn(4001, vec![10000]), dur(5_000)),
     /*
-    (Spawn(4001, vec![4000]), dur(5_000)),
     (Spawn(4002, vec![4001]), dur(5_000)),
     (Spawn(4003, vec![4002]), dur(5_000)),
     (Spawn(4004, vec![4003]), dur(5_000)),
