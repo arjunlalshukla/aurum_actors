@@ -2,18 +2,18 @@
 
 use crate::cluster::{Gossip, IntervalStorage, MachineState, NodeRing};
 use crate::core::{
-  forge, udp_msg, Actor, ActorContext, ActorRef, Case, Destination, LocalRef,
+  udp_msg, Actor, ActorContext, ActorRef, Case, Destination, LocalRef,
   Node, Socket,
 };
 use crate::{self as aurum, udp_send};
 use async_trait::async_trait;
 use aurum_macros::AurumInterface;
-use crdts::VClock;
-use im;
-use im::hashmap::Entry;
+use maplit::btreemap;
+use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::task::JoinHandle;
 
 use IntraClusterMsg::*;
@@ -51,6 +51,14 @@ impl PartialEq for Member {
   }
 }
 
+const INTERVAL_CAP: usize = 10;
+const INTERVAL_INIT: Duration = Duration::from_millis(50);
+const INTERVAL_TIMES: usize = 2;
+const GOSSIP_DISPERSE: usize = 5;
+const RELIABLE: bool = true;
+const PING_DELAY: Duration = Duration::from_millis(1000);
+const NUM_PINGS: u32 = 3;
+
 #[derive(AurumInterface)]
 #[aurum(local)]
 pub enum ClusterMsg<U: UnifiedBounds> {
@@ -59,43 +67,109 @@ pub enum ClusterMsg<U: UnifiedBounds> {
   #[aurum(local)]
   LocalCmd(ClusterCmd),
   PingTimeout,
+  GossipRound,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedBounds")]
 pub enum IntraClusterMsg<U: UnifiedBounds> {
-  Heartbeat(Socket),
+  Heartbeat(Member),
   ReqHeartbeat(ActorRef<U, IntraClusterMsg<U>>),
   State(Gossip),
-  Ping(Socket),
+  Ping(Member),
 }
 
 pub enum ClusterCmd {
-  //Leave,
   Subscribe(LocalRef<ClusterEvent>),
 }
-
-pub enum ClusterEventType {}
 
 #[derive(
   AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
 )]
 pub enum ClusterEvent {
-  Members(im::HashSet<Socket>),
-  Left(Socket),
-  Downed(Socket),
+  Alone,
+  Joined,
   Added(Socket),
+  Removed(Socket),
 }
 
 struct InCluster {
-  charges: HashMap<Member, IntervalStorage>,
+  charges: HashMap<Arc<Member>, IntervalStorage>,
   gossip: Gossip,
   ring: NodeRing,
+} 
+impl InCluster {
+  async fn process<U: UnifiedBounds>(
+    &mut self,
+    common: &mut NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+    msg: IntraClusterMsg<U>,
+  ) -> Option<InteractionState> {
+    None
+  }
 }
 
 struct Pinging {
   count: u32,
   timeout: JoinHandle<()>,
+}
+impl Pinging {
+  async fn ping<U: UnifiedBounds>(
+    &mut self,
+    common: &NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+  ) {
+    self.count -= 1;
+    println!("Starting ping. {} attempts left", self.count);
+    let msg: IntraClusterMsg<U> = Ping(common.member.clone());
+    for s in common.seeds.iter() {
+      udp_send!(RELIABLE, s, &common.dest, &msg);
+    }
+    let ar = ctx.local_interface();
+    self.timeout = ctx.node.schedule(PING_DELAY, move || {ar.send(ClusterMsg::PingTimeout);});
+  }
+
+  async fn process<U: UnifiedBounds>(
+    &self,
+    common: &mut NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+    msg: IntraClusterMsg<U>,
+  ) -> Option<InteractionState> {
+    match msg {
+      State(gossip) => {
+        common.gossip_round(&gossip).await;
+        common.notify(ClusterEvent::Joined);
+        let mut ring = NodeRing::new(common.rep_factor);
+        gossip
+          .states
+          .iter()
+          .filter(|(_, s)| s < &&Down)
+          .map(|(m, _)| m.clone())
+          .for_each(|member| ring.insert(member));
+        let charges = ring
+          .charges(&common.member)
+          .into_iter()
+          .map(|mem| {
+            (
+              mem,
+              IntervalStorage::new(
+                INTERVAL_CAP,
+                INTERVAL_INIT,
+                INTERVAL_TIMES,
+                None,
+              ),
+            )
+          })
+          .collect();
+        Some(InteractionState::InCluster(InCluster {
+          charges: charges,
+          gossip: gossip,
+          ring: ring,
+        }))
+      }
+      _ => None,
+    }
+  }
 }
 
 enum InteractionState {
@@ -103,14 +177,53 @@ enum InteractionState {
   Pinging(Pinging),
   Left,
 }
+impl InteractionState {
+  async fn process<U: UnifiedBounds>(
+    &mut self,
+    common: &mut NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+    msg: IntraClusterMsg<U>,
+  ) {
+    let new_state = match self {
+      InteractionState::InCluster(ref mut state) => {
+        state.process(common, ctx, msg).await
+      }
+      InteractionState::Pinging(ref mut state) => {
+        state.process(common, ctx, msg).await
+      }
+      InteractionState::Left => None,
+    };
+    if let Some(s) = new_state {
+      *self = s;
+    }
+  }
+}
 
 struct NodeState<U: UnifiedBounds> {
+  member: Member,
   dest: Destination<U>,
   seeds: Vec<Socket>,
   subscribers: Vec<LocalRef<ClusterEvent>>,
-  vnodes: u32,
+  rep_factor: usize,
   ping_attempts: u32,
   phi: f64,
+}
+impl<U: UnifiedBounds> NodeState<U> {
+  fn notify(&mut self, event: ClusterEvent) {
+    self.subscribers.retain(|s| s.send(event.clone()));
+  }
+
+  async fn gossip_round(&self, gossip: &Gossip) {
+    let msg: IntraClusterMsg<U> = State(gossip.clone());
+    let members = gossip
+      .states
+      .keys()
+      .choose_multiple(&mut rand::thread_rng(), GOSSIP_DISPERSE)
+      .into_iter();
+    for member in members {
+      udp_send!(RELIABLE, &member.socket, &self.dest, &msg)
+    }
+  }
 }
 
 pub struct Cluster<U: UnifiedBounds> {
@@ -120,6 +233,12 @@ pub struct Cluster<U: UnifiedBounds> {
 
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
+  async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
+    if let InteractionState::Pinging(png) = &mut self.state {
+      png.ping(&self.common, ctx).await;
+    }
+  }
+
   async fn recv(
     &mut self,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -127,23 +246,33 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   ) {
     match msg {
       ClusterMsg::IntraMsg(msg) => {
-        let new_state = match &mut self.state {
-          InteractionState::InCluster(ref mut state) => {
-            Self::in_cluster(&mut self.common, state, ctx, msg).await
-          }
-          InteractionState::Pinging(ref mut state) => {
-            Self::pinging(&mut self.common, state, ctx, msg).await
-          }
-          InteractionState::Left => None,
-        };
-        if let Some(s) = new_state {
-          self.state = s;
-        }
+        self.state.process(&mut self.common, ctx, msg).await;
       }
       ClusterMsg::LocalCmd(ClusterCmd::Subscribe(subr)) => {
         self.common.subscribers.push(subr);
       }
-      ClusterMsg::PingTimeout => {}
+      ClusterMsg::PingTimeout => {
+        if let InteractionState::Pinging(png) = &mut self.state {
+          if png.count != 0 {
+            png.ping(&self.common, ctx).await;
+          } else {
+            self.common.notify(ClusterEvent::Alone);
+            let arc = Arc::new(self.common.member.clone());
+            let mut ring = NodeRing::new(self.common.rep_factor);
+            ring.insert(arc.clone());
+            self.state = InteractionState::InCluster(InCluster {
+              charges: HashMap::new(),
+              gossip: Gossip {states: btreemap! {arc => Up}},
+              ring: ring,
+            });
+          }
+        }
+      }
+      ClusterMsg::GossipRound => {
+        if let InteractionState::InCluster(ic) = &self.state {
+          self.common.gossip_round(&ic.gossip).await;
+        }
+      }
     }
   }
 }
@@ -154,20 +283,26 @@ impl<U: UnifiedBounds> Cluster<U> {
     seeds: Vec<Socket>,
     phi: f64,
     vnodes: u32,
+    subrs: Vec<LocalRef<ClusterEvent>>,
   ) -> LocalRef<ClusterCmd> {
     let c = Cluster {
       common: NodeState {
+        member: Member {
+          socket: node.socket().clone(),
+          id: rand::random(),
+          vnodes: vnodes,
+        },
         dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
           name.clone(),
         ),
         seeds: seeds,
-        subscribers: vec![],
-        vnodes,
-        ping_attempts: 5,
+        subscribers: subrs,
+        rep_factor: 3,
+        ping_attempts: NUM_PINGS,
         phi: phi,
       },
       state: InteractionState::Pinging(Pinging {
-        count: 0,
+        count: NUM_PINGS,
         timeout: node.rt().spawn(async {}),
       }),
     };
@@ -177,33 +312,5 @@ impl<U: UnifiedBounds> Cluster<U> {
       .clone()
       .unwrap()
       .transform()
-  }
-
-  async fn start(&self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    let msg: IntraClusterMsg<U> = Ping(ctx.node.socket().clone());
-    for s in self.common.seeds.iter() {
-      udp_send!(false, s, &self.common.dest, &msg);
-    }
-  }
-
-  async fn pinging(
-    common: &mut NodeState<U>,
-    state: &mut Pinging,
-    ctx: &ActorContext<U, ClusterMsg<U>>,
-    msg: IntraClusterMsg<U>,
-  ) -> Option<InteractionState> {
-    match msg {
-      State(s) => None,
-      _ => None,
-    }
-  }
-
-  async fn in_cluster(
-    common: &mut NodeState<U>,
-    state: &mut InCluster,
-    ctx: &ActorContext<U, ClusterMsg<U>>,
-    msg: IntraClusterMsg<U>,
-  ) -> Option<InteractionState> {
-    None
   }
 }

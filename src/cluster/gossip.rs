@@ -6,9 +6,9 @@ use Ordering::*;
 use crate::cluster::Member;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Gossip {
-  states: BTreeMap<Arc<Member>, MachineState>,
+  pub states: BTreeMap<Arc<Member>, MachineState>,
 }
 impl Gossip {
   pub fn merge(&self, other: Gossip) -> Vec<(Arc<Member>, MachineState)> {

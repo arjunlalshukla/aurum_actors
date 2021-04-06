@@ -4,9 +4,12 @@ use crate::core::{
   SpecificInterface, UnifiedBounds,
 };
 use rand;
-use std::io::{Error, ErrorKind};
 use std::sync::Arc;
-use tokio::runtime::{Builder, Runtime};
+use std::{
+  io::{Error, ErrorKind},
+  time::Duration,
+};
+use tokio::{runtime::{Builder, Runtime}, task::JoinHandle};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 struct NodeImpl<U: UnifiedBounds> {
@@ -60,6 +63,16 @@ impl<U: UnifiedBounds> Node<U> {
 
   pub fn id(&self) -> u64 {
     self.node.id
+  }
+
+  pub fn schedule<F>(&self, delay: Duration, op: F) -> JoinHandle<()>
+  where
+    F: 'static + Send + FnOnce() -> (),
+  {
+    self.node.rt.spawn(async move {
+      tokio::time::sleep(delay).await;
+      op();
+    })
   }
 
   fn start_codependent<S, A>(

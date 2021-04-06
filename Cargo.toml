@@ -17,7 +17,7 @@ linked-hash-map = "*"
 maplit = "*"
 num_enum = "*"
 once_cell = "*"
-rand = "*"
+rand = {version = "*", features = ["alloc"] }
 rand_chacha = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_json = "*"

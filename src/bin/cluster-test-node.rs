@@ -6,6 +6,8 @@ use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{cluster::ClusterCmd, core::LocalRef, unify, AurumInterface};
 use im;
 use std::env::args;
+use std::time::Duration;
+use tokio::time::sleep;
 
 struct ClusterNode {
   members: im::HashSet<Socket>,
@@ -18,9 +20,9 @@ impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
     &mut self,
     ctx: &ActorContext<ClusterNodeTypes, ClusterEvent>,
   ) {
-    Cluster::new(&ctx.node, "test".to_string(), self.seeds.clone(), 10.0, 3)
-      .await
-      .send(ClusterCmd::Subscribe(ctx.local_interface()));
+    Cluster::new(&ctx.node, "test".to_string(), self.seeds.clone(), 10.0, 3, vec![ctx.local_interface()])
+      .await;
+    println!("Cluster actor started");
   }
 
   async fn recv(
@@ -70,4 +72,7 @@ fn main() {
     format!("node-{}", port),
     true,
   );
+  node
+    .rt()
+    .block_on(async { sleep(Duration::from_secs(0xffffffff)).await });
 }

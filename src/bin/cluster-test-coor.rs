@@ -6,7 +6,6 @@ use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{unify, AurumInterface};
 use im;
 use std::collections::HashMap;
-use std::env::args;
 use std::process::{Child, Command};
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -62,15 +61,18 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         self.nodes.insert(socket, (proc, msgs));
       }
       Event(socket, event) => {
-        self
+        let hdl = self
           .nodes
           .get_mut(&socket)
           .unwrap()
           .1
-          .remove(&event)
-          .unwrap()
-          .abort();
-        println!("Received {:?} from {:?}", event, socket);
+          .remove(&event);
+        if let Some(hdl) = hdl {
+          hdl.abort();
+          println!("Received {:?} from {:?}", event, socket);
+        } else {
+          println!("Unexpected: {:?} from {:?}", event, socket);
+        }
       }
       TimedOut(socket, event) => {
         self
@@ -91,11 +93,13 @@ fn main() {
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
   let nodes = vec![
     (Spawn(4000, vec![]), dur(5_000)),
+    /*
     (Spawn(4001, vec![4000]), dur(5_000)),
     (Spawn(4002, vec![4001]), dur(5_000)),
     (Spawn(4003, vec![4002]), dur(5_000)),
     (Spawn(4004, vec![4003]), dur(5_000)),
     (Spawn(4005, vec![4004]), dur(5_000)),
+    */
   ];
   let coor = node.spawn(
     true,
