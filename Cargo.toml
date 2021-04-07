@@ -20,6 +20,7 @@ once_cell = "*"
 rand = {version = "*", features = ["alloc"] }
 rand_chacha = "*"
 serde = { version = "*", features = ["derive", "rc"] }
+serde_cbor = "*"
 serde_json = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"

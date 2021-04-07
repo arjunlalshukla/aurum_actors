@@ -1,10 +1,11 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
 use aurum::cluster::{Cluster, ClusterEvent};
-use aurum::core::{forge, Actor, ActorRef, Host, Node, Socket};
+use aurum::core::{forge, Actor, ActorContext, ActorRef, Host, Node, Socket};
 use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{unify, AurumInterface};
 use im;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::process::{Child, Command};
 use std::time::Duration;
@@ -17,6 +18,22 @@ const TIMEOUT: Duration = Duration::from_millis(60_000);
 
 struct ClusterCoor {
   nodes: HashMap<Socket, (Child, HashMap<ClusterEvent, JoinHandle<()>>)>,
+}
+impl ClusterCoor {
+  fn expect(
+    &mut self,
+    ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
+    node: Socket,
+    event: ClusterEvent,
+  ) {
+    let events = &mut self.nodes.get_mut(&node).unwrap().1;
+    let timeout = ctx.node.schedule_local_msg(
+      TIMEOUT,
+      ctx.local_interface(),
+      CoordinatorMsg::TimedOut(node, event.clone()),
+    );
+    events.insert(event, timeout);
+  }
 }
 #[async_trait]
 impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
@@ -33,7 +50,9 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         msgs.values().for_each(|to| to.abort());
       }
       Spawn(port, seeds) => {
+        let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
         let mut proc = Command::new("cargo");
+        proc.stdout(std::process::Stdio::null());
         proc.arg("run");
         proc.arg("--bin");
         proc.arg("cluster-test-node");
@@ -43,30 +62,23 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         for s in seeds.iter() {
           proc.arg(s.to_string());
         }
-        let proc = proc.spawn().unwrap();
-        let msgs = HashMap::new();
-        let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
-        for (node, (_, events)) in self.nodes.iter_mut() {
-          let event = ClusterEvent::Added(socket.clone());
-          let ec = event.clone();
-          let sc = socket.clone();
-          let actor = ctx.local_interface();
-          let node = node.clone();
-          let timeout = ctx.node.rt().spawn(async move {
-            sleep(TIMEOUT).await;
-            actor.send(CoordinatorMsg::TimedOut(node, ec));
-          });
-          events.insert(event, timeout);
+        for node in self.nodes.keys().cloned().collect_vec() {
+          self.expect(ctx, node, ClusterEvent::Added(socket.clone()));
         }
-        self.nodes.insert(socket, (proc, msgs));
+        self
+          .nodes
+          .insert(socket.clone(), (proc.spawn().unwrap(), HashMap::new()));
+        let event = if seeds.is_empty()
+          || self.nodes.keys().all(|x| !seeds.contains(&x.udp))
+        {
+          ClusterEvent::Alone
+        } else {
+          ClusterEvent::Joined
+        };
+        self.expect(ctx, socket, event);
       }
       Event(socket, event) => {
-        let hdl = self
-          .nodes
-          .get_mut(&socket)
-          .unwrap()
-          .1
-          .remove(&event);
+        let hdl = self.nodes.get_mut(&socket).unwrap().1.remove(&event);
         if let Some(hdl) = hdl {
           hdl.abort();
           println!("Received {:?} from {:?}", event, socket);
@@ -82,7 +94,10 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
           .1
           .remove(&event)
           .unwrap();
-        println!("Expected event {:?} from {:?} timed out", event, socket);
+        println!(
+          "Timed out: from {:?} expected event {:?}",
+          socket.udp, event
+        );
       }
     }
   }
@@ -92,14 +107,12 @@ fn main() {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
   let nodes = vec![
-    (Spawn(4000, vec![]), dur(5_000)),
-    (Spawn(4001, vec![10000]), dur(5_000)),
-    /*
-    (Spawn(4002, vec![4001]), dur(5_000)),
-    (Spawn(4003, vec![4002]), dur(5_000)),
-    (Spawn(4004, vec![4003]), dur(5_000)),
-    (Spawn(4005, vec![4004]), dur(5_000)),
-    */
+    (Spawn(4000, vec![]), dur(500)),
+    (Spawn(4001, vec![4000]), dur(500)),
+    (Spawn(4002, vec![4001]), dur(500)),
+    (Spawn(4003, vec![4002]), dur(500)),
+    (Spawn(4004, vec![4003]), dur(500)),
+    (Spawn(4005, vec![4004]), dur(500)),
   ];
   let coor = node.spawn(
     true,

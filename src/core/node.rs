@@ -9,8 +9,11 @@ use std::{
   io::{Error, ErrorKind},
   time::Duration,
 };
-use tokio::{runtime::{Builder, Runtime}, task::JoinHandle};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::{
+  runtime::{Builder, Runtime},
+  task::JoinHandle,
+};
 
 struct NodeImpl<U: UnifiedBounds> {
   socket: Socket,
@@ -72,6 +75,18 @@ impl<U: UnifiedBounds> Node<U> {
     self.node.rt.spawn(async move {
       tokio::time::sleep(delay).await;
       op();
+    })
+  }
+
+  pub fn schedule_local_msg<T: Send + 'static>(
+    &self,
+    delay: Duration,
+    actor: LocalRef<T>,
+    msg: T,
+  ) -> JoinHandle<()> {
+    self.node.rt.spawn(async move {
+      tokio::time::sleep(delay).await;
+      actor.send(msg);
     })
   }
 

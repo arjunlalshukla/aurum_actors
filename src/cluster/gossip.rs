@@ -3,16 +3,19 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use Ordering::*;
 
-use crate::cluster::Member;
+use crate::cluster::{ClusterEvent, Member};
 use serde::{Deserialize, Serialize};
+
+use MachineState::*;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Gossip {
   pub states: BTreeMap<Arc<Member>, MachineState>,
 }
 impl Gossip {
-  pub fn merge(&self, other: Gossip) -> Vec<(Arc<Member>, MachineState)> {
-    let mut v = Vec::new();
+  pub fn merge(&mut self, other: Gossip) -> Vec<ClusterEvent> {
+    let mut events = Vec::new();
+    let mut changes = Vec::new();
     let mut left_iter = self.states.iter();
     let mut right_iter = other.states.into_iter();
     let mut left = left_iter.next();
@@ -24,7 +27,12 @@ impl Gossip {
             Equal => {
               match l_state.cmp(&r_state) {
                 Less => {
-                  v.push((l_mem.clone(), r_state));
+                  let event = match &r_state {
+                    Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+                    _ => ClusterEvent::Removed(r_mem.socket.clone()),
+                  };
+                  changes.push((r_mem.clone(), r_state));
+                  events.push(event);
                 }
                 Equal => {}
                 Greater => {}
@@ -33,7 +41,12 @@ impl Gossip {
               right = right_iter.next();
             }
             Greater => {
-              v.push((r_mem, r_state));
+              let event = match &r_state {
+                Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+                _ => ClusterEvent::Removed(r_mem.socket.clone()),
+              };
+              changes.push((r_mem.clone(), r_state));
+              events.push(event);
               left = Some((l_mem, l_state));
               right = right_iter.next();
             }
@@ -44,14 +57,22 @@ impl Gossip {
           }
         }
         (None, Some((r_mem, r_state))) => {
-          v.push((r_mem, r_state));
+          let event = match &r_state {
+            Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+            _ => ClusterEvent::Removed(r_mem.socket.clone()),
+          };
+          changes.push((r_mem.clone(), r_state));
+          events.push(event);
           left = None;
           right = right_iter.next()
         }
         _ => break,
       }
     }
-    v
+    for (member, state) in changes {
+      self.states.insert(member, state);
+    }
+    events
   }
 }
 
@@ -79,8 +100,6 @@ pub enum MachineState {
 use crate::core::{Host, Socket};
 #[cfg(test)]
 use maplit::btreemap;
-#[cfg(test)]
-use MachineState::*;
 
 #[test]
 fn test_gossip_merge() {
@@ -93,7 +112,7 @@ fn test_gossip_merge() {
       })
     })
     .collect::<Vec<_>>();
-  let local = Gossip {
+  let mut local = Gossip {
     states: btreemap! {
       members[0].clone() => Up,
       members[2].clone() => Up,
@@ -114,16 +133,24 @@ fn test_gossip_merge() {
       members[8].clone() => Joined,
     },
   };
-  let changes = local
-    .merge(recvd)
-    .into_iter()
-    .map(|(m, s)| (m.socket.udp, s))
-    .collect::<Vec<_>>();
-  let expected = vec![
-    (members[1].socket.udp, Up),
-    (members[3].socket.udp, Up),
-    (members[7].socket.udp, Down),
-    (members[8].socket.udp, Joined),
+  let changes = local.merge(recvd);
+  let expected_local = btreemap! {
+    members[0].clone() => Up,
+    members[1].clone() => Up,
+    members[2].clone() => Up,
+    members[3].clone() => Up,
+    members[4].clone() => Up,
+    members[5].clone() => Up,
+    members[6].clone() => Down,
+    members[7].clone() => Down,
+    members[8].clone() => Joined,
+  };
+  assert_eq!(local.states, expected_local);
+  let expected_changes = vec![
+    ClusterEvent::Added(members[1].socket.clone()),
+    ClusterEvent::Added(members[3].socket.clone()),
+    ClusterEvent::Removed(members[7].socket.clone()),
+    ClusterEvent::Added(members[8].socket.clone()),
   ];
-  assert_eq!(expected, changes);
+  assert_eq!(changes, expected_changes);
 }

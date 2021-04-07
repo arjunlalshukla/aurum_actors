@@ -20,8 +20,15 @@ impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
     &mut self,
     ctx: &ActorContext<ClusterNodeTypes, ClusterEvent>,
   ) {
-    Cluster::new(&ctx.node, "test".to_string(), self.seeds.clone(), 10.0, 3, vec![ctx.local_interface()])
-      .await;
+    Cluster::new(
+      &ctx.node,
+      "test".to_string(),
+      self.seeds.clone(),
+      10.0,
+      3,
+      vec![ctx.local_interface()],
+    )
+    .await;
     println!("Cluster actor started");
   }
 

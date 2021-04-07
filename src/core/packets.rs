@@ -20,11 +20,11 @@ pub enum DeserializeError<U: Debug> {
 }
 
 pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
-  serde_json::to_vec(item).ok()
+  Some(serde_cbor::to_vec(item).unwrap())
 }
 
 pub fn deserialize<T: Serialize + DeserializeOwned>(bytes: &[u8]) -> Option<T> {
-  serde_json::from_slice::<T>(bytes).ok()
+  serde_cbor::from_slice::<T>(bytes).ok()
 }
 
 pub fn deserialize_msg<U, S, I>(
