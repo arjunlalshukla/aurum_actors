@@ -2,13 +2,12 @@ extern crate aurum_macros;
 
 mod actor;
 mod actor_ref;
-mod double_threaded;
+mod actor_tasks_unit;
 mod node;
 mod packets;
 mod registry;
 mod remoting;
-mod single_threaded;
-mod single_timeout;
+mod actor_tasks_timeout;
 mod udp_receiver;
 mod unify;
 
@@ -16,7 +15,8 @@ mod unify;
 pub(crate) use {
   actor::local_actor_msg_convert, 
   actor::ActorMsg,
-  double_threaded::run_secondary, 
+  actor_tasks_unit::unit_secondary, 
+  actor_tasks_unit::unit_single, 
   remoting::Destination,
   packets::DatagramHeader, 
   packets::MessageBuilder, 
@@ -24,8 +24,7 @@ pub(crate) use {
   packets::deserialize,
   registry::Registry, 
   registry::SerializedRecvr,
-  single_threaded::run_single,
-  single_timeout::run_single_timeout,
+  actor_tasks_timeout::run_single_timeout,
   udp_receiver::udp_receiver,
 };
 

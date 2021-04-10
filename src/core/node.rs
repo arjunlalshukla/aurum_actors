@@ -1,5 +1,5 @@
 use crate::core::{
-  run_secondary, run_single, run_single_timeout, udp_receiver, Actor,
+  unit_secondary, unit_single, run_single_timeout, udp_receiver, Actor,
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
   RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };
@@ -109,7 +109,7 @@ impl<U: UnifiedBounds> Node<U> {
         name: ActorName::new::<S>(name),
         node: node_rx.recv().await.unwrap(),
       };
-      run_single(actor, ctx, rx, false).await
+      unit_single(actor, ctx, rx, false).await
     });
     ret
   }
@@ -134,9 +134,9 @@ impl<U: UnifiedBounds> Node<U> {
     };
     let ret = ctx.interface();
     if double {
-      self.node.rt.spawn(run_secondary(actor, ctx, rx, register));
+      self.node.rt.spawn(unit_secondary(actor, ctx, rx, register));
     } else {
-      self.node.rt.spawn(run_single(actor, ctx, rx, register));
+      self.node.rt.spawn(unit_single(actor, ctx, rx, register));
     }
     ret
   }

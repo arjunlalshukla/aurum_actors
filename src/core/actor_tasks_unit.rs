@@ -6,12 +6,52 @@ use std::collections::VecDeque;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::oneshot::channel;
 
+pub(crate) async fn unit_single<U, S, A>(
+  mut actor: A,
+  ctx: ActorContext<U, S>,
+  mut rx: UnboundedReceiver<ActorMsg<U, S>>,
+  register: bool,
+) where
+  U: UnifiedBounds + Case<S>,
+  S: 'static + Send + SpecificInterface<U>,
+  A: Actor<U, S> + Send + 'static,
+{
+  if register {
+    let (tx, rx) = channel::<()>();
+    ctx.node.registry(RegistryMsg::Register(
+      ctx.name.clone(),
+      ctx.ser_recvr(),
+      tx,
+    ));
+    rx.await
+      .expect(format!("Could not register {:?}", ctx.name).as_str());
+  }
+  actor.pre_start(&ctx).await;
+  loop {
+    let msg = match rx.recv().await.unwrap() {
+      ActorMsg::Msg(x) => x,
+      ActorMsg::Serial(interface, mb) => {
+        S::deserialize_as(interface, mb.intp, mb.msg()).unwrap()
+      }
+      _ => unreachable!(),
+    };
+    match msg {
+      LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,
+      LocalActorMsg::Signal(ActorSignal::Term) => break,
+    };
+  }
+  actor.post_stop(&ctx).await;
+  if register {
+    ctx.node.registry(RegistryMsg::Deregister(ctx.name));
+  }
+}
+
 enum PrimaryMsg<S> {
   Msg(S),
   Die,
 }
 
-pub(crate) async fn run_secondary<U, S, A>(
+pub(crate) async fn unit_secondary<U, S, A>(
   actor: A,
   ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
@@ -36,7 +76,7 @@ pub(crate) async fn run_secondary<U, S, A>(
   let (primary_tx, primary_rx) = unbounded_channel::<PrimaryMsg<S>>();
   let node = ctx.node.clone();
   let name = ctx.name.clone();
-  node.rt().spawn(run_primary(actor, ctx, primary_rx));
+  node.rt().spawn(unit_primary(actor, ctx, primary_rx));
   let send_to_primary = |msg: PrimaryMsg<S>| {
     if primary_tx.send(msg).is_err() {
       panic!("{:?} lost connection with primary", name);
@@ -79,7 +119,7 @@ pub(crate) async fn run_secondary<U, S, A>(
   }
 }
 
-async fn run_primary<U, S, A>(
+async fn unit_primary<U, S, A>(
   mut actor: A,
   ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<PrimaryMsg<S>>,

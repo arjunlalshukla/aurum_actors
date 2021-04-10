@@ -1,7 +1,9 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
 use aurum::cluster::{Cluster, ClusterEvent};
-use aurum::core::{forge, Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket};
+use aurum::core::{
+  forge, Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
+};
 use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{unify, AurumInterface};
 use im;
@@ -20,7 +22,7 @@ const TIMEOUT: Duration = Duration::from_millis(10_000);
 #[derive(Clone, Debug)]
 enum MemberErrorType {
   Timeout,
-  Unexpected
+  Unexpected,
 }
 
 type MemberError = (MemberErrorType, Socket, ClusterEvent);
@@ -29,7 +31,7 @@ struct ClusterCoor {
   nodes: HashMap<Socket, (Child, HashMap<ClusterEvent, JoinHandle<bool>>)>,
   errors: Vec<MemberError>,
   finish: bool,
-  notify: tokio::sync::mpsc::Sender<Vec<MemberError>>
+  notify: tokio::sync::mpsc::Sender<Vec<MemberError>>,
 }
 impl ClusterCoor {
   fn expect(
@@ -61,7 +63,7 @@ impl ClusterCoor {
 impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
   async fn recv(
     &mut self,
-    ctx: &aurum::core::ActorContext<ClusterNodeTypes, CoordinatorMsg>,
+    ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
     msg: CoordinatorMsg,
   ) {
     match msg {
@@ -107,7 +109,9 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
           println!("Received {:?} from {:?}", event, socket);
         } else {
           println!("Unexpected: {:?} from {:?}", event, socket);
-          self.errors.push((MemberErrorType::Unexpected, socket, event));
+          self
+            .errors
+            .push((MemberErrorType::Unexpected, socket, event));
         }
         self.complete(ctx);
       }
@@ -129,8 +133,10 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
     }
   }
 
-  async fn post_stop(&mut self, ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>) {
-
+  async fn post_stop(
+    &mut self,
+    ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
+  ) {
     self.notify.send(self.errors.clone()).await.unwrap();
   }
 }
@@ -156,7 +162,7 @@ fn run_cluster_coordinator_test() {
       nodes: HashMap::new(),
       errors: vec![],
       finish: false,
-      notify: tx
+      notify: tx,
     },
     "coordinator".to_string(),
     true,

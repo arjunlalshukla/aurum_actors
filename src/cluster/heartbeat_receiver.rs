@@ -1,11 +1,11 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
 use crate as aurum;
-use crate::AurumInterface;
 use crate::cluster::{ClusterMsg, IntervalStorage, Member, UnifiedBounds};
 use crate::core::{ActorContext, Case, LocalRef, TimeoutActor};
+use crate::AurumInterface;
 use async_trait::async_trait;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,16 +14,16 @@ enum HeartbeatReceiverMsg {
   Heartbeat(Duration, u32),
 }
 
-struct HeartbeatReceiver<U> 
+struct HeartbeatReceiver<U>
 where
-  U: UnifiedBounds + Case<HeartbeatReceiverMsg>
+  U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
 {
   detector: IntervalStorage,
   supervisor: LocalRef<ClusterMsg<U>>,
   member: Arc<Member>,
   phi: f64,
   interval: Duration,
-  count: u32
+  count: u32,
 }
 #[async_trait]
 impl<U> TimeoutActor<U, HeartbeatReceiverMsg> for HeartbeatReceiver<U>
