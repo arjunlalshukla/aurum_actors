@@ -19,6 +19,7 @@ num_enum = "*"
 once_cell = "*"
 rand = {version = "*", features = ["alloc"] }
 rand_chacha = "*"
+rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
 serde_json = "*"

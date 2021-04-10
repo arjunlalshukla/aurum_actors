@@ -6,6 +6,7 @@ use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{unify, AurumInterface};
 use im;
 use itertools::Itertools;
+use rusty_fork::rusty_fork_test;
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
@@ -134,12 +135,11 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
   }
 }
 
-#[test]
-fn cluster_coordinator_test() {
-  Command::new("cargo").arg("build").spawn().unwrap().wait().unwrap();
+fn run_cluster_coordinator_test() {
+  Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
-  let millis = 500;
+  let millis = 100;
   let nodes = vec![
     (Spawn(4000, vec![]), dur(0)),
     (Spawn(4001, vec![4000]), dur(millis)),
@@ -173,9 +173,7 @@ fn cluster_coordinator_test() {
   Command::new("pkill")
     .arg("-f")
     .arg("./target/debug/cluster-test-node")
-    .spawn()
-    .unwrap()
-    .wait()
+    .status()
     .unwrap();
   assert!(errors.is_empty());
 }
@@ -191,5 +189,12 @@ async fn events(
   for (msg, dur) in vec.into_iter() {
     sleep(dur).await;
     coor.move_to(msg).await;
+  }
+}
+
+rusty_fork_test! {
+  #[test]
+  fn cluster_coordinator_test() {
+    run_cluster_coordinator_test();
   }
 }
