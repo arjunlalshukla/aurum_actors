@@ -37,7 +37,7 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
   ) {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
-        let packets = msg_builder.max_seq_num;
+        let _packets = msg_builder.max_seq_num;
         let Destination { name, interface } =
           deserialize::<Destination<U>>(msg_builder.dest()).unwrap();
         if let Some(recvr) = self.register.get(&name) {
@@ -45,7 +45,7 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
             self.register.remove(&name);
             println!("Forward message to {:?} failed, removing actor", name);
           } else {
-            println!("Forwarded {} packets to {:?}", packets, name);
+            //println!("Forwarded {} packets to {:?}", packets, name);
           }
         } else {
           println!("Cannot send to {:?}, not in register", name);
@@ -60,7 +60,7 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
             if let Err(_) = confirmation.send(()) {
               println!("Register confirmation failed: {:?}", v.key());
             } else {
-              println!("Adding actor to registry: {:?}", v.key());
+              //println!("Adding actor to registry: {:?}", v.key());
               v.insert(channel);
             }
           }

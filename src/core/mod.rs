@@ -8,6 +8,7 @@ mod packets;
 mod registry;
 mod remoting;
 mod single_threaded;
+mod single_timeout;
 mod udp_receiver;
 mod unify;
 
@@ -24,6 +25,7 @@ pub(crate) use {
   registry::Registry, 
   registry::SerializedRecvr,
   single_threaded::run_single,
+  single_timeout::run_single_timeout,
   udp_receiver::udp_receiver,
 };
 
@@ -44,6 +46,7 @@ pub use {
 #[rustfmt::skip]
 pub use {
   actor::Actor, 
+  actor::TimeoutActor,
   actor::ActorContext, 
   actor::ActorName, 
   actor::ActorSignal,

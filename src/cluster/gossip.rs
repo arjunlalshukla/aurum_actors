@@ -28,7 +28,7 @@ impl Gossip {
               match l_state.cmp(&r_state) {
                 Less => {
                   let event = match &r_state {
-                    Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+                    Up => ClusterEvent::Added(r_mem.socket.clone()),
                     _ => ClusterEvent::Removed(r_mem.socket.clone()),
                   };
                   changes.push((r_mem.clone(), r_state));
@@ -42,7 +42,7 @@ impl Gossip {
             }
             Greater => {
               let event = match &r_state {
-                Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+                Up => ClusterEvent::Added(r_mem.socket.clone()),
                 _ => ClusterEvent::Removed(r_mem.socket.clone()),
               };
               changes.push((r_mem.clone(), r_state));
@@ -58,7 +58,7 @@ impl Gossip {
         }
         (None, Some((r_mem, r_state))) => {
           let event = match &r_state {
-            Joined | Up => ClusterEvent::Added(r_mem.socket.clone()),
+            Up => ClusterEvent::Added(r_mem.socket.clone()),
             _ => ClusterEvent::Removed(r_mem.socket.clone()),
           };
           changes.push((r_mem.clone(), r_state));
@@ -89,11 +89,8 @@ impl Gossip {
   Debug,
 )]
 pub enum MachineState {
-  Joined,
   Up,
-  Leaving,
   Down,
-  Removed,
 }
 
 #[cfg(test)]
@@ -130,7 +127,7 @@ fn test_gossip_merge() {
       members[5].clone() => Up,
       members[6].clone() => Up,
       members[7].clone() => Down,
-      members[8].clone() => Joined,
+      members[8].clone() => Up,
     },
   };
   let changes = local.merge(recvd);
@@ -143,7 +140,7 @@ fn test_gossip_merge() {
     members[5].clone() => Up,
     members[6].clone() => Down,
     members[7].clone() => Down,
-    members[8].clone() => Joined,
+    members[8].clone() => Up,
   };
   assert_eq!(local.states, expected_local);
   let expected_changes = vec![

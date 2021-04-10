@@ -1,5 +1,6 @@
 mod cluster;
 mod gossip;
+mod heartbeat_receiver;
 mod interval_storage;
 mod node_ring;
 mod testing;

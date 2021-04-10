@@ -58,12 +58,7 @@ pub(crate) async fn run_secondary<U, S, A>(
         }
       }
       ActorMsg::Serial(interface, mb) => {
-        <S as SpecificInterface<U>>::deserialize_as(
-          interface,
-          mb.intp,
-          mb.msg(),
-        )
-        .unwrap()
+        S::deserialize_as(interface, mb.intp, mb.msg()).unwrap()
       }
     };
     let pri = match msg {

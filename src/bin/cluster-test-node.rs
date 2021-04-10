@@ -29,7 +29,6 @@ impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
       vec![ctx.local_interface()],
     )
     .await;
-    println!("Cluster actor started");
   }
 
   async fn recv(
@@ -64,10 +63,9 @@ fn main() {
       )
     })
     .collect::<Vec<_>>();
-  println!("Starting cluster node test on port {}", port);
-  println!("Contacting coor on {:?}", coor);
+  println!("STARTED {}, contacting coor on {:?}", socket.udp, coor);
   for seed in seeds.iter() {
-    println!("Using seed: {:?}", seed);
+    println!("{}: using seed {}", socket.udp, seed.udp);
   }
   node.spawn(
     true,

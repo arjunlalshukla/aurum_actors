@@ -57,7 +57,7 @@ const INTERVAL_TIMES: usize = 2;
 const GOSSIP_DISPERSE: usize = 5;
 const RELIABLE: bool = true;
 const PING_DELAY: Duration = Duration::from_millis(5000);
-const NUM_PINGS: u32 = 3;
+const NUM_PINGS: u32 = 1;
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -80,6 +80,9 @@ pub enum IntraClusterMsg<U: UnifiedBounds> {
 }
 
 pub enum ClusterCmd {
+  //Leave,
+  //Join,
+  //SetHeartbeatInterval(Duration),
   Subscribe(LocalRef<ClusterEvent>),
 }
 
@@ -91,6 +94,7 @@ pub enum ClusterEvent {
   Joined,
   Added(Socket),
   Removed(Socket),
+  Left,
 }
 
 struct InCluster {
@@ -126,14 +130,16 @@ impl InCluster {
         }
       }
       Ping(member) => {
-        println!("Received ping from {:?}", member);
+        println!(
+          "{}: received ping from {:?}",
+          common.member.socket.udp, member
+        );
         let socket = member.socket.clone();
         self.gossip.states.insert(member, Up);
-        let msg: IntraClusterMsg<U> = State(self.gossip.clone());
+        //let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         //udp_send!(RELIABLE, &common.member.socket, &common.dest, &msg);
         common.gossip_round(&self.gossip).await;
         common.notify(ClusterEvent::Added(socket));
-        println!("Processed ping");
       }
     }
     None
@@ -151,7 +157,10 @@ impl Pinging {
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
     self.count -= 1;
-    println!("Starting ping. {} attempts left", self.count);
+    println!(
+      "{}: starting ping. {} attempts left",
+      common.member.socket.udp, self.count
+    );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.seeds.iter() {
       udp_send!(RELIABLE, s, &common.dest, &msg);
@@ -251,7 +260,7 @@ impl<U: UnifiedBounds> NodeState<U> {
     let members = gossip
       .states
       .iter()
-      .filter(|(m, s)| (**m) != self.member && s < &&Leaving)
+      .filter(|(m, s)| (**m) != self.member && s < &&Down)
       .map(|(m, _)| m)
       .choose_multiple(&mut rand::thread_rng(), GOSSIP_DISPERSE)
       .into_iter();

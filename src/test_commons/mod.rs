@@ -10,6 +10,7 @@ pub enum CoordinatorMsg {
   TimedOut(Socket, ClusterEvent),
   Spawn(u16, Vec<u16>),
   Kill(u16),
+  Done
 }
 
 unify!(pub ClusterNodeTypes = ClusterEvent | CoordinatorMsg);

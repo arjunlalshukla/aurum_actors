@@ -11,9 +11,9 @@ pub(crate) async fn run_single<U, S, A>(
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
-  A: Actor<U, S> + Send + 'static,
-  S: 'static + Send + SpecificInterface<U>,
   U: UnifiedBounds + Case<S>,
+  S: 'static + Send + SpecificInterface<U>,
+  A: Actor<U, S> + Send + 'static,
 {
   if register {
     let (tx, rx) = channel::<()>();
@@ -29,20 +29,10 @@ pub(crate) async fn run_single<U, S, A>(
   loop {
     let msg = match rx.recv().await.unwrap() {
       ActorMsg::Msg(x) => x,
-      ActorMsg::PrimaryRequest => {
-        panic!("{:?} single got a primary request", ctx.name)
-      }
-      ActorMsg::Die => {
-        panic!("A single threaded actor shouldn't get ActorMsg::Die")
-      }
       ActorMsg::Serial(interface, mb) => {
-        <S as SpecificInterface<U>>::deserialize_as(
-          interface,
-          mb.intp,
-          mb.msg(),
-        )
-        .unwrap()
+        S::deserialize_as(interface, mb.intp, mb.msg()).unwrap()
       }
+      _ => unreachable!(),
     };
     match msg {
       LocalActorMsg::Msg(m) => actor.recv(&ctx, m).await,

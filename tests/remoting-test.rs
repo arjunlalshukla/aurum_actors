@@ -100,10 +100,10 @@ fn actor_ref_test(double: bool, port: u16) {
 
 #[test]
 fn actor_ref_test_single() {
-  actor_ref_test(false, 4001);
+  actor_ref_test(false, 5001);
 }
 
 #[test]
 fn actor_ref_test_double() {
-  actor_ref_test(true, 4002);
+  actor_ref_test(true, 5002);
 }

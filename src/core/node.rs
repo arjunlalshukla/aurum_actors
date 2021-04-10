@@ -1,7 +1,7 @@
 use crate::core::{
-  run_secondary, run_single, udp_receiver, Actor, ActorContext, ActorMsg,
-  ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket,
-  SpecificInterface, UnifiedBounds,
+  run_secondary, run_single, run_single_timeout, udp_receiver, Actor,
+  ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
+  RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };
 use rand;
 use std::sync::Arc;
@@ -83,10 +83,10 @@ impl<U: UnifiedBounds> Node<U> {
     delay: Duration,
     actor: LocalRef<T>,
     msg: T,
-  ) -> JoinHandle<()> {
+  ) -> JoinHandle<bool> {
     self.node.rt.spawn(async move {
       tokio::time::sleep(delay).await;
-      actor.send(msg);
+      actor.send(msg)
     })
   }
 
@@ -138,6 +138,32 @@ impl<U: UnifiedBounds> Node<U> {
     } else {
       self.node.rt.spawn(run_single(actor, ctx, rx, register));
     }
+    ret
+  }
+
+  pub fn spawn_timeout<S, A>(
+    &self,
+    actor: A,
+    name: String,
+    register: bool,
+    timeout: Duration,
+  ) -> ActorRef<U, S>
+  where
+    U: Case<S>,
+    S: 'static + Send + SpecificInterface<U>,
+    A: TimeoutActor<U, S> + Send + 'static,
+  {
+    let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
+    let ctx = ActorContext {
+      tx: tx,
+      name: ActorName::new::<S>(name),
+      node: self.clone(),
+    };
+    let ret = ctx.interface();
+    self
+      .node
+      .rt
+      .spawn(run_single_timeout(actor, ctx, rx, register, timeout));
     ret
   }
 }

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(
@@ -27,8 +28,20 @@ impl<U: UnifiedBounds> ActorName<U> {
 #[async_trait]
 pub trait Actor<U: Case<Msg> + UnifiedBounds, Msg: Send> {
   async fn pre_start(&mut self, _: &ActorContext<U, Msg>) {}
-  async fn recv(&mut self, _: &ActorContext<U, Msg>, _: Msg);
+  async fn recv(&mut self, ctx: &ActorContext<U, Msg>, msg: Msg);
   async fn post_stop(&mut self, _: &ActorContext<U, Msg>) {}
+}
+
+#[async_trait]
+pub trait TimeoutActor<U: Case<M> + UnifiedBounds, M: Send> {
+  async fn pre_start(&mut self, _: &ActorContext<U, M>) -> Option<Duration> {
+    None
+  }
+  async fn recv(&mut self, _: &ActorContext<U, M>, _: M) -> Option<Duration>;
+  async fn post_stop(&mut self, _: &ActorContext<U, M>) -> Option<Duration> {
+    None
+  }
+  async fn timeout(&mut self, _: &ActorContext<U, M>) -> Option<Duration>;
 }
 
 pub(crate) enum ActorMsg<U, S> {
