@@ -29,6 +29,7 @@ type MemberError = (MemberErrorType, Socket, ClusterEvent);
 
 struct ClusterCoor {
   nodes: HashMap<Socket, (Child, HashMap<ClusterEvent, JoinHandle<bool>>)>,
+  event_count: usize,
   errors: Vec<MemberError>,
   finish: bool,
   notify: tokio::sync::mpsc::Sender<Vec<MemberError>>,
@@ -47,14 +48,16 @@ impl ClusterCoor {
       CoordinatorMsg::TimedOut(node, event.clone()),
     );
     events.insert(event, timeout);
+    self.event_count += 1;
   }
 
-  fn is_empty(&self) -> bool {
-    self.nodes.is_empty() || self.nodes.values().all(|(_, es)| es.is_empty())
+  fn event(&mut self, node: &Socket, event: &ClusterEvent) -> Option<JoinHandle<bool>> {
+    self.event_count -= 1;
+    self.nodes.get_mut(node).unwrap().1.remove(event)
   }
 
   fn complete(&self, ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>) {
-    if self.finish && self.is_empty() {
+    if self.finish && self.event_count == 0 {
       ctx.local_interface().signal(ActorSignal::Term);
     }
   }
@@ -76,6 +79,9 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         let (mut proc, msgs) = self.nodes.remove(&socket).unwrap();
         proc.kill().unwrap();
         msgs.values().for_each(|to| to.abort());
+        for node in self.nodes.keys().cloned().collect_vec() {
+          self.expect(ctx, node, ClusterEvent::Removed(socket.clone()));
+        }
         self.complete(ctx);
       }
       Spawn(port, seeds) => {
@@ -103,7 +109,7 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         self.expect(ctx, socket, event);
       }
       Event(socket, event) => {
-        let hdl = self.nodes.get_mut(&socket).unwrap().1.remove(&event);
+        let hdl = self.event(&socket, &event);
         if let Some(hdl) = hdl {
           hdl.abort();
           println!("Received {:?} from {:?}", event, socket);
@@ -116,13 +122,7 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         self.complete(ctx);
       }
       TimedOut(socket, event) => {
-        self
-          .nodes
-          .get_mut(&socket)
-          .unwrap()
-          .1
-          .remove(&event)
-          .unwrap();
+        self.event(&socket, &event).unwrap();
         println!(
           "Timed out: from {:?} expected event {:?}",
           socket.udp, event
@@ -160,6 +160,7 @@ fn run_cluster_coordinator_test() {
     true,
     ClusterCoor {
       nodes: HashMap::new(),
+      event_count: 0,
       errors: vec![],
       finish: false,
       notify: tx,
