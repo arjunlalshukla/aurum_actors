@@ -1,9 +1,12 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
-use crate::cluster::{Gossip, IntervalStorage, MachineState, NodeRing};
+use crate::cluster::{
+  Gossip, HBRConfig, HBRState, HeartbeatReceiver, HeartbeatReceiverMsg,
+  IntervalStorage, MachineState, NodeRing,
+};
 use crate::core::{
-  udp_msg, Actor, ActorContext, ActorRef, Case, Destination, Host, LocalRef,
-  Node, Socket,
+  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Case, Destination, Host,
+  LocalRef, Node, Socket,
 };
 use crate::{self as aurum, udp_send};
 use async_trait::async_trait;
@@ -23,12 +26,14 @@ pub trait UnifiedBounds:
   crate::core::UnifiedBounds
   + Case<ClusterMsg<Self>>
   + Case<IntraClusterMsg<Self>>
+  + Case<HeartbeatReceiverMsg>
 {
 }
 impl<T> UnifiedBounds for T where
   T: crate::core::UnifiedBounds
     + Case<ClusterMsg<Self>>
     + Case<IntraClusterMsg<Self>>
+    + Case<HeartbeatReceiverMsg>
 {
 }
 
@@ -51,13 +56,28 @@ impl PartialEq for Member {
   }
 }
 
-const INTERVAL_CAP: usize = 10;
-const INTERVAL_INIT: Duration = Duration::from_millis(50);
-const INTERVAL_TIMES: usize = 2;
-const GOSSIP_DISPERSE: usize = 5;
 const RELIABLE: bool = true;
-const PING_DELAY: Duration = Duration::from_millis(5000);
-const NUM_PINGS: u32 = 1;
+
+pub struct ClusterConfig {
+  pub gossip_disperse: usize,
+  pub ping_timeout: Duration,
+  pub num_pings: usize,
+  pub heartbeat_interval: Duration,
+  pub seed_nodes: Vec<Socket>,
+  pub replication_factor: usize,
+}
+impl Default for ClusterConfig {
+  fn default() -> Self {
+    ClusterConfig {
+      gossip_disperse: 5,
+      ping_timeout: Duration::from_millis(5000),
+      num_pings: 1,
+      heartbeat_interval: Duration::from_millis(50),
+      seed_nodes: vec![],
+      replication_factor: 3,
+    }
+  }
+}
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -119,13 +139,13 @@ pub enum ClusterEvent {
 }
 
 struct InCluster {
-  charges: HashMap<Arc<Member>, IntervalStorage>,
+  charges: HashMap<Arc<Member>, LocalRef<HeartbeatReceiverMsg>>,
   gossip: Gossip,
   ring: NodeRing,
 }
 impl InCluster {
   fn alone<U: UnifiedBounds>(common: &NodeState<U>) -> InCluster {
-    let mut ring = NodeRing::new(common.rep_factor);
+    let mut ring = NodeRing::new(common.clr_config.replication_factor);
     ring.insert(common.member.clone());
     InCluster {
       charges: HashMap::new(),
@@ -147,6 +167,26 @@ impl InCluster {
       State(gossip) => {
         let events = self.gossip.merge(gossip);
         for e in events {
+          match &e {
+            ClusterEvent::Added(member) => {
+              self.ring.insert(member.clone());
+              if self.ring.is_manager(&common.member, member) {
+                let hbr = HeartbeatReceiver::spawn(ctx, common, member.clone());
+                self.charges.insert(member.clone(), hbr);
+              }
+            }
+            ClusterEvent::Removed(member) => {
+              self.ring.remove(&*member).unwrap();
+              if self.ring.is_manager(&common.member, member) {
+                self
+                  .charges
+                  .remove(member)
+                  .unwrap()
+                  .signal(ActorSignal::Term);
+              }
+            }
+            _ => {}
+          }
           common.notify(e);
         }
       }
@@ -165,7 +205,7 @@ impl InCluster {
 }
 
 struct Pinging {
-  count: u32,
+  count: usize,
   timeout: JoinHandle<()>,
 }
 impl Pinging {
@@ -180,11 +220,11 @@ impl Pinging {
       common.member.socket.udp, self.count
     );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
-    for s in common.seeds.iter() {
+    for s in common.clr_config.seed_nodes.iter() {
       udp_send!(RELIABLE, s, &common.dest, &msg);
     }
     let ar = ctx.local_interface();
-    self.timeout = ctx.node.schedule(PING_DELAY, move || {
+    self.timeout = ctx.node.schedule(common.clr_config.ping_timeout, move || {
       ar.send(ClusterMsg::PingTimeout);
     });
   }
@@ -199,7 +239,7 @@ impl Pinging {
       State(gossip) => {
         common.gossip_round(&gossip).await;
         common.notify(ClusterEvent::Joined(common.member.clone()));
-        let mut ring = NodeRing::new(common.rep_factor);
+        let mut ring = NodeRing::new(common.clr_config.replication_factor);
         gossip
           .states
           .iter()
@@ -209,17 +249,7 @@ impl Pinging {
         let charges = ring
           .charges(&common.member)
           .into_iter()
-          .map(|mem| {
-            (
-              mem,
-              IntervalStorage::new(
-                INTERVAL_CAP,
-                INTERVAL_INIT,
-                INTERVAL_TIMES,
-                None,
-              ),
-            )
-          })
+          .map(|m| (m.clone(), HeartbeatReceiver::spawn(ctx, common, m)))
           .collect();
         Some(InteractionState::InCluster(InCluster {
           charges: charges,
@@ -259,14 +289,12 @@ impl InteractionState {
   }
 }
 
-struct NodeState<U: UnifiedBounds> {
-  member: Arc<Member>,
-  dest: Destination<U>,
-  seeds: Vec<Socket>,
-  subscribers: Vec<LocalRef<ClusterEvent>>,
-  rep_factor: usize,
-  ping_attempts: u32,
-  phi: f64,
+pub(crate) struct NodeState<U: UnifiedBounds> {
+  pub member: Arc<Member>,
+  pub dest: Destination<U>,
+  pub subscribers: Vec<LocalRef<ClusterEvent>>,
+  pub clr_config: ClusterConfig,
+  pub hbr_config: HBRConfig,
 }
 impl<U: UnifiedBounds> NodeState<U> {
   fn notify(&mut self, event: ClusterEvent) {
@@ -280,7 +308,7 @@ impl<U: UnifiedBounds> NodeState<U> {
       .iter()
       .filter(|(m, s)| (**m) != self.member && s < &&Down)
       .map(|(m, _)| m)
-      .choose_multiple(&mut rand::thread_rng(), GOSSIP_DISPERSE)
+      .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
       .into_iter();
     for member in members {
       udp_send!(RELIABLE, &member.socket, &self.dest, &msg)
@@ -295,11 +323,11 @@ pub struct Cluster<U: UnifiedBounds> {
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    if self.common.seeds.is_empty() {
+    if self.common.clr_config.seed_nodes.is_empty() {
       self.create_cluster();
     } else {
       let mut png = Pinging {
-        count: self.common.ping_attempts,
+        count: self.common.clr_config.num_pings,
         timeout: ctx.node.rt().spawn(async {}),
       };
       png.ping(&self.common, ctx).await;
@@ -340,10 +368,10 @@ impl<U: UnifiedBounds> Cluster<U> {
   pub async fn new(
     node: &Node<U>,
     name: String,
-    seeds: Vec<Socket>,
-    phi: f64,
     vnodes: u32,
     subrs: Vec<LocalRef<ClusterEvent>>,
+    clr_config: ClusterConfig,
+    hbr_config: HBRConfig
   ) -> LocalRef<ClusterCmd> {
     let c = Cluster {
       common: NodeState {
@@ -355,11 +383,9 @@ impl<U: UnifiedBounds> Cluster<U> {
         dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
           name.clone(),
         ),
-        seeds: seeds,
         subscribers: subrs,
-        rep_factor: 3,
-        ping_attempts: NUM_PINGS,
-        phi: phi,
+        clr_config: clr_config,
+        hbr_config: hbr_config,
       },
       state: InteractionState::Left,
     };
@@ -372,7 +398,9 @@ impl<U: UnifiedBounds> Cluster<U> {
   }
 
   fn create_cluster(&mut self) {
-    self.common.notify(ClusterEvent::Alone(self.common.member.clone()));
+    self
+      .common
+      .notify(ClusterEvent::Alone(self.common.member.clone()));
     self.state = InteractionState::InCluster(InCluster::alone(&self.common));
   }
 }

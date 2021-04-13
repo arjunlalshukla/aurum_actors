@@ -15,13 +15,19 @@ use tokio::sync::mpsc::UnboundedSender;
   Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize,
 )]
 #[serde(bound = "U: UnifiedBounds")]
-pub struct ActorName<U>(U, String);
+pub struct ActorName<U> {
+  pub recv_type: U,
+  pub name: String,
+}
 impl<U: UnifiedBounds> ActorName<U> {
   pub fn new<T>(s: String) -> ActorName<U>
   where
     U: Case<T>,
   {
-    ActorName(<U as Case<T>>::VARIANT, s)
+    ActorName {
+      recv_type: <U as Case<T>>::VARIANT,
+      name: s,
+    }
   }
 }
 

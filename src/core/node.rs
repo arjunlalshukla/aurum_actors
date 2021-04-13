@@ -1,5 +1,5 @@
 use crate::core::{
-  unit_secondary, unit_single, run_single_timeout, udp_receiver, Actor,
+  run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor,
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
   RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };

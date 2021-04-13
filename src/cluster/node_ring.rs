@@ -9,7 +9,7 @@ use std::sync::Arc;
 use wyhash::{wyrng, WyHash};
 
 pub struct NodeRing {
-  pub(in crate::cluster::node_ring) ring: BTreeMap<u64, (bool, Arc<Member>)>,
+  ring: BTreeMap<u64, (bool, Arc<Member>)>,
   rep_factor: usize,
 }
 impl NodeRing {
@@ -32,6 +32,17 @@ impl NodeRing {
       .unique()
       .take(num)
       .collect()
+  }
+
+  pub fn is_manager(&self, manager: &Member, target: &Member) -> bool {
+    let key = hash_code(target);
+    self
+      .ring
+      .range(key..)
+      .chain(self.ring.range(..key))
+      .skip(1)
+      .take(self.rep_factor)
+      .any(|(_, (_, x))| &**x == manager)
   }
 
   pub fn node_managers(&self, member: &Member) -> Vec<Arc<Member>> {

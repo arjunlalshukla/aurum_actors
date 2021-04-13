@@ -7,8 +7,11 @@ mod testing;
 
 #[rustfmt::skip]
 pub(crate) use {
+  cluster::NodeState,
   gossip::Gossip,
   gossip::MachineState,
+  heartbeat_receiver::HBRState,
+  heartbeat_receiver::HeartbeatReceiver,
   interval_storage::IntervalStorage,
   testing::DELAY,
   testing::PACKET_DROP,
@@ -18,11 +21,14 @@ pub(crate) use {
 pub use {
   cluster::Cluster,
   cluster::ClusterCmd,
+  cluster::ClusterConfig,
   cluster::ClusterEvent,
   cluster::ClusterEventSimple,
   cluster::ClusterMsg,
   cluster::IntraClusterMsg,
   cluster::Member,
   cluster::UnifiedBounds,
+  heartbeat_receiver::HBRConfig,
+  heartbeat_receiver::HeartbeatReceiverMsg,
   node_ring::NodeRing,
 };

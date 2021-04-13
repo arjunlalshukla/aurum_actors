@@ -28,7 +28,8 @@ enum MemberErrorType {
 type MemberError = (MemberErrorType, Socket, ClusterEventSimple);
 
 struct ClusterCoor {
-  nodes: HashMap<Socket, (Child, HashMap<ClusterEventSimple, JoinHandle<bool>>)>,
+  nodes:
+    HashMap<Socket, (Child, HashMap<ClusterEventSimple, JoinHandle<bool>>)>,
   event_count: usize,
   errors: Vec<MemberError>,
   finish: bool,
@@ -51,7 +52,11 @@ impl ClusterCoor {
     self.event_count += 1;
   }
 
-  fn event(&mut self, node: &Socket, event: &ClusterEventSimple) -> Option<JoinHandle<bool>> {
+  fn event(
+    &mut self,
+    node: &Socket,
+    event: &ClusterEventSimple,
+  ) -> Option<JoinHandle<bool>> {
     self.event_count -= 1;
     self.nodes.get_mut(node).unwrap().1.remove(event)
   }

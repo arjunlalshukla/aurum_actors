@@ -2,12 +2,12 @@ extern crate aurum_macros;
 
 mod actor;
 mod actor_ref;
+mod actor_tasks_timeout;
 mod actor_tasks_unit;
 mod node;
 mod packets;
 mod registry;
 mod remoting;
-mod actor_tasks_timeout;
 mod udp_receiver;
 mod unify;
 
