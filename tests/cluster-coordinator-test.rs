@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterEvent};
+use aurum::cluster::{Cluster, ClusterEventSimple};
 use aurum::core::{
   forge, Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
 };
@@ -25,10 +25,10 @@ enum MemberErrorType {
   Unexpected,
 }
 
-type MemberError = (MemberErrorType, Socket, ClusterEvent);
+type MemberError = (MemberErrorType, Socket, ClusterEventSimple);
 
 struct ClusterCoor {
-  nodes: HashMap<Socket, (Child, HashMap<ClusterEvent, JoinHandle<bool>>)>,
+  nodes: HashMap<Socket, (Child, HashMap<ClusterEventSimple, JoinHandle<bool>>)>,
   event_count: usize,
   errors: Vec<MemberError>,
   finish: bool,
@@ -39,7 +39,7 @@ impl ClusterCoor {
     &mut self,
     ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
     node: Socket,
-    event: ClusterEvent,
+    event: ClusterEventSimple,
   ) {
     let events = &mut self.nodes.get_mut(&node).unwrap().1;
     let timeout = ctx.node.schedule_local_msg(
@@ -51,7 +51,7 @@ impl ClusterCoor {
     self.event_count += 1;
   }
 
-  fn event(&mut self, node: &Socket, event: &ClusterEvent) -> Option<JoinHandle<bool>> {
+  fn event(&mut self, node: &Socket, event: &ClusterEventSimple) -> Option<JoinHandle<bool>> {
     self.event_count -= 1;
     self.nodes.get_mut(node).unwrap().1.remove(event)
   }
@@ -80,7 +80,7 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         proc.kill().unwrap();
         msgs.values().for_each(|to| to.abort());
         for node in self.nodes.keys().cloned().collect_vec() {
-          self.expect(ctx, node, ClusterEvent::Removed(socket.clone()));
+          self.expect(ctx, node, ClusterEventSimple::Removed(socket.clone()));
         }
         self.complete(ctx);
       }
@@ -94,7 +94,7 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
           proc.arg(s.to_string());
         }
         for node in self.nodes.keys().cloned().collect_vec() {
-          self.expect(ctx, node, ClusterEvent::Added(socket.clone()));
+          self.expect(ctx, node, ClusterEventSimple::Added(socket.clone()));
         }
         self
           .nodes
@@ -102,9 +102,9 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         let event = if seeds.is_empty()
           || self.nodes.keys().all(|x| !seeds.contains(&x.udp))
         {
-          ClusterEvent::Alone
+          ClusterEventSimple::Alone
         } else {
-          ClusterEvent::Joined
+          ClusterEventSimple::Joined
         };
         self.expect(ctx, socket, event);
       }
@@ -145,7 +145,7 @@ fn run_cluster_coordinator_test() {
   Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
-  let millis = 100;
+  let millis = 500;
   let nodes = vec![
     (Spawn(4000, vec![]), dur(0)),
     (Spawn(4001, vec![4000]), dur(millis)),

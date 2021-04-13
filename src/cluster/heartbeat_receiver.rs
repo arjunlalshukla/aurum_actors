@@ -14,6 +14,11 @@ enum HeartbeatReceiverMsg {
   Heartbeat(Duration, u32),
 }
 
+enum HBRState {
+  Initial,
+  Receiving(IntervalStorage, Duration, u32)
+}
+
 struct HeartbeatReceiver<U>
 where
   U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
@@ -21,6 +26,7 @@ where
   detector: IntervalStorage,
   supervisor: LocalRef<ClusterMsg<U>>,
   member: Arc<Member>,
+  charge: Arc<Member>,
   phi: f64,
   interval: Duration,
   count: u32,

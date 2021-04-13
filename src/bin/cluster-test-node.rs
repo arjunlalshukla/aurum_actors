@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterEvent};
+use aurum::cluster::{Cluster, ClusterEventSimple};
 use aurum::core::{forge, Actor, ActorContext, ActorRef, Host, Node, Socket};
 use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
 use aurum::{cluster::ClusterCmd, core::LocalRef, unify, AurumInterface};
@@ -15,10 +15,10 @@ struct ClusterNode {
   seeds: Vec<Socket>,
 }
 #[async_trait]
-impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
+impl Actor<ClusterNodeTypes, ClusterEventSimple> for ClusterNode {
   async fn pre_start(
     &mut self,
-    ctx: &ActorContext<ClusterNodeTypes, ClusterEvent>,
+    ctx: &ActorContext<ClusterNodeTypes, ClusterEventSimple>,
   ) {
     Cluster::new(
       &ctx.node,
@@ -33,8 +33,8 @@ impl Actor<ClusterNodeTypes, ClusterEvent> for ClusterNode {
 
   async fn recv(
     &mut self,
-    ctx: &ActorContext<ClusterNodeTypes, ClusterEvent>,
-    msg: ClusterEvent,
+    ctx: &ActorContext<ClusterNodeTypes, ClusterEventSimple>,
+    msg: ClusterEventSimple,
   ) {
     self
       .coor

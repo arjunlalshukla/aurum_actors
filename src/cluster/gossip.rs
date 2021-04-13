@@ -28,8 +28,8 @@ impl Gossip {
               match l_state.cmp(&r_state) {
                 Less => {
                   let event = match &r_state {
-                    Up => ClusterEvent::Added(r_mem.socket.clone()),
-                    _ => ClusterEvent::Removed(r_mem.socket.clone()),
+                    Up => ClusterEvent::Added(r_mem.clone()),
+                    _ => ClusterEvent::Removed(r_mem.clone()),
                   };
                   changes.push((r_mem.clone(), r_state));
                   events.push(event);
@@ -42,8 +42,8 @@ impl Gossip {
             }
             Greater => {
               let event = match &r_state {
-                Up => ClusterEvent::Added(r_mem.socket.clone()),
-                _ => ClusterEvent::Removed(r_mem.socket.clone()),
+                Up => ClusterEvent::Added(r_mem.clone()),
+                _ => ClusterEvent::Removed(r_mem.clone()),
               };
               changes.push((r_mem.clone(), r_state));
               events.push(event);
@@ -58,8 +58,8 @@ impl Gossip {
         }
         (None, Some((r_mem, r_state))) => {
           let event = match &r_state {
-            Up => ClusterEvent::Added(r_mem.socket.clone()),
-            _ => ClusterEvent::Removed(r_mem.socket.clone()),
+            Up => ClusterEvent::Added(r_mem.clone()),
+            _ => ClusterEvent::Removed(r_mem.clone()),
           };
           changes.push((r_mem.clone(), r_state));
           events.push(event);
@@ -144,10 +144,10 @@ fn test_gossip_merge() {
   };
   assert_eq!(local.states, expected_local);
   let expected_changes = vec![
-    ClusterEvent::Added(members[1].socket.clone()),
-    ClusterEvent::Added(members[3].socket.clone()),
-    ClusterEvent::Removed(members[7].socket.clone()),
-    ClusterEvent::Added(members[8].socket.clone()),
+    ClusterEvent::Added(members[1].clone()),
+    ClusterEvent::Added(members[3].clone()),
+    ClusterEvent::Removed(members[7].clone()),
+    ClusterEvent::Added(members[8].clone()),
   ];
   assert_eq!(changes, expected_changes);
 }

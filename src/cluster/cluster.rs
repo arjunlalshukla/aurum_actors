@@ -73,7 +73,6 @@ pub enum ClusterMsg<U: UnifiedBounds> {
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedBounds")]
 pub enum IntraClusterMsg<U: UnifiedBounds> {
-  Heartbeat(Member),
   ReqHeartbeat(ActorRef<U, IntraClusterMsg<U>>),
   State(Gossip),
   Ping(Arc<Member>),
@@ -89,11 +88,33 @@ pub enum ClusterCmd {
 #[derive(
   AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
 )]
-pub enum ClusterEvent {
+pub enum ClusterEventSimple {
   Alone,
   Joined,
   Added(Socket),
   Removed(Socket),
+  Left,
+}
+impl From<ClusterEvent> for ClusterEventSimple {
+  fn from(e: ClusterEvent) -> Self {
+    match e {
+      ClusterEvent::Added(m) => Self::Added(m.socket.clone()),
+      ClusterEvent::Removed(m) => Self::Removed(m.socket.clone()),
+      ClusterEvent::Alone(_) => Self::Alone,
+      ClusterEvent::Joined(_) => Self::Joined,
+      ClusterEvent::Left => Self::Left,
+    }
+  }
+}
+
+#[derive(
+  AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
+)]
+pub enum ClusterEvent {
+  Alone(Arc<Member>),
+  Joined(Arc<Member>),
+  Added(Arc<Member>),
+  Removed(Arc<Member>),
   Left,
 }
 
@@ -122,7 +143,7 @@ impl InCluster {
     msg: IntraClusterMsg<U>,
   ) -> Option<InteractionState> {
     match msg {
-      Heartbeat(_) | ReqHeartbeat(_) => {}
+      ReqHeartbeat(_) => {}
       State(gossip) => {
         let events = self.gossip.merge(gossip);
         for e in events {
@@ -134,12 +155,9 @@ impl InCluster {
           "{}: received ping from {:?}",
           common.member.socket.udp, member
         );
-        let socket = member.socket.clone();
-        self.gossip.states.insert(member, Up);
-        //let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-        //udp_send!(RELIABLE, &common.member.socket, &common.dest, &msg);
+        self.gossip.states.insert(member.clone(), Up);
         common.gossip_round(&self.gossip).await;
-        common.notify(ClusterEvent::Added(socket));
+        common.notify(ClusterEvent::Added(member));
       }
     }
     None
@@ -180,7 +198,7 @@ impl Pinging {
     match msg {
       State(gossip) => {
         common.gossip_round(&gossip).await;
-        common.notify(ClusterEvent::Joined);
+        common.notify(ClusterEvent::Joined(common.member.clone()));
         let mut ring = NodeRing::new(common.rep_factor);
         gossip
           .states
@@ -354,7 +372,7 @@ impl<U: UnifiedBounds> Cluster<U> {
   }
 
   fn create_cluster(&mut self) {
-    self.common.notify(ClusterEvent::Alone);
+    self.common.notify(ClusterEvent::Alone(self.common.member.clone()));
     self.state = InteractionState::InCluster(InCluster::alone(&self.common));
   }
 }

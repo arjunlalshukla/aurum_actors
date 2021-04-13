@@ -19,6 +19,7 @@ pub use {
   cluster::Cluster,
   cluster::ClusterCmd,
   cluster::ClusterEvent,
+  cluster::ClusterEventSimple,
   cluster::ClusterMsg,
   cluster::IntraClusterMsg,
   cluster::Member,
