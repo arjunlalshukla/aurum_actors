@@ -15,6 +15,7 @@ pub(crate) use {
   interval_storage::IntervalStorage,
   testing::DELAY,
   testing::PACKET_DROP,
+  testing::RELIABLE,
 };
 
 #[rustfmt::skip]

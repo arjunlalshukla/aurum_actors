@@ -2,6 +2,8 @@ use once_cell::sync::Lazy;
 use std::env::var;
 use std::time::Duration;
 
+pub const RELIABLE: bool = true;
+
 pub static PACKET_DROP: Lazy<f64> = Lazy::new(|| {
   var("AURUM_PACKET_DROP")
     .map(|x| x.parse().ok())
@@ -39,7 +41,7 @@ macro_rules! actor_send {
 macro_rules! udp_send {
   ($reliable:expr, $socket:expr, $dest:expr, $msg:expr) => {
     if ($reliable) {
-      udp_msg($socket, $dest, $msg).await
+      aurum::core::udp_msg($socket, $dest, $msg).await
     } else {
       aurum::core::udp_msg_unreliable(
         $socket,

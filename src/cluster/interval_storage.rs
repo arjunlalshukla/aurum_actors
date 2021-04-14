@@ -72,11 +72,11 @@ impl IntervalStorage {
     let diff = dur2u64(&dur) as f64;
     let mean = self.mean();
     let y = (diff - mean) / self.stdev();
-    let e = (-y * (1.5976 + 0.070566 * y * y)).exp();
+    let h = (-y * (1.5976 + 0.070566 * y * y)).exp();
     if diff > mean {
-      -(e / (1.0 + e)).log10()
+      -(h / (1.0 + h)).log10()
     } else {
-      -(1.0 - 1.0 / (1.0 + e)).log10()
+      -(1.0 - 1.0 / (1.0 + h)).log10()
     }
   }
 }

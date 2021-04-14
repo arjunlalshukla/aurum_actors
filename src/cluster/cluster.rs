@@ -1,11 +1,10 @@
-#![allow(unused_imports, dead_code, unused_variables)]
+//#![allow(unused_imports, dead_code, unused_variables)]
 
 use crate::cluster::{
-  Gossip, HBRConfig, HBRState, HeartbeatReceiver, HeartbeatReceiverMsg,
-  IntervalStorage, MachineState, NodeRing,
+  Gossip, HBRConfig, HeartbeatReceiver, HeartbeatReceiverMsg, MachineState, NodeRing, RELIABLE
 };
 use crate::core::{
-  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Case, Destination, Host,
+  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Case, Destination,
   LocalRef, Node, Socket,
 };
 use crate::{self as aurum, udp_send};
@@ -56,13 +55,11 @@ impl PartialEq for Member {
   }
 }
 
-const RELIABLE: bool = true;
-
 pub struct ClusterConfig {
   pub gossip_disperse: usize,
   pub ping_timeout: Duration,
   pub num_pings: usize,
-  pub heartbeat_interval: Duration,
+  pub hb_interval: Duration,
   pub seed_nodes: Vec<Socket>,
   pub replication_factor: usize,
 }
@@ -72,7 +69,7 @@ impl Default for ClusterConfig {
       gossip_disperse: 5,
       ping_timeout: Duration::from_millis(5000),
       num_pings: 1,
-      heartbeat_interval: Duration::from_millis(50),
+      hb_interval: Duration::from_millis(50),
       seed_nodes: vec![],
       replication_factor: 3,
     }
@@ -93,7 +90,8 @@ pub enum ClusterMsg<U: UnifiedBounds> {
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedBounds")]
 pub enum IntraClusterMsg<U: UnifiedBounds> {
-  ReqHeartbeat(ActorRef<U, IntraClusterMsg<U>>),
+  Foo(ActorRef<U, IntraClusterMsg<U>>),
+  ReqHeartbeat(Arc<Member>, u64),
   State(Gossip),
   Ping(Arc<Member>),
 }
@@ -163,20 +161,31 @@ impl InCluster {
     msg: IntraClusterMsg<U>,
   ) -> Option<InteractionState> {
     match msg {
-      ReqHeartbeat(_) => {}
+      Foo(_) => {}
+      ReqHeartbeat(member, id) => {
+        //TODO: What if requester is not the manager?
+        if id == common.member.id {
+          let msg = HeartbeatReceiverMsg::Heartbeat(
+            common.clr_config.hb_interval, 
+            common.hb_interval_changes
+          );
+          udp_send!(RELIABLE, &member.socket, &common.hbr_dest, &msg);
+        } else {
+          println!("{}: Got HB for id {} when id is {}", common.member.socket.udp, common.member.id, id);
+        }
+      }
       State(gossip) => {
         let events = self.gossip.merge(gossip);
         for e in events {
           match &e {
             ClusterEvent::Added(member) => {
-              self.ring.insert(member.clone());
               if self.ring.is_manager(&common.member, member) {
                 let hbr = HeartbeatReceiver::spawn(ctx, common, member.clone());
                 self.charges.insert(member.clone(), hbr);
               }
+              self.ring.insert(member.clone());
             }
             ClusterEvent::Removed(member) => {
-              self.ring.remove(&*member).unwrap();
               if self.ring.is_manager(&common.member, member) {
                 self
                   .charges
@@ -184,6 +193,7 @@ impl InCluster {
                   .unwrap()
                   .signal(ActorSignal::Term);
               }
+              self.ring.remove(&*member).unwrap();
             }
             _ => {}
           }
@@ -221,7 +231,7 @@ impl Pinging {
     );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
-      udp_send!(RELIABLE, s, &common.dest, &msg);
+      udp_send!(RELIABLE, s, &common.clr_dest, &msg);
     }
     let ar = ctx.local_interface();
     self.timeout = ctx.node.schedule(common.clr_config.ping_timeout, move || {
@@ -291,8 +301,10 @@ impl InteractionState {
 
 pub(crate) struct NodeState<U: UnifiedBounds> {
   pub member: Arc<Member>,
-  pub dest: Destination<U>,
+  pub clr_dest: Destination<U>,
+  pub hbr_dest: Destination<U>,
   pub subscribers: Vec<LocalRef<ClusterEvent>>,
+  pub hb_interval_changes: u32,
   pub clr_config: ClusterConfig,
   pub hbr_config: HBRConfig,
 }
@@ -311,7 +323,7 @@ impl<U: UnifiedBounds> NodeState<U> {
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
       .into_iter();
     for member in members {
-      udp_send!(RELIABLE, &member.socket, &self.dest, &msg)
+      udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
     }
   }
 }
@@ -373,17 +385,22 @@ impl<U: UnifiedBounds> Cluster<U> {
     clr_config: ClusterConfig,
     hbr_config: HBRConfig
   ) -> LocalRef<ClusterCmd> {
+    let id = rand::random();
     let c = Cluster {
       common: NodeState {
         member: Arc::new(Member {
           socket: node.socket().clone(),
-          id: rand::random(),
+          id: id,
           vnodes: vnodes,
         }),
-        dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
+        clr_dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
           name.clone(),
         ),
+        hbr_dest: Destination::new::<HeartbeatReceiverMsg, _>(
+          HeartbeatReceiver::<U>::from_clr(name.as_str(), id),
+        ),
         subscribers: subrs,
+        hb_interval_changes: 0,
         clr_config: clr_config,
         hbr_config: hbr_config,
       },

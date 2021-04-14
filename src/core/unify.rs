@@ -44,7 +44,7 @@ impl<T> UnifiedBounds for T where
 {
 }
 
-pub fn forge<U, S, I>(s: String, socket: Socket) -> ActorRef<U, I>
+pub fn forge<U, S, I>(name: String, socket: Socket) -> ActorRef<U, I>
 where
   U: Case<S> + Case<I> + UnifiedBounds,
   S: From<I> + SpecificInterface<U>,
@@ -52,7 +52,7 @@ where
 {
   ActorRef {
     socket: socket,
-    dest: Destination::new::<S, I>(s),
+    dest: Destination::new::<S, I>(name),
     local: None,
   }
 }
