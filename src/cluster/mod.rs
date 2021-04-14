@@ -10,7 +10,6 @@ pub(crate) use {
   cluster::NodeState,
   gossip::Gossip,
   gossip::MachineState,
-  heartbeat_receiver::HBRState,
   heartbeat_receiver::HeartbeatReceiver,
   interval_storage::IntervalStorage,
   testing::DELAY,

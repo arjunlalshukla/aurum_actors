@@ -1,15 +1,16 @@
 //#![allow(unused_imports, dead_code, unused_variables)]
 
+use crate as aurum;
 use crate::cluster::{
-  Gossip, HBRConfig, HeartbeatReceiver, HeartbeatReceiverMsg, MachineState, NodeRing, RELIABLE
+  Gossip, HBRConfig, HeartbeatReceiver, HeartbeatReceiverMsg, MachineState,
+  NodeRing, RELIABLE,
 };
 use crate::core::{
-  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Case, Destination,
-  LocalRef, Node, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Case, Destination, LocalRef,
+  Node, Socket,
 };
-use crate::{self as aurum, udp_send};
+use crate::{udp_send, AurumInterface};
 use async_trait::async_trait;
-use aurum_macros::AurumInterface;
 use maplit::btreemap;
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
@@ -85,6 +86,7 @@ pub enum ClusterMsg<U: UnifiedBounds> {
   LocalCmd(ClusterCmd),
   PingTimeout,
   GossipRound,
+  Downed(Arc<Member>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -166,12 +168,15 @@ impl InCluster {
         //TODO: What if requester is not the manager?
         if id == common.member.id {
           let msg = HeartbeatReceiverMsg::Heartbeat(
-            common.clr_config.hb_interval, 
-            common.hb_interval_changes
+            common.clr_config.hb_interval,
+            common.hb_interval_changes,
           );
           udp_send!(RELIABLE, &member.socket, &common.hbr_dest, &msg);
         } else {
-          println!("{}: Got HB for id {} when id is {}", common.member.socket.udp, common.member.id, id);
+          println!(
+            "{}: Got HB for id {} when id is {}",
+            common.member.socket.udp, common.member.id, id
+          );
         }
       }
       State(gossip) => {
@@ -212,6 +217,22 @@ impl InCluster {
     }
     None
   }
+
+  async fn down<U: UnifiedBounds>(
+    &mut self,
+    common: &mut NodeState<U>,
+    member: Arc<Member>,
+  ) {
+    self
+      .charges
+      .remove(&member)
+      .unwrap()
+      .signal(ActorSignal::Term);
+    self.ring.remove(&member).unwrap();
+    let state = self.gossip.states.get_mut(&member).unwrap();
+    *state = Down;
+    common.gossip_round(&self.gossip).await;
+  }
 }
 
 struct Pinging {
@@ -234,9 +255,10 @@ impl Pinging {
       udp_send!(RELIABLE, s, &common.clr_dest, &msg);
     }
     let ar = ctx.local_interface();
-    self.timeout = ctx.node.schedule(common.clr_config.ping_timeout, move || {
-      ar.send(ClusterMsg::PingTimeout);
-    });
+    self.timeout =
+      ctx.node.schedule(common.clr_config.ping_timeout, move || {
+        ar.send(ClusterMsg::PingTimeout);
+      });
   }
 
   async fn process<U: UnifiedBounds>(
@@ -373,6 +395,11 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
           self.common.gossip_round(&ic.gossip).await;
         }
       }
+      ClusterMsg::Downed(member) => {
+        if let InteractionState::InCluster(ic) = &mut self.state {
+          ic.down(&mut self.common, member).await;
+        }
+      }
     }
   }
 }
@@ -383,7 +410,7 @@ impl<U: UnifiedBounds> Cluster<U> {
     vnodes: u32,
     subrs: Vec<LocalRef<ClusterEvent>>,
     clr_config: ClusterConfig,
-    hbr_config: HBRConfig
+    hbr_config: HBRConfig,
   ) -> LocalRef<ClusterCmd> {
     let id = rand::random();
     let c = Cluster {

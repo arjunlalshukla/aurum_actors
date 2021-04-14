@@ -1,10 +1,11 @@
-//#![allow(unused_imports, dead_code, unused_variables)]
+#![allow(unused_imports, dead_code, unused_variables)]
 
-use crate::{self as aurum, core::{ActorRef, Destination}};
+use crate as aurum;
 use crate::cluster::{
-  ClusterMsg, IntervalStorage, IntraClusterMsg, Member, NodeState, RELIABLE, UnifiedBounds,
+  ClusterMsg, IntervalStorage, IntraClusterMsg, Member, NodeState,
+  UnifiedBounds, RELIABLE,
 };
-use crate::core::{forge, ActorContext, Case, LocalRef, TimeoutActor};
+use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
 use crate::{udp_send, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -40,7 +41,7 @@ pub enum HeartbeatReceiverMsg {
 pub(crate) enum HBRState {
   Initial(usize),
   Receiving(IntervalStorage, u32),
-  Downed
+  Downed,
 }
 
 pub(crate) struct HeartbeatReceiver<U>
@@ -53,7 +54,7 @@ where
   charge: Arc<Member>,
   req: IntraClusterMsg<U>,
   state: HBRState,
-  config: HBRConfig
+  config: HBRConfig,
 }
 impl<U> HeartbeatReceiver<U>
 where
@@ -79,7 +80,7 @@ where
           clr_dest: common.clr_dest.clone(),
           req: IntraClusterMsg::ReqHeartbeat(common.member.clone(), cid),
           state: HBRState::Initial(common.hbr_config.req_tries),
-          config: common.hbr_config.clone()
+          config: common.hbr_config.clone(),
         },
         Self::from_clr(common.clr_dest.name.name.as_str(), common.member.id),
         true,
@@ -95,7 +96,10 @@ impl<U> TimeoutActor<U, HeartbeatReceiverMsg> for HeartbeatReceiver<U>
 where
   U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
 {
-  async fn pre_start(&mut self, _: &ActorContext<U, HeartbeatReceiverMsg>) -> Option<Duration> {
+  async fn pre_start(
+    &mut self,
+    _: &ActorContext<U, HeartbeatReceiverMsg>,
+  ) -> Option<Duration> {
     udp_send!(RELIABLE, &self.member.socket, &self.clr_dest, &self.req);
     None
   }
@@ -105,36 +109,50 @@ where
     _: &ActorContext<U, HeartbeatReceiverMsg>,
     msg: HeartbeatReceiverMsg,
   ) -> Option<Duration> {
-    let mut new_to = None;
-    let state: Option<HBRState> = match &mut self.state {
+    let state = match &mut self.state {
       HBRState::Initial(_) => match msg {
         Heartbeat(dur, cnt) => {
-          let is = IntervalStorage::new(self.config.capacity, dur, self.config.times, None);
-          //new_to = Some(Duration::from_secs_f64((is.mean() + is.stdev()*2.0)*1000.0));
-          Some(HBRState::Receiving(is, cnt))
+          let is = IntervalStorage::new(
+            self.config.capacity,
+            dur,
+            self.config.times,
+            None,
+          );
+          let new_dur = Some(is.duration_phi(self.config.phi));
+          let new_state = Some(HBRState::Receiving(is, cnt));
+          (new_dur, new_state)
         }
       },
       HBRState::Receiving(storage, cnt) => match msg {
         Heartbeat(new_dur, new_cnt) => {
           if new_cnt > *cnt {
-            *storage = IntervalStorage::new(self.config.capacity, new_dur, self.config.times, None);
+            *storage = IntervalStorage::new(
+              self.config.capacity,
+              new_dur,
+              self.config.times,
+              None,
+            );
           } else {
             storage.push();
           }
-          //new_to = Some(Duration::from_secs_f64((storage.mean() + storage.stdev()*2.0)*1000.0));
-          None
+          (Some(storage.duration_phi(self.config.phi)), None)
         }
       },
-      HBRState::Downed => None
+      HBRState::Downed => (Some(Duration::from_secs(u64::MAX)), None),
     };
-    state.into_iter().for_each(|s| self.state = s);
-    new_to
+    state.1.into_iter().for_each(|s| self.state = s);
+    state.0
   }
 
   async fn timeout(
     &mut self,
     _: &crate::core::ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
+    let state = match &mut self.state {
+      HBRState::Initial(0) | HBRState::Receiving(_, _) => {} // Down
+      HBRState::Initial(mut tries) => {}
+      HBRState::Downed => {}
+    };
     None
   }
 }

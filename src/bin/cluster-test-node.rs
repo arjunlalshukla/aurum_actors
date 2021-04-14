@@ -28,7 +28,7 @@ impl Actor<ClusterNodeTypes, ClusterEventSimple> for ClusterNode {
       3,
       vec![ctx.local_interface()],
       config,
-      HBRConfig::default()
+      HBRConfig::default(),
     )
     .await;
   }
