@@ -110,7 +110,7 @@ where
       HBRState::Initial(_) => match msg {
         Heartbeat(dur, cnt) => {
           let is = IntervalStorage::new(self.config.capacity, dur, self.config.times, None);
-          new_to = Some(Duration::from_secs_f64((is.mean() + is.stdev()*2.0)*1000.0));
+          //new_to = Some(Duration::from_secs_f64((is.mean() + is.stdev()*2.0)*1000.0));
           Some(HBRState::Receiving(is, cnt))
         }
       },
@@ -121,7 +121,7 @@ where
           } else {
             storage.push();
           }
-          new_to = Some(Duration::from_secs_f64((storage.mean() + storage.stdev()*2.0)*1000.0));
+          //new_to = Some(Duration::from_secs_f64((storage.mean() + storage.stdev()*2.0)*1000.0));
           None
         }
       },

@@ -19,10 +19,12 @@ num_enum = "*"
 once_cell = "*"
 rand = {version = "*", features = ["alloc"] }
 rand_chacha = "*"
+rug = "*"
 rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
 serde_json = "*"
+statrs = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"
 wyhash = "*"
