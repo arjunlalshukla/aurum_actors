@@ -32,14 +32,15 @@ impl<U: UnifiedBounds> Registry<U> {
 impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
   async fn recv(
     &mut self,
-    _ctx: &ActorContext<U, RegistryMsg<U>>,
+    ctx: &ActorContext<U, RegistryMsg<U>>,
     msg: RegistryMsg<U>,
   ) {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
         let _packets = msg_builder.max_seq_num;
-        let Destination { name, interface } =
-          deserialize::<Destination<U>>(msg_builder.dest()).unwrap();
+        let Destination {
+          name, interface, ..
+        } = deserialize::<Destination<U, _>>(msg_builder.dest()).unwrap();
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);
@@ -54,13 +55,17 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
       RegistryMsg::Register(name, channel, confirmation) => {
         match self.register.entry(name) {
           Entry::Occupied(o) => {
-            println!("Registry failed - already registered: {:?}", o.key());
+            println!(
+              "{}: Registry failed - already registered: {:?}",
+              ctx.node.socket().udp,
+              o.key()
+            );
           }
           Entry::Vacant(v) => {
             if let Err(_) = confirmation.send(()) {
               println!("Register confirmation failed: {:?}", v.key());
             } else {
-              //println!("Adding actor to registry: {:?}", v.key());
+              //println!("{}: Adding actor to registry: {:?}", ctx.node.socket().udp, v.key());
               v.insert(channel);
             }
           }

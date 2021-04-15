@@ -24,7 +24,7 @@ pub struct HBRConfig {
 impl Default for HBRConfig {
   fn default() -> Self {
     HBRConfig {
-      phi: 10.0,
+      phi: 0.995,
       capacity: 10,
       times: 3,
       req_tries: 3,
@@ -50,7 +50,7 @@ where
 {
   supervisor: LocalRef<ClusterMsg<U>>,
   member: Arc<Member>,
-  clr_dest: Destination<U>,
+  clr_dest: Destination<U, IntraClusterMsg<U>>,
   charge: Arc<Member>,
   req: IntraClusterMsg<U>,
   state: HBRState,
@@ -82,7 +82,7 @@ where
           state: HBRState::Initial(common.hbr_config.req_tries),
           config: common.hbr_config.clone(),
         },
-        Self::from_clr(common.clr_dest.name.name.as_str(), common.member.id),
+        Self::from_clr(common.clr_dest.name.name.as_str(), cid),
         true,
         common.hbr_config.req_timeout,
       )

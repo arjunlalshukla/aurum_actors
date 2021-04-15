@@ -57,10 +57,10 @@ pub struct MessagePackets {
   intp: Interpretations,
 }
 impl MessagePackets {
-  pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds>(
+  pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds + Case<I>, I>(
     item: &T,
     intp: Interpretations,
-    dest: &Destination<U>,
+    dest: &Destination<U, I>,
   ) -> MessagePackets {
     let mut ser = serialize(item).unwrap();
     let msg_size = ser.len();

@@ -5,10 +5,10 @@ use crate::core::{
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt::Debug, marker::PhantomData};
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(
@@ -137,6 +137,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
       dest: Destination {
         name: self.name.clone(),
         interface: <U as Case<T>>::VARIANT,
+        x: PhantomData,
       },
       local: Some(self.local_interface::<T>()),
     }

@@ -52,7 +52,7 @@ where
 {
   ActorRef {
     socket: socket,
-    dest: Destination::new::<S, I>(name),
+    dest: Destination::new::<S>(name),
     local: None,
   }
 }

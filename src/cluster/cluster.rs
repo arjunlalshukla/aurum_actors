@@ -11,10 +11,11 @@ use crate::core::{
 };
 use crate::{udp_send, AurumInterface};
 use async_trait::async_trait;
+use itertools::Itertools;
 use maplit::btreemap;
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -57,6 +58,7 @@ impl PartialEq for Member {
 }
 
 pub struct ClusterConfig {
+  pub gossip_timeout: Duration,
   pub gossip_disperse: usize,
   pub ping_timeout: Duration,
   pub num_pings: usize,
@@ -67,8 +69,9 @@ pub struct ClusterConfig {
 impl Default for ClusterConfig {
   fn default() -> Self {
     ClusterConfig {
-      gossip_disperse: 5,
-      ping_timeout: Duration::from_millis(5000),
+      gossip_timeout: Duration::from_millis(1000),
+      gossip_disperse: 1,
+      ping_timeout: Duration::from_millis(500),
       num_pings: 1,
       hb_interval: Duration::from_millis(50),
       seed_nodes: vec![],
@@ -85,7 +88,7 @@ pub enum ClusterMsg<U: UnifiedBounds> {
   #[aurum(local)]
   LocalCmd(ClusterCmd),
   PingTimeout,
-  GossipRound,
+  GossipTimeout,
   Downed(Arc<Member>),
 }
 
@@ -94,6 +97,7 @@ pub enum ClusterMsg<U: UnifiedBounds> {
 pub enum IntraClusterMsg<U: UnifiedBounds> {
   Foo(ActorRef<U, IntraClusterMsg<U>>),
   ReqHeartbeat(Arc<Member>, u64),
+  ReqGossip(Arc<Member>),
   State(Gossip),
   Ping(Arc<Member>),
 }
@@ -164,6 +168,7 @@ impl InCluster {
   ) -> Option<InteractionState> {
     match msg {
       Foo(_) => {}
+      ReqGossip(member) => {}
       ReqHeartbeat(member, id) => {
         //TODO: What if requester is not the manager?
         if id == common.member.id {
@@ -211,7 +216,9 @@ impl InCluster {
           common.member.socket.udp, member
         );
         self.gossip.states.insert(member.clone(), Up);
-        common.gossip_round(&self.gossip).await;
+        let mut set = HashSet::new();
+        set.insert(&member);
+        common.gossip_round(&self.gossip, set).await;
         common.notify(ClusterEvent::Added(member));
       }
     }
@@ -231,7 +238,7 @@ impl InCluster {
     self.ring.remove(&member).unwrap();
     let state = self.gossip.states.get_mut(&member).unwrap();
     *state = Down;
-    common.gossip_round(&self.gossip).await;
+    common.gossip_round(&self.gossip, HashSet::new()).await;
   }
 }
 
@@ -269,7 +276,7 @@ impl Pinging {
   ) -> Option<InteractionState> {
     match msg {
       State(gossip) => {
-        common.gossip_round(&gossip).await;
+        common.gossip_round(&gossip, HashSet::new()).await;
         common.notify(ClusterEvent::Joined(common.member.clone()));
         let mut ring = NodeRing::new(common.clr_config.replication_factor);
         gossip
@@ -278,11 +285,16 @@ impl Pinging {
           .filter(|(_, s)| s < &&Down)
           .map(|(m, _)| m.clone())
           .for_each(|member| ring.insert(member));
-        let charges = ring
+        let charges: HashMap<Arc<Member>, _> = ring
           .charges(&common.member)
           .into_iter()
           .map(|m| (m.clone(), HeartbeatReceiver::spawn(ctx, common, m)))
           .collect();
+        println!(
+          "{}: responsible for {:?}",
+          common.member.socket.udp,
+          charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
+        );
         Some(InteractionState::InCluster(InCluster {
           charges: charges,
           gossip: gossip,
@@ -323,8 +335,8 @@ impl InteractionState {
 
 pub(crate) struct NodeState<U: UnifiedBounds> {
   pub member: Arc<Member>,
-  pub clr_dest: Destination<U>,
-  pub hbr_dest: Destination<U>,
+  pub clr_dest: Destination<U, IntraClusterMsg<U>>,
+  pub hbr_dest: Destination<U, HeartbeatReceiverMsg>,
   pub subscribers: Vec<LocalRef<ClusterEvent>>,
   pub hb_interval_changes: u32,
   pub clr_config: ClusterConfig,
@@ -335,15 +347,22 @@ impl<U: UnifiedBounds> NodeState<U> {
     self.subscribers.retain(|s| s.send(event.clone()));
   }
 
-  async fn gossip_round(&self, gossip: &Gossip) {
+  async fn gossip_round(
+    &self,
+    gossip: &Gossip,
+    guaranteed: HashSet<&Arc<Member>>,
+  ) {
     let msg: IntraClusterMsg<U> = State(gossip.clone());
     let members = gossip
       .states
       .iter()
-      .filter(|(m, s)| (**m) != self.member && s < &&Down)
+      .filter(|(m, s)| {
+        (**m) != self.member && s < &&Down && !guaranteed.contains(*m)
+      })
       .map(|(m, _)| m)
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
-      .into_iter();
+      .into_iter()
+      .chain(guaranteed.into_iter());
     for member in members {
       udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
     }
@@ -390,9 +409,9 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
           }
         }
       }
-      ClusterMsg::GossipRound => {
+      ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
-          self.common.gossip_round(&ic.gossip).await;
+          self.common.gossip_round(&ic.gossip, HashSet::new()).await;
         }
       }
       ClusterMsg::Downed(member) => {
@@ -420,10 +439,8 @@ impl<U: UnifiedBounds> Cluster<U> {
           id: id,
           vnodes: vnodes,
         }),
-        clr_dest: Destination::new::<ClusterMsg<U>, IntraClusterMsg<U>>(
-          name.clone(),
-        ),
-        hbr_dest: Destination::new::<HeartbeatReceiverMsg, _>(
+        clr_dest: Destination::new::<ClusterMsg<U>>(name.clone()),
+        hbr_dest: Destination::new::<HeartbeatReceiverMsg>(
           HeartbeatReceiver::<U>::from_clr(name.as_str(), id),
         ),
         subscribers: subrs,

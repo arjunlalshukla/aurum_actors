@@ -2,11 +2,11 @@ use crate::core::{ActorSignal, Case, Interpretations, SpecificInterface};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
+use std::{cmp::PartialEq, marker::PhantomData};
 use tokio::net::lookup_host;
 
 use super::{ActorName, MessagePackets, UnifiedBounds};
@@ -46,47 +46,78 @@ impl Socket {
   }
 }
 
-#[derive(Clone, Eq, PartialEq, Deserialize, Hash, Serialize, Debug)]
+#[derive(Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct Destination<U: UnifiedBounds> {
+pub struct Destination<U: UnifiedBounds + Case<I>, I> {
   pub name: ActorName<U>,
   pub interface: U,
+  pub x: PhantomData<I>,
 }
-impl<U: UnifiedBounds> Destination<U> {
-  pub fn new<S, I>(s: String) -> Destination<U>
+impl<U: UnifiedBounds + Case<I>, I: Send> Destination<U, I> {
+  pub fn new<S>(s: String) -> Destination<U, I>
   where
-    U: Case<S> + Case<I> + UnifiedBounds,
+    U: Case<S>,
     S: From<I> + SpecificInterface<U>,
-    I: Send,
   {
     Destination {
       name: ActorName::new::<S>(s),
       interface: <U as Case<I>>::VARIANT,
+      x: PhantomData,
     }
   }
 }
+impl<U: UnifiedBounds + Case<I>, I> Clone for Destination<U, I> {
+  fn clone(&self) -> Self {
+    Destination {
+      name: self.name.clone(),
+      interface: self.interface,
+      x: PhantomData,
+    }
+  }
+}
+impl<U: UnifiedBounds + Case<I>, I> PartialEq for Destination<U, I> {
+  fn eq(&self, other: &Self) -> bool {
+    self.name == other.name && self.interface == other.interface
+  }
+}
+impl<U: UnifiedBounds + Case<I>, I> Eq for Destination<U, I> {}
+impl<U: UnifiedBounds + Case<I>, I> Hash for Destination<U, I> {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.name.hash(state);
+    self.interface.hash(state);
+  }
+}
+impl<U: UnifiedBounds + Case<I>, I> Debug for Destination<U, I> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("ActorRef")
+      .field("Unified", &std::any::type_name::<U>())
+      .field("Interface", &std::any::type_name::<I>())
+      .field("name", &self.name)
+      .finish()
+  }
+}
 
-pub async fn udp_msg<U: UnifiedBounds, T>(
+pub async fn udp_msg<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
-  dest: &Destination<U>,
-  msg: &T,
+  dest: &Destination<U, I>,
+  msg: &I,
 ) where
-  T: Serialize + DeserializeOwned,
+  I: Serialize + DeserializeOwned,
 {
   udp_send(&socket, &dest, Interpretations::Message, msg).await;
 }
 
-pub async fn udp_signal<U: UnifiedBounds>(
+pub async fn udp_signal<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
-  dest: &Destination<U>,
+  dest: &Destination<U, I>,
   sig: &ActorSignal,
 ) {
   udp_send(&socket, &dest, Interpretations::Signal, sig).await;
 }
 
-async fn udp_send<U: UnifiedBounds, T>(
+async fn udp_send<U: UnifiedBounds + Case<I>, I, T>(
   socket: &Socket,
-  dest: &Destination<U>,
+  dest: &Destination<U, I>,
   intp: Interpretations,
   msg: &T,
 ) where
@@ -105,14 +136,14 @@ async fn udp_send<U: UnifiedBounds, T>(
     .await;
 }
 
-pub async fn udp_msg_unreliable<U: UnifiedBounds, T>(
+pub async fn udp_msg_unreliable<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
-  dest: &Destination<U>,
-  msg: &T,
+  dest: &Destination<U, I>,
+  msg: &I,
   dur: &Option<(Duration, Duration)>,
   fail_prob: f64,
 ) where
-  T: Serialize + DeserializeOwned,
+  I: Serialize + DeserializeOwned,
 {
   udp_unreliable(
     &socket,
@@ -125,9 +156,9 @@ pub async fn udp_msg_unreliable<U: UnifiedBounds, T>(
   .await;
 }
 
-pub async fn udp_signal_unreliable<U: UnifiedBounds>(
+pub async fn udp_signal_unreliable<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
-  dest: &Destination<U>,
+  dest: &Destination<U, I>,
   sig: &ActorSignal,
   dur: &Option<(Duration, Duration)>,
   fail_prob: f64,
@@ -136,9 +167,9 @@ pub async fn udp_signal_unreliable<U: UnifiedBounds>(
     .await;
 }
 
-async fn udp_unreliable<U: UnifiedBounds, T>(
+async fn udp_unreliable<U: UnifiedBounds + Case<I>, I, T>(
   socket: &Socket,
-  dest: &Destination<U>,
+  dest: &Destination<U, I>,
   intp: Interpretations,
   msg: &T,
   dur: &Option<(Duration, Duration)>,
