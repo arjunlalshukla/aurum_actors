@@ -1,4 +1,4 @@
-use super::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedBounds};
+use crate::core::{ActorSignal, Case, Destination, FailureConfig, LocalActorMsg, UnifiedBounds};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::time::Duration;
 use tokio::net::UdpSocket;
 
 const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
@@ -119,13 +118,12 @@ impl MessagePackets {
     &self,
     socket: &UdpSocket,
     addr: &SocketAddr,
-    dur: &Option<(Duration, Duration)>,
-    fail_prob: f64,
+    fail_cfg: FailureConfig
   ) {
     let mut nums = (0..=self.max_seq_num).collect::<Vec<_>>();
     nums.shuffle(&mut rand::thread_rng());
     //println!("Nums: {:?}", nums);
-    self.send(socket, addr, nums, dur, fail_prob).await;
+    self.send(socket, addr, nums, fail_cfg).await;
   }
 
   async fn send<I>(
@@ -133,8 +131,7 @@ impl MessagePackets {
     socket: &UdpSocket,
     addr: &SocketAddr,
     idxs: I,
-    _dur: &Option<(Duration, Duration)>,
-    fail_prob: f64,
+    fail_cfg: FailureConfig
   ) where
     I: IntoIterator<Item = u16>,
   {
@@ -149,7 +146,7 @@ impl MessagePackets {
     //println!("Sending msg with id: {}", header.msg_id);
     let mut buf: [u8; MAX_PACKET_SIZE] = [0u8; MAX_PACKET_SIZE];
     for i in idxs {
-      if rand::random::<f64>() >= fail_prob {
+      if rand::random::<f64>() >= fail_cfg.drop_prob {
         header.seq_num = i;
         header.put(&mut buf[..DatagramHeader::SIZE]);
         let start =

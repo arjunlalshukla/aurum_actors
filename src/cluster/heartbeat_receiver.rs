@@ -2,11 +2,11 @@
 
 use crate as aurum;
 use crate::cluster::{
-  ClusterMsg, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds, RELIABLE,
+  ClusterMsg, FAILURE_CONFIG, FAILURE_MODE, IntervalStorage, IntraClusterMsg, Member, NodeState,
+  UnifiedBounds,
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
-use crate::{udp_send, AurumInterface};
+use crate::{udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -100,7 +100,7 @@ where
     &mut self,
     _: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
-    udp_send!(RELIABLE, &self.member.socket, &self.clr_dest, &self.req);
+    udp_select!(FAILURE_MODE, FAILURE_CONFIG, &self.member.socket, &self.clr_dest, &self.req);
     None
   }
 

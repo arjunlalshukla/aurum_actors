@@ -2,14 +2,13 @@
 
 use crate as aurum;
 use crate::cluster::{
-  ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
+  ClusterConfig, ClusterEvent, FAILURE_CONFIG, FAILURE_MODE, Gossip, HBRConfig, HeartbeatReceiver,
   HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
-  RELIABLE,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
 };
-use crate::{udp_send, AurumInterface};
+use crate::{udp_select, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
 use maplit::btreemap;
@@ -83,7 +82,7 @@ impl InCluster {
       Foo(_) => {}
       ReqGossip(member) => {
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-        udp_send!(RELIABLE, &member.socket, &common.clr_dest, &msg)
+        udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &common.clr_dest, &msg)
       }
       ReqHeartbeat(member, id) => {
         //TODO: What if requester is not the manager?
@@ -92,7 +91,7 @@ impl InCluster {
             common.clr_config.hb_interval,
             common.hb_interval_changes,
           );
-          udp_send!(RELIABLE, &member.socket, &common.hbr_dest, &msg);
+          udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &common.hbr_dest, &msg);
         } else {
           println!(
             "{}: Got HB for id {} when id is {}",
@@ -180,7 +179,7 @@ impl Pinging {
     );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
-      udp_send!(RELIABLE, s, &common.clr_dest, &msg);
+      udp_select!(FAILURE_MODE, FAILURE_CONFIG, s, &common.clr_dest, &msg);
     }
     let ar = ctx.local_interface();
     self.timeout =
@@ -303,7 +302,7 @@ impl<U: UnifiedBounds> NodeState<U> {
       members.iter().map(|m| m.socket.udp).collect_vec()
     );
     for member in members {
-      udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
+      udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &self.clr_dest, &msg)
     }
   }
 
@@ -317,7 +316,7 @@ impl<U: UnifiedBounds> NodeState<U> {
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
       .into_iter();
     for member in members {
-      udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
+      udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &self.clr_dest, &msg)
     }
   }
 }

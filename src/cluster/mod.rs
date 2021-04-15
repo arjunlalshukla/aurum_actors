@@ -3,8 +3,15 @@ mod gossip;
 mod heartbeat_receiver;
 mod interval_storage;
 mod node_ring;
-mod testing;
 mod utils;
+
+use crate::core::{FailureConfig, FailureMode};
+
+const FAILURE_MODE: FailureMode = FailureMode::None;
+const FAILURE_CONFIG: FailureConfig = FailureConfig {
+  drop_prob: 0.0,
+  delay: None
+};
 
 #[rustfmt::skip]
 pub(crate) use {
@@ -13,9 +20,6 @@ pub(crate) use {
   gossip::MachineState,
   heartbeat_receiver::HeartbeatReceiver,
   interval_storage::IntervalStorage,
-  testing::DELAY,
-  testing::PACKET_DROP,
-  testing::RELIABLE,
 };
 
 #[rustfmt::skip]
