@@ -150,7 +150,7 @@ where
   ) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(0) | HBRState::Receiving(_, _) => {} // Down
-      HBRState::Initial(mut tries) => {}
+      HBRState::Initial(_) => {}
       HBRState::Downed => {}
     };
     None

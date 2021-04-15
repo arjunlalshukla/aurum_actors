@@ -2,12 +2,12 @@
 
 use crate as aurum;
 use crate::cluster::{
-  Gossip, HBRConfig, HeartbeatReceiver, HeartbeatReceiverMsg, MachineState,
-  NodeRing, RELIABLE,
+  ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
+  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
+  RELIABLE,
 };
 use crate::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Case, Destination, LocalRef,
-  Node, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
 };
 use crate::{udp_send, AurumInterface};
 use async_trait::async_trait;
@@ -17,68 +17,9 @@ use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::task::JoinHandle;
-
 use IntraClusterMsg::*;
 use MachineState::*;
-
-pub trait UnifiedBounds:
-  crate::core::UnifiedBounds
-  + Case<ClusterMsg<Self>>
-  + Case<IntraClusterMsg<Self>>
-  + Case<HeartbeatReceiverMsg>
-{
-}
-impl<T> UnifiedBounds for T where
-  T: crate::core::UnifiedBounds
-    + Case<ClusterMsg<Self>>
-    + Case<IntraClusterMsg<Self>>
-    + Case<HeartbeatReceiverMsg>
-{
-}
-
-#[derive(Serialize, Deserialize, Hash, Eq, Clone, Ord, PartialOrd, Debug)]
-pub struct Member {
-  pub socket: Socket,
-  pub id: u64,
-  pub vnodes: u32,
-}
-impl PartialEq for Member {
-  fn eq(&self, other: &Self) -> bool {
-    // Should pretty much always take this path. Branch prediction hints?
-    if self.id != other.id {
-      return false;
-    }
-    if self.socket != other.socket {
-      return false;
-    }
-    self.vnodes == other.vnodes
-  }
-}
-
-pub struct ClusterConfig {
-  pub gossip_timeout: Duration,
-  pub gossip_disperse: usize,
-  pub ping_timeout: Duration,
-  pub num_pings: usize,
-  pub hb_interval: Duration,
-  pub seed_nodes: Vec<Socket>,
-  pub replication_factor: usize,
-}
-impl Default for ClusterConfig {
-  fn default() -> Self {
-    ClusterConfig {
-      gossip_timeout: Duration::from_millis(1000),
-      gossip_disperse: 1,
-      ping_timeout: Duration::from_millis(500),
-      num_pings: 1,
-      hb_interval: Duration::from_millis(50),
-      seed_nodes: vec![],
-      replication_factor: 3,
-    }
-  }
-}
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -109,46 +50,17 @@ pub enum ClusterCmd {
   Subscribe(LocalRef<ClusterEvent>),
 }
 
-#[derive(
-  AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
-)]
-pub enum ClusterEventSimple {
-  Alone,
-  Joined,
-  Added(Socket),
-  Removed(Socket),
-  Left,
-}
-impl From<ClusterEvent> for ClusterEventSimple {
-  fn from(e: ClusterEvent) -> Self {
-    match e {
-      ClusterEvent::Added(m) => Self::Added(m.socket.clone()),
-      ClusterEvent::Removed(m) => Self::Removed(m.socket.clone()),
-      ClusterEvent::Alone(_) => Self::Alone,
-      ClusterEvent::Joined(_) => Self::Joined,
-      ClusterEvent::Left => Self::Left,
-    }
-  }
-}
-
-#[derive(
-  AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
-)]
-pub enum ClusterEvent {
-  Alone(Arc<Member>),
-  Joined(Arc<Member>),
-  Added(Arc<Member>),
-  Removed(Arc<Member>),
-  Left,
-}
-
 struct InCluster {
   charges: HashMap<Arc<Member>, LocalRef<HeartbeatReceiverMsg>>,
   gossip: Gossip,
   ring: NodeRing,
+  gossip_timeout: JoinHandle<bool>,
 }
 impl InCluster {
-  fn alone<U: UnifiedBounds>(common: &NodeState<U>) -> InCluster {
+  fn alone<U: UnifiedBounds>(
+    common: &NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+  ) -> InCluster {
     let mut ring = NodeRing::new(common.clr_config.replication_factor);
     ring.insert(common.member.clone());
     InCluster {
@@ -157,6 +69,7 @@ impl InCluster {
         states: btreemap! {common.member.clone() => Up},
       },
       ring: ring,
+      gossip_timeout: ctx.node.rt().spawn(async { true }),
     }
   }
 
@@ -168,7 +81,10 @@ impl InCluster {
   ) -> Option<InteractionState> {
     match msg {
       Foo(_) => {}
-      ReqGossip(member) => {}
+      ReqGossip(member) => {
+        let msg: IntraClusterMsg<U> = State(self.gossip.clone());
+        udp_send!(RELIABLE, &member.socket, &common.clr_dest, &msg)
+      }
       ReqHeartbeat(member, id) => {
         //TODO: What if requester is not the manager?
         if id == common.member.id {
@@ -185,7 +101,11 @@ impl InCluster {
         }
       }
       State(gossip) => {
+        self.gossip_timeout.abort();
         let events = self.gossip.merge(gossip);
+        if !events.is_empty() {
+          common.gossip_round(&self.gossip, HashSet::new()).await;
+        }
         for e in events {
           match &e {
             ClusterEvent::Added(member) => {
@@ -209,6 +129,7 @@ impl InCluster {
           }
           common.notify(e);
         }
+        self.gossip_timeout = common.schedule_gossip_timeout(ctx);
       }
       Ping(member) => {
         println!(
@@ -299,6 +220,7 @@ impl Pinging {
           charges: charges,
           gossip: gossip,
           ring: ring,
+          gossip_timeout: common.schedule_gossip_timeout(ctx),
         }))
       }
       _ => None,
@@ -347,6 +269,17 @@ impl<U: UnifiedBounds> NodeState<U> {
     self.subscribers.retain(|s| s.send(event.clone()));
   }
 
+  fn schedule_gossip_timeout(
+    &self,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+  ) -> JoinHandle<bool> {
+    ctx.node.schedule_local_msg(
+      self.clr_config.gossip_timeout,
+      ctx.local_interface(),
+      ClusterMsg::GossipTimeout,
+    )
+  }
+
   async fn gossip_round(
     &self,
     gossip: &Gossip,
@@ -362,7 +295,27 @@ impl<U: UnifiedBounds> NodeState<U> {
       .map(|(m, _)| m)
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
       .into_iter()
-      .chain(guaranteed.into_iter());
+      .chain(guaranteed.into_iter())
+      .collect_vec();
+    println!(
+      "{}: gossiping to {:?}",
+      self.member.socket.udp,
+      members.iter().map(|m| m.socket.udp).collect_vec()
+    );
+    for member in members {
+      udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
+    }
+  }
+
+  async fn gossip_reqs(&self, gossip: &Gossip) {
+    let msg: IntraClusterMsg<U> = ReqGossip(self.member.clone());
+    let members = gossip
+      .states
+      .iter()
+      .filter(|(m, s)| (**m) != self.member && s < &&Down)
+      .map(|(m, _)| m)
+      .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
+      .into_iter();
     for member in members {
       udp_send!(RELIABLE, &member.socket, &self.clr_dest, &msg)
     }
@@ -377,7 +330,7 @@ pub struct Cluster<U: UnifiedBounds> {
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     if self.common.clr_config.seed_nodes.is_empty() {
-      self.create_cluster();
+      self.create_cluster(ctx);
     } else {
       let mut png = Pinging {
         count: self.common.clr_config.num_pings,
@@ -405,13 +358,20 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
           if png.count != 0 {
             png.ping(&self.common, ctx).await;
           } else {
-            self.create_cluster();
+            self.create_cluster(ctx);
           }
         }
       }
       ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
+          println!("{}: gossip wait timed out", self.common.member.socket.udp);
           self.common.gossip_round(&ic.gossip, HashSet::new()).await;
+          self.common.gossip_reqs(&ic.gossip).await;
+          ctx.node.schedule_local_msg(
+            self.common.clr_config.gossip_timeout,
+            ctx.local_interface(),
+            ClusterMsg::GossipTimeout,
+          );
         }
       }
       ClusterMsg::Downed(member) => {
@@ -458,10 +418,11 @@ impl<U: UnifiedBounds> Cluster<U> {
       .transform()
   }
 
-  fn create_cluster(&mut self) {
+  fn create_cluster(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     self
       .common
       .notify(ClusterEvent::Alone(self.common.member.clone()));
-    self.state = InteractionState::InCluster(InCluster::alone(&self.common));
+    self.state =
+      InteractionState::InCluster(InCluster::alone(&self.common, ctx));
   }
 }
