@@ -1,4 +1,6 @@
-use crate::core::{ActorSignal, Case, Destination, FailureConfig, LocalActorMsg, UnifiedBounds};
+use crate::core::{
+  ActorSignal, Case, Destination, FailureConfig, LocalActorMsg, UnifiedBounds,
+};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -118,7 +120,7 @@ impl MessagePackets {
     &self,
     socket: &UdpSocket,
     addr: &SocketAddr,
-    fail_cfg: FailureConfig
+    fail_cfg: FailureConfig,
   ) {
     let mut nums = (0..=self.max_seq_num).collect::<Vec<_>>();
     nums.shuffle(&mut rand::thread_rng());
@@ -131,7 +133,7 @@ impl MessagePackets {
     socket: &UdpSocket,
     addr: &SocketAddr,
     idxs: I,
-    fail_cfg: FailureConfig
+    fail_cfg: FailureConfig,
   ) where
     I: IntoIterator<Item = u16>,
   {

@@ -36,7 +36,7 @@ impl Default for ClusterConfig {
       gossip_timeout: Duration::from_millis(1000),
       gossip_disperse: 1,
       ping_timeout: Duration::from_millis(500),
-      num_pings: 1,
+      num_pings: 5,
       hb_interval: Duration::from_millis(50),
       seed_nodes: vec![],
       replication_factor: 3,

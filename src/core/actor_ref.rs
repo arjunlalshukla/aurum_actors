@@ -1,6 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination, FailureConfig,
-  LocalActorMsg, Socket, UnifiedBounds,
+  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
+  FailureConfig, LocalActorMsg, Socket, UnifiedBounds,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -78,11 +78,7 @@ where
     udp_msg(&self.socket, &self.dest, item).await;
   }
 
-  pub async fn remote_unreliable(
-    &self,
-    item: &S,
-    fail_cfg: FailureConfig,
-  ) {
+  pub async fn remote_unreliable(&self, item: &S, fail_cfg: FailureConfig) {
     udp_msg_unreliable_packet(&self.socket, &self.dest, item, fail_cfg).await;
   }
 }

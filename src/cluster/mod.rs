@@ -7,10 +7,10 @@ mod utils;
 
 use crate::core::{FailureConfig, FailureMode};
 
-const FAILURE_MODE: FailureMode = FailureMode::None;
+const FAILURE_MODE: FailureMode = FailureMode::Message;
 const FAILURE_CONFIG: FailureConfig = FailureConfig {
-  drop_prob: 0.0,
-  delay: None
+  drop_prob: 0.25,
+  delay: None,
 };
 
 #[rustfmt::skip]

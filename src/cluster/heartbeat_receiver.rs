@@ -2,8 +2,8 @@
 
 use crate as aurum;
 use crate::cluster::{
-  ClusterMsg, FAILURE_CONFIG, FAILURE_MODE, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds,
+  ClusterMsg, IntervalStorage, IntraClusterMsg, Member, NodeState,
+  UnifiedBounds, FAILURE_CONFIG, FAILURE_MODE,
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
 use crate::{udp_select, AurumInterface};
@@ -90,6 +90,16 @@ where
       .clone()
       .unwrap()
   }
+
+  async fn send_req(&self) {
+    udp_select!(
+      FAILURE_MODE,
+      FAILURE_CONFIG,
+      &self.charge.socket,
+      &self.clr_dest,
+      &self.req
+    );
+  }
 }
 #[async_trait]
 impl<U> TimeoutActor<U, HeartbeatReceiverMsg> for HeartbeatReceiver<U>
@@ -100,7 +110,11 @@ where
     &mut self,
     _: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
-    udp_select!(FAILURE_MODE, FAILURE_CONFIG, &self.member.socket, &self.clr_dest, &self.req);
+    println!(
+      "{}: started HBR for {}-{}",
+      self.member.socket.udp, self.charge.socket.udp, self.charge.id
+    );
+    self.send_req().await;
     None
   }
 
@@ -153,6 +167,17 @@ where
       HBRState::Initial(_) => {}
       HBRState::Downed => {}
     };
+    None
+  }
+
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<U, HeartbeatReceiverMsg>,
+  ) -> Option<Duration> {
+    println!(
+      "{}: killed HBR for {}-{}",
+      self.member.socket.udp, self.charge.socket.udp, self.charge.id
+    );
     None
   }
 }

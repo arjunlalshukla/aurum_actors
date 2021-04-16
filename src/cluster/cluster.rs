@@ -2,8 +2,9 @@
 
 use crate as aurum;
 use crate::cluster::{
-  ClusterConfig, ClusterEvent, FAILURE_CONFIG, FAILURE_MODE, Gossip, HBRConfig, HeartbeatReceiver,
+  ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
   HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
+  FAILURE_CONFIG, FAILURE_MODE,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
@@ -14,6 +15,7 @@ use itertools::Itertools;
 use maplit::btreemap;
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
+use std::collections::btree_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -82,7 +84,13 @@ impl InCluster {
       Foo(_) => {}
       ReqGossip(member) => {
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-        udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &common.clr_dest, &msg)
+        udp_select!(
+          FAILURE_MODE,
+          FAILURE_CONFIG,
+          &member.socket,
+          &common.clr_dest,
+          &msg
+        )
       }
       ReqHeartbeat(member, id) => {
         //TODO: What if requester is not the manager?
@@ -91,7 +99,13 @@ impl InCluster {
             common.clr_config.hb_interval,
             common.hb_interval_changes,
           );
-          udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &common.hbr_dest, &msg);
+          udp_select!(
+            FAILURE_MODE,
+            FAILURE_CONFIG,
+            &member.socket,
+            &common.hbr_dest,
+            &msg
+          );
         } else {
           println!(
             "{}: Got HB for id {} when id is {}",
@@ -108,26 +122,16 @@ impl InCluster {
         for e in events {
           match &e {
             ClusterEvent::Added(member) => {
-              if self.ring.is_manager(&common.member, member) {
-                let hbr = HeartbeatReceiver::spawn(ctx, common, member.clone());
-                self.charges.insert(member.clone(), hbr);
-              }
               self.ring.insert(member.clone());
             }
             ClusterEvent::Removed(member) => {
-              if self.ring.is_manager(&common.member, member) {
-                self
-                  .charges
-                  .remove(member)
-                  .unwrap()
-                  .signal(ActorSignal::Term);
-              }
               self.ring.remove(&*member).unwrap();
             }
             _ => {}
           }
           common.notify(e);
         }
+        self.update_charges(common, ctx);
         self.gossip_timeout = common.schedule_gossip_timeout(ctx);
       }
       Ping(member) => {
@@ -135,30 +139,59 @@ impl InCluster {
           "{}: received ping from {:?}",
           common.member.socket.udp, member
         );
-        self.gossip.states.insert(member.clone(), Up);
+        if let Entry::Vacant(v) = self.gossip.states.entry(member.clone()) {
+          v.insert(Up);
+          common.notify(ClusterEvent::Added(member.clone()));
+          self.ring.insert(member.clone());
+          self.update_charges(common, ctx);
+        } else {
+          println!("{}: pinger already exists", common.member.socket.udp);
+        }
         let mut set = HashSet::new();
         set.insert(&member);
         common.gossip_round(&self.gossip, set).await;
-        common.notify(ClusterEvent::Added(member));
       }
     }
     None
   }
 
+  fn update_charges<U: UnifiedBounds>(
+    &mut self,
+    common: &NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+  ) {
+    let mut new_charges = HashMap::new();
+    for member in self.ring.charges(&common.member) {
+      let hbr = self.charges.remove(&member).unwrap_or_else(|| {
+        println!(
+          "{}: adding charge {}",
+          common.member.socket.udp, member.socket.udp
+        );
+        HeartbeatReceiver::spawn(ctx, common, member.clone())
+      });
+      new_charges.insert(member, hbr);
+    }
+    self.charges.iter().for_each(|(member, hbr)| {
+      println!(
+        "{}: removing charge {}",
+        common.member.socket.udp, member.socket.udp
+      );
+      hbr.signal(ActorSignal::Term);
+    });
+    self.charges = new_charges;
+  }
+
   async fn down<U: UnifiedBounds>(
     &mut self,
     common: &mut NodeState<U>,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
     member: Arc<Member>,
   ) {
-    self
-      .charges
-      .remove(&member)
-      .unwrap()
-      .signal(ActorSignal::Term);
-    self.ring.remove(&member).unwrap();
     let state = self.gossip.states.get_mut(&member).unwrap();
     *state = Down;
     common.gossip_round(&self.gossip, HashSet::new()).await;
+    self.ring.remove(&member).unwrap();
+    self.update_charges(common, ctx);
   }
 }
 
@@ -296,13 +329,21 @@ impl<U: UnifiedBounds> NodeState<U> {
       .into_iter()
       .chain(guaranteed.into_iter())
       .collect_vec();
+    /*
     println!(
       "{}: gossiping to {:?}",
       self.member.socket.udp,
       members.iter().map(|m| m.socket.udp).collect_vec()
     );
+    */
     for member in members {
-      udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &self.clr_dest, &msg)
+      udp_select!(
+        FAILURE_MODE,
+        FAILURE_CONFIG,
+        &member.socket,
+        &self.clr_dest,
+        &msg
+      )
     }
   }
 
@@ -316,7 +357,13 @@ impl<U: UnifiedBounds> NodeState<U> {
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
       .into_iter();
     for member in members {
-      udp_select!(FAILURE_MODE, FAILURE_CONFIG, &member.socket, &self.clr_dest, &msg)
+      udp_select!(
+        FAILURE_MODE,
+        FAILURE_CONFIG,
+        &member.socket,
+        &self.clr_dest,
+        &msg
+      )
     }
   }
 }
@@ -363,7 +410,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
-          println!("{}: gossip wait timed out", self.common.member.socket.udp);
+          //println!("{}: gossip wait timed out", self.common.member.socket.udp);
           self.common.gossip_round(&ic.gossip, HashSet::new()).await;
           self.common.gossip_reqs(&ic.gossip).await;
           ctx.node.schedule_local_msg(
@@ -375,7 +422,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::Downed(member) => {
         if let InteractionState::InCluster(ic) = &mut self.state {
-          ic.down(&mut self.common, member).await;
+          ic.down(&mut self.common, ctx, member).await;
         }
       }
     }

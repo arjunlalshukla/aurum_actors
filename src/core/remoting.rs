@@ -1,4 +1,7 @@
-use crate::core::{ActorName, ActorSignal, Case, Interpretations, MessagePackets, SpecificInterface, UnifiedBounds};
+use crate::core::{
+  ActorName, ActorSignal, Case, Interpretations, MessagePackets,
+  SpecificInterface, UnifiedBounds,
+};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -137,13 +140,13 @@ async fn udp_send<U: UnifiedBounds + Case<I>, I, T>(
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct FailureConfig {
   pub drop_prob: f64,
-  pub delay: Option<(Duration, Duration)>
+  pub delay: Option<(Duration, Duration)>,
 }
 impl Default for FailureConfig {
   fn default() -> Self {
     FailureConfig {
       drop_prob: 0.0,
-      delay: None
+      delay: None,
     }
   }
 }
@@ -151,27 +154,29 @@ impl Default for FailureConfig {
 pub enum FailureMode {
   Packet,
   Message,
-  None
+  None,
 }
 
 pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   msg: &I,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) where
   I: Serialize + DeserializeOwned,
 {
-  udp_unreliable_msg(&socket, &dest, Interpretations::Message, msg, fail_cfg).await;
+  udp_unreliable_msg(&socket, &dest, Interpretations::Message, msg, fail_cfg)
+    .await;
 }
 
 pub async fn udp_signal_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   sig: &ActorSignal,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) {
-  udp_unreliable_msg(&socket, &dest, Interpretations::Signal, sig, fail_cfg).await;
+  udp_unreliable_msg(&socket, &dest, Interpretations::Signal, sig, fail_cfg)
+    .await;
 }
 
 async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
@@ -179,7 +184,7 @@ async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
   dest: &Destination<U, I>,
   intp: Interpretations,
   msg: &T,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) where
   T: Serialize + DeserializeOwned,
 {
@@ -193,7 +198,7 @@ async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
       .await
       .unwrap();
     MessagePackets::new(msg, intp, dest)
-      .send_to_unreliable(&udp, addr, fail_cfg)
+      .move_to(&udp, addr)
       .await;
   }
 }
@@ -202,20 +207,28 @@ pub async fn udp_msg_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   msg: &I,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) where
   I: Serialize + DeserializeOwned,
 {
-  udp_unreliable_packet(&socket, &dest, Interpretations::Message, msg, fail_cfg).await;
+  udp_unreliable_packet(
+    &socket,
+    &dest,
+    Interpretations::Message,
+    msg,
+    fail_cfg,
+  )
+  .await;
 }
 
 pub async fn udp_signal_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   sig: &ActorSignal,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) {
-  udp_unreliable_packet(&socket, &dest, Interpretations::Signal, sig, fail_cfg).await;
+  udp_unreliable_packet(&socket, &dest, Interpretations::Signal, sig, fail_cfg)
+    .await;
 }
 
 async fn udp_unreliable_packet<U: UnifiedBounds + Case<I>, I, T>(
@@ -223,7 +236,7 @@ async fn udp_unreliable_packet<U: UnifiedBounds + Case<I>, I, T>(
   dest: &Destination<U, I>,
   intp: Interpretations,
   msg: &T,
-  fail_cfg: FailureConfig
+  fail_cfg: FailureConfig,
 ) where
   T: Serialize + DeserializeOwned,
 {
@@ -240,7 +253,6 @@ async fn udp_unreliable_packet<U: UnifiedBounds + Case<I>, I, T>(
     .await;
 }
 
-
 #[macro_export]
 macro_rules! udp_select {
   ($reliable:expr, $fail_cfg:expr, $socket:expr, $dest:expr, $msg:expr) => {
@@ -249,10 +261,12 @@ macro_rules! udp_select {
         aurum::core::udp_msg($socket, $dest, $msg).await
       }
       crate::core::FailureMode::Message => {
-        aurum::core::udp_msg_unreliable_msg($socket, $dest, $msg, $fail_cfg).await
+        aurum::core::udp_msg_unreliable_msg($socket, $dest, $msg, $fail_cfg)
+          .await
       }
       crate::core::FailureMode::Packet => {
-        aurum::core::udp_msg_unreliable_packet($socket, $dest, $msg, $fail_cfg).await
+        aurum::core::udp_msg_unreliable_packet($socket, $dest, $msg, $fail_cfg)
+          .await
       }
     }
   };

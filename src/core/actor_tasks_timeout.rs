@@ -27,7 +27,7 @@ pub(crate) async fn run_single_timeout<U, S, A>(
     rx.await
       .expect(format!("Could not register {:?}", ctx.name).as_str());
   }
-  actor.post_stop(&ctx).await;
+  timeout = actor.pre_start(&ctx).await.unwrap_or(timeout);
   loop {
     tokio::select! {
       msg = rx.recv() => {
@@ -40,13 +40,13 @@ pub(crate) async fn run_single_timeout<U, S, A>(
         };
         match msg {
           LocalActorMsg::Msg(m) => {
-            actor.recv(&ctx, m).await.into_iter().for_each(|dur| timeout = dur);
+            timeout = actor.recv(&ctx, m).await.unwrap_or(timeout);
           }
           LocalActorMsg::Signal(ActorSignal::Term) => break,
         };
       }
       _ = tokio::time::sleep(timeout) => {
-        actor.timeout(&ctx).await.into_iter().for_each(|dur| timeout = dur);
+        timeout = actor.timeout(&ctx).await.unwrap_or(timeout);
       }
     }
   }
