@@ -112,9 +112,7 @@ impl InCluster {
       State(gossip) => {
         self.gossip_timeout.abort();
         let events = self.gossip.merge(gossip);
-        if !events.is_empty() {
-          common.gossip_round(&self.gossip, HashSet::new()).await;
-        }
+        let disperse = !events.is_empty();
         for e in events {
           match &e {
             ClusterEvent::Added(member) => {
@@ -122,10 +120,23 @@ impl InCluster {
             }
             ClusterEvent::Removed(member) => {
               self.ring.remove(&*member).unwrap();
+              if *member == common.member {
+                let new_member = Arc::new(Member {
+                  socket: member.socket.clone(),
+                  id: rand::random(),
+                  vnodes: member.vnodes
+                });
+                println!("{}: I've been downed, restarting with id: {}", new_member.socket.udp, new_member.id);
+                self.ring.insert(new_member.clone());
+                self.gossip.states.insert(new_member, Up);
+              }
             }
             _ => {}
           }
           common.notify(e);
+        }
+        if disperse {
+          common.gossip_round(&self.gossip, HashSet::new()).await;
         }
         self.update_charges_managers(common, ctx);
         self.gossip_timeout = common.schedule_gossip_timeout(ctx);

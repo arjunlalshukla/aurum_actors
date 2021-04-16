@@ -146,12 +146,14 @@ where
       HBRState::Receiving(storage, cnt) => match msg {
         Heartbeat(new_dur, new_cnt) => {
           if new_cnt > *cnt {
+            /*
             println!(
               "{}: new heartbeat interval from {}: {:?} ms",
               self.member.socket.udp,
               self.charge.socket.udp,
               new_dur.as_millis()
             );
+            */
             *storage = IntervalStorage::new(
               self.config.capacity,
               new_dur,
@@ -162,6 +164,7 @@ where
             storage.push();
           }
           let new_to = storage.duration_phi(self.config.phi);
+          /*
           println!(
             "{}: got heartbeat from {}; new timeout: {:?} ms, stdev: {}, mean: {}",
             self.member.socket.udp,
@@ -170,10 +173,11 @@ where
             storage.stdev(),
             storage.mean()
           );
+          */
           (Some(new_to), None)
         }
       },
-      HBRState::Downed => (Some(Duration::from_secs(u64::MAX)), None),
+      HBRState::Downed => (Some(Duration::from_secs(u32::MAX as u64)), None),
     };
     state.1.into_iter().for_each(|s| self.state = s);
     state.0
@@ -184,11 +188,37 @@ where
     _: &crate::core::ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
     let state = match &mut self.state {
-      HBRState::Initial(0) | HBRState::Receiving(_, _) => {} // Down
-      HBRState::Initial(_) => {}
-      HBRState::Downed => {}
+      HBRState::Initial(0) => {
+        println!(
+          "{}: DOWNED charge {}; after timeout: {:?} ms",
+          self.member.socket.udp,
+          self.charge.socket.udp,
+          self.config.req_timeout.as_millis()
+        );
+        self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
+        (Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
+      } 
+      HBRState::Receiving(storage, _) => {
+        println!(
+          "{}: DOWNED charge {}; after timeout: {:?} ms, stdev: {}, mean: {}",
+          self.member.socket.udp,
+          self.charge.socket.udp,
+          storage.duration_phi(self.config.phi).as_millis(),
+          storage.stdev(),
+          storage.mean()
+        );
+        self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
+        (Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
+      }
+      HBRState::Initial(ref mut reqs_left) => {
+        *reqs_left -= 1;
+        self.send_req().await;
+        (Some(self.config.req_timeout), None)
+      }
+      HBRState::Downed => (Some(Duration::from_secs(u32::MAX as u64)), None)
     };
-    None
+    state.1.into_iter().for_each(|s| self.state = s);
+    state.0
   }
 
   async fn post_stop(
