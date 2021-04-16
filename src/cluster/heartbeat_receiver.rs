@@ -126,6 +126,12 @@ where
     let state = match &mut self.state {
       HBRState::Initial(_) => match msg {
         Heartbeat(dur, cnt) => {
+          println!(
+            "{}: new heartbeat interval from {}: {:?} ms",
+            self.member.socket.udp,
+            self.charge.socket.udp,
+            dur.as_millis()
+          );
           let is = IntervalStorage::new(
             self.config.capacity,
             dur,
@@ -140,6 +146,12 @@ where
       HBRState::Receiving(storage, cnt) => match msg {
         Heartbeat(new_dur, new_cnt) => {
           if new_cnt > *cnt {
+            println!(
+              "{}: new heartbeat interval from {}: {:?} ms",
+              self.member.socket.udp,
+              self.charge.socket.udp,
+              new_dur.as_millis()
+            );
             *storage = IntervalStorage::new(
               self.config.capacity,
               new_dur,
@@ -149,7 +161,16 @@ where
           } else {
             storage.push();
           }
-          (Some(storage.duration_phi(self.config.phi)), None)
+          let new_to = storage.duration_phi(self.config.phi);
+          println!(
+            "{}: got heartbeat from {}; new timeout: {:?} ms, stdev: {}, mean: {}",
+            self.member.socket.udp,
+            self.charge.socket.udp,
+            new_to.as_millis(),
+            storage.stdev(),
+            storage.mean()
+          );
+          (Some(new_to), None)
         }
       },
       HBRState::Downed => (Some(Duration::from_secs(u64::MAX)), None),

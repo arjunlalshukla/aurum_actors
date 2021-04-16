@@ -32,6 +32,7 @@ pub enum ClusterMsg<U: UnifiedBounds> {
   PingTimeout,
   GossipTimeout,
   Downed(Arc<Member>),
+  HeartbeatTick,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -53,6 +54,7 @@ pub enum ClusterCmd {
 
 struct InCluster {
   charges: HashMap<Arc<Member>, LocalRef<HeartbeatReceiverMsg>>,
+  managers: Vec<Arc<Member>>,
   gossip: Gossip,
   ring: NodeRing,
   gossip_timeout: JoinHandle<bool>,
@@ -66,6 +68,7 @@ impl InCluster {
     ring.insert(common.member.clone());
     InCluster {
       charges: HashMap::new(),
+      managers: Vec::new(),
       gossip: Gossip {
         states: btreemap! {common.member.clone() => Up},
       },
@@ -81,7 +84,7 @@ impl InCluster {
     msg: IntraClusterMsg<U>,
   ) -> Option<InteractionState> {
     match msg {
-      Foo(_) => {}
+      Foo(_) => None,
       ReqGossip(member) => {
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         udp_select!(
@@ -90,28 +93,21 @@ impl InCluster {
           &member.socket,
           &common.clr_dest,
           &msg
-        )
+        );
+        None
       }
       ReqHeartbeat(member, id) => {
-        //TODO: What if requester is not the manager?
+        // TODO: What if requester is not the manager?
+        // For now, send heartbeat anyway. Conflicts will reconcile eventually.
         if id == common.member.id {
-          let msg = HeartbeatReceiverMsg::Heartbeat(
-            common.clr_config.hb_interval,
-            common.hb_interval_changes,
-          );
-          udp_select!(
-            FAILURE_MODE,
-            FAILURE_CONFIG,
-            &member.socket,
-            &common.hbr_dest,
-            &msg
-          );
+          self.heartbeat(common, &member).await;
         } else {
           println!(
-            "{}: Got HB for id {} when id is {}",
+            "{}: Got HB request for id {} when id is {}",
             common.member.socket.udp, common.member.id, id
           );
         }
+        None
       }
       State(gossip) => {
         self.gossip_timeout.abort();
@@ -131,8 +127,9 @@ impl InCluster {
           }
           common.notify(e);
         }
-        self.update_charges(common, ctx);
+        self.update_charges_managers(common, ctx);
         self.gossip_timeout = common.schedule_gossip_timeout(ctx);
+        None
       }
       Ping(member) => {
         println!(
@@ -143,19 +140,19 @@ impl InCluster {
           v.insert(Up);
           common.notify(ClusterEvent::Added(member.clone()));
           self.ring.insert(member.clone());
-          self.update_charges(common, ctx);
+          self.update_charges_managers(common, ctx);
         } else {
           println!("{}: pinger already exists", common.member.socket.udp);
         }
         let mut set = HashSet::new();
         set.insert(&member);
         common.gossip_round(&self.gossip, set).await;
+        None
       }
     }
-    None
   }
 
-  fn update_charges<U: UnifiedBounds>(
+  fn update_charges_managers<U: UnifiedBounds>(
     &mut self,
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -164,8 +161,8 @@ impl InCluster {
     for member in self.ring.charges(&common.member) {
       let hbr = self.charges.remove(&member).unwrap_or_else(|| {
         println!(
-          "{}: adding charge {}",
-          common.member.socket.udp, member.socket.udp
+          "{}: adding charge {}-{}",
+          common.member.socket.udp, member.socket.udp, member.id
         );
         HeartbeatReceiver::spawn(ctx, common, member.clone())
       });
@@ -173,12 +170,31 @@ impl InCluster {
     }
     self.charges.iter().for_each(|(member, hbr)| {
       println!(
-        "{}: removing charge {}",
-        common.member.socket.udp, member.socket.udp
+        "{}: removing charge {}-{}",
+        common.member.socket.udp, member.socket.udp, member.id
       );
       hbr.signal(ActorSignal::Term);
     });
     self.charges = new_charges;
+    self.managers = self.ring.node_managers(&common.member);
+  }
+
+  async fn heartbeat<U: UnifiedBounds>(
+    &self,
+    common: &NodeState<U>,
+    member: &Member,
+  ) {
+    let msg = HeartbeatReceiverMsg::Heartbeat(
+      common.clr_config.hb_interval,
+      common.hb_interval_changes,
+    );
+    udp_select!(
+      FAILURE_MODE,
+      FAILURE_CONFIG,
+      &member.socket,
+      &common.hbr_dest,
+      &msg
+    );
   }
 
   async fn down<U: UnifiedBounds>(
@@ -191,7 +207,7 @@ impl InCluster {
     *state = Down;
     common.gossip_round(&self.gossip, HashSet::new()).await;
     self.ring.remove(&member).unwrap();
-    self.update_charges(common, ctx);
+    self.update_charges_managers(common, ctx);
   }
 }
 
@@ -238,22 +254,23 @@ impl Pinging {
           .filter(|(_, s)| s < &&Down)
           .map(|(m, _)| m.clone())
           .for_each(|member| ring.insert(member));
-        let charges: HashMap<Arc<Member>, _> = ring
-          .charges(&common.member)
-          .into_iter()
-          .map(|m| (m.clone(), HeartbeatReceiver::spawn(ctx, common, m)))
-          .collect();
-        println!(
-          "{}: responsible for {:?}",
-          common.member.socket.udp,
-          charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
-        );
-        Some(InteractionState::InCluster(InCluster {
-          charges: charges,
+        let mut ic = InCluster {
+          charges: HashMap::new(),
+          managers: Vec::new(),
           gossip: gossip,
           ring: ring,
           gossip_timeout: common.schedule_gossip_timeout(ctx),
-        }))
+        };
+        ic.update_charges_managers(common, ctx);
+        println!(
+          "{}: responsible for {:?}",
+          common.member.socket.udp,
+          ic.charges
+            .keys()
+            .map(|m| (m.socket.udp, m.id))
+            .collect_vec()
+        );
+        Some(InteractionState::InCluster(ic))
       }
       _ => None,
     }
@@ -385,6 +402,11 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       png.ping(&self.common, ctx).await;
       self.state = InteractionState::Pinging(png);
     }
+    ctx.node.schedule_local_msg(
+      self.common.clr_config.hb_interval,
+      ctx.local_interface(),
+      ClusterMsg::HeartbeatTick,
+    );
   }
 
   async fn recv(
@@ -424,6 +446,18 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
         if let InteractionState::InCluster(ic) = &mut self.state {
           ic.down(&mut self.common, ctx, member).await;
         }
+      }
+      ClusterMsg::HeartbeatTick => {
+        if let InteractionState::InCluster(ic) = &mut self.state {
+          for member in ic.managers.iter() {
+            ic.heartbeat(&self.common, &*member).await;
+          }
+        }
+        ctx.node.schedule_local_msg(
+          self.common.clr_config.hb_interval,
+          ctx.local_interface(),
+          ClusterMsg::HeartbeatTick,
+        );
       }
     }
   }

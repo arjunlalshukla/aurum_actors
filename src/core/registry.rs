@@ -49,7 +49,11 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
             //println!("Forwarded {} packets to {:?}", packets, name);
           }
         } else {
-          println!("Cannot send to {:?}, not in register", name);
+          println!(
+            "{}: cannot send to {:?}, not in register",
+            ctx.node.socket().udp,
+            name
+          );
         }
       }
       RegistryMsg::Register(name, channel, confirmation) => {
