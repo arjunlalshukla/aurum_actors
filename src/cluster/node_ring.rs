@@ -45,15 +45,22 @@ impl NodeRing {
       .any(|(_, (_, x))| &**x == manager)
   }
 
-  pub fn node_managers(&self, member: &Member) -> Vec<Arc<Member>> {
-    self
+  pub fn node_managers(&self, member: &Member) -> Option<Vec<Arc<Member>>> {
+    if !self.contains(member) {
+      return None;
+    }
+    let ret = self
       .managers(member, self.rep_factor + 1)
       .into_iter()
       .skip(1)
-      .collect()
+      .collect();
+    Some(ret)
   }
 
-  pub fn charges(&self, member: &Member) -> Vec<Arc<Member>> {
+  pub fn charges(&self, member: &Member) -> Option<Vec<Arc<Member>>> {
+    if !self.contains(member) {
+      return None;
+    }
     let keys = {
       let mut key = hash_code(&member);
       let mut v = Vec::with_capacity(member.vnodes as usize);
@@ -92,7 +99,11 @@ impl NodeRing {
         .filter(|(_, (_, b))| *b)
         .for_each(|(_, (mbr, _))| c.push((*mbr).clone()))
     });
-    c
+    Some(c)
+  }
+
+  pub fn contains(&self, member: &Member) -> bool {
+    self.ring.get(&hash_code(member)).filter(|m| member == &*(**m).1).is_some()
   }
 
   pub fn insert(&mut self, item: Arc<Member>) {
@@ -155,6 +166,7 @@ fn test_node_ring() {
     .map(|m| {
       ring
         .node_managers(m)
+        .unwrap()
         .iter()
         .map(|x| x.socket.udp)
         .sorted()
@@ -176,6 +188,7 @@ fn test_node_ring() {
     .map(|m| {
       ring
         .charges(m)
+        .unwrap()
         .iter()
         .map(|x| x.socket.udp)
         .sorted()
@@ -187,4 +200,27 @@ fn test_node_ring() {
     ring.remove(m).unwrap()
   }
   assert!(ring.ring.is_empty());
+}
+
+#[test]
+fn test_not_in_ring() {
+  let member = Arc::new(Member {
+    socket: Socket::new(Host::DNS("localhost".to_string()), 4000, 0),
+    id: 8,
+    vnodes: 3,
+  });
+  let other = Arc::new(Member {
+    socket: Socket::new(Host::DNS("localhost".to_string()), 4001, 0),
+    id: 453,
+    vnodes: 3,
+  });
+  let mut ring = NodeRing::new(3);
+  ring.insert(member.clone());
+  assert_eq!(None, ring.charges(&other));
+  assert_eq!(None, ring.node_managers(&other));
+  ring.insert(other.clone());
+  assert_eq!(Some(vec![member.clone()]), ring.charges(&other));
+  assert_eq!(Some(vec![member.clone()]), ring.node_managers(&other));
+  assert_eq!(Some(vec![other.clone()]), ring.charges(&member));
+  assert_eq!(Some(vec![other.clone()]), ring.node_managers(&member));
 }

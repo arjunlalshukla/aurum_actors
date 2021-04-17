@@ -9,7 +9,7 @@ use crate::core::{FailureConfig, FailureMode};
 
 const FAILURE_MODE: FailureMode = FailureMode::Message;
 const FAILURE_CONFIG: FailureConfig = FailureConfig {
-  drop_prob: 0.25,
+  drop_prob: 0.0,
   delay: None,
 };
 

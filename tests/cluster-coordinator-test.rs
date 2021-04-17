@@ -57,8 +57,11 @@ impl ClusterCoor {
     node: &Socket,
     event: &ClusterEventSimple,
   ) -> Option<JoinHandle<bool>> {
-    self.event_count -= 1;
-    self.nodes.get_mut(node).unwrap().1.remove(event)
+    let ret = self.nodes.get_mut(node).unwrap().1.remove(event);
+    if ret.is_some() {
+      self.event_count -= 1;
+    }
+    ret
   }
 
   fn complete(&self, ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>) {
@@ -203,6 +206,13 @@ async fn events(
     coor.move_to(msg).await;
   }
 }
+
+/*
+#[test]
+fn cluster_coordinator_test1() {
+  run_cluster_coordinator_test();
+}
+*/
 
 rusty_fork_test! {
   #[test]

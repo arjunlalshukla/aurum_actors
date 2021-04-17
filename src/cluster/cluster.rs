@@ -86,6 +86,7 @@ impl InCluster {
     match msg {
       Foo(_) => None,
       ReqGossip(member) => {
+        println!("{}: got gossip req from {}", common.member.socket.udp, member.socket.udp);
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         udp_select!(
           FAILURE_MODE,
@@ -119,16 +120,14 @@ impl InCluster {
               self.ring.insert(member.clone());
             }
             ClusterEvent::Removed(member) => {
-              self.ring.remove(&*member).unwrap();
+              if let Err(_) = self.ring.remove(&*member) {
+                println!("{}: failed to remove {} from ring", common.member.socket.udp, member.socket.udp);
+              }
               if *member == common.member {
-                let new_member = Arc::new(Member {
-                  socket: member.socket.clone(),
-                  id: rand::random(),
-                  vnodes: member.vnodes
-                });
-                println!("{}: I've been downed, restarting with id: {}", new_member.socket.udp, new_member.id);
-                self.ring.insert(new_member.clone());
-                self.gossip.states.insert(new_member, Up);
+                common.new_id();
+                println!("{}: I've been downed, restarting with id: {}", common.member.socket.udp, common.member.id);
+                self.ring.insert(common.member.clone());
+                self.gossip.states.insert(common.member.clone(), Up);
               }
             }
             _ => {}
@@ -169,7 +168,7 @@ impl InCluster {
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
     let mut new_charges = HashMap::new();
-    for member in self.ring.charges(&common.member) {
+    for member in self.ring.charges(&common.member).unwrap() {
       let hbr = self.charges.remove(&member).unwrap_or_else(|| {
         println!(
           "{}: adding charge {}-{}",
@@ -187,7 +186,7 @@ impl InCluster {
       hbr.signal(ActorSignal::Term);
     });
     self.charges = new_charges;
-    self.managers = self.ring.node_managers(&common.member);
+    self.managers = self.ring.node_managers(&common.member).unwrap();
   }
 
   async fn heartbeat<U: UnifiedBounds>(
@@ -219,6 +218,7 @@ impl InCluster {
     common.gossip_round(&self.gossip, HashSet::new()).await;
     self.ring.remove(&member).unwrap();
     self.update_charges_managers(common, ctx);
+    common.notify(ClusterEvent::Removed(member));
   }
 }
 
@@ -249,13 +249,20 @@ impl Pinging {
   }
 
   async fn process<U: UnifiedBounds>(
-    &self,
+    &mut self,
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
     msg: IntraClusterMsg<U>,
   ) -> Option<InteractionState> {
     match msg {
       State(gossip) => {
+        if gossip.states.get(&common.member).unwrap() >= &&Down {
+          common.new_id();
+          self.timeout.abort();
+          self.count = common.clr_config.num_pings;
+          self.ping(common, ctx).await;
+          return None;
+        }
         common.gossip_round(&gossip, HashSet::new()).await;
         common.notify(ClusterEvent::Joined(common.member.clone()));
         let mut ring = NodeRing::new(common.clr_config.replication_factor);
@@ -329,6 +336,14 @@ impl<U: UnifiedBounds> NodeState<U> {
     self.subscribers.retain(|s| s.send(event.clone()));
   }
 
+  fn new_id(&mut self) {
+    self.member = Arc::new(Member {
+      socket: self.member.socket.clone(),
+      id: rand::random(),
+      vnodes: self.member.vnodes
+    });
+  }
+
   fn schedule_gossip_timeout(
     &self,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -377,13 +392,22 @@ impl<U: UnifiedBounds> NodeState<U> {
 
   async fn gossip_reqs(&self, gossip: &Gossip) {
     let msg: IntraClusterMsg<U> = ReqGossip(self.member.clone());
+    println!("{}: gossip state: {:?}", 
+      self.member.socket.udp, 
+      gossip.states.iter().map(|(m, s)| (m.socket.udp, s)).collect_vec()
+    );
     let members = gossip
       .states
       .iter()
       .filter(|(m, s)| (**m) != self.member && s < &&Down)
       .map(|(m, _)| m)
       .choose_multiple(&mut rand::thread_rng(), self.clr_config.gossip_disperse)
-      .into_iter();
+      .into_iter()
+      .collect_vec();
+    println!("{}: gossip reqs sent to: {:?}", 
+      self.member.socket.udp, 
+      members.iter().map(|m| m.socket.udp).collect_vec()
+    );
     for member in members {
       udp_select!(
         FAILURE_MODE,
@@ -443,7 +467,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
-          //println!("{}: gossip wait timed out", self.common.member.socket.udp);
+          //println!("{}: gossip timeout", self.common.member.socket.udp);
           self.common.gossip_round(&ic.gossip, HashSet::new()).await;
           self.common.gossip_reqs(&ic.gossip).await;
           ctx.node.schedule_local_msg(

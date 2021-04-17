@@ -26,7 +26,7 @@ impl Default for HBRConfig {
     HBRConfig {
       phi: 0.995,
       capacity: 10,
-      times: 3,
+      times: 5,
       req_tries: 3,
       req_timeout: Duration::from_millis(100),
     }
@@ -134,7 +134,7 @@ where
           );
           let is = IntervalStorage::new(
             self.config.capacity,
-            dur,
+            dur*2,
             self.config.times,
             None,
           );
@@ -156,7 +156,7 @@ where
             */
             *storage = IntervalStorage::new(
               self.config.capacity,
-              new_dur,
+              new_dur*2,
               self.config.times,
               None,
             );
@@ -200,15 +200,16 @@ where
       } 
       HBRState::Receiving(storage, _) => {
         println!(
-          "{}: DOWNED charge {}; after timeout: {:?} ms, stdev: {}, mean: {}",
+          "{}: requesting HB from {}; after timeout: {:?} ms, stdev: {}, mean: {}",
           self.member.socket.udp,
           self.charge.socket.udp,
           storage.duration_phi(self.config.phi).as_millis(),
           storage.stdev(),
           storage.mean()
         );
-        self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
-        (Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
+        //self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
+        (Some(self.config.req_timeout), Some(HBRState::Initial(self.config.req_tries)))
+        //(Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
       }
       HBRState::Initial(ref mut reqs_left) => {
         *reqs_left -= 1;
