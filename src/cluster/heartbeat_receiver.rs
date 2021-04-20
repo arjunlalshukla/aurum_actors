@@ -1,11 +1,10 @@
-#![allow(unused_imports, dead_code, unused_variables)]
-
-use crate::{self as aurum, testkit::FailureConfigMap};
+use crate as aurum;
 use crate::cluster::{
   ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
   UnifiedBounds, FAILURE_MODE,
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
+use crate::testkit::FailureConfigMap;
 use crate::{udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

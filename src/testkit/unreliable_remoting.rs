@@ -1,8 +1,11 @@
-use crate::core::{ActorSignal, Case, Destination, Interpretations, MessagePackets, Socket, UnifiedBounds};
+use crate::core::{
+  ActorSignal, Case, Destination, Interpretations, MessagePackets, Socket,
+  UnifiedBounds,
+};
 use crate::testkit::FailureConfigMap;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
-use serde::{Serialize};
+use serde::Serialize;
 
 pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
   socket: &Socket,
@@ -112,8 +115,10 @@ macro_rules! udp_select {
           .await
       }
       crate::testkit::FailureMode::Packet => {
-        aurum::testkit::udp_msg_unreliable_packet($socket, $dest, $msg, $fail_map)
-          .await
+        aurum::testkit::udp_msg_unreliable_packet(
+          $socket, $dest, $msg, $fail_map,
+        )
+        .await
       }
     }
   };

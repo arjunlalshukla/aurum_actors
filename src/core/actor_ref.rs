@@ -1,5 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination, LocalActorMsg, Socket, UnifiedBounds,
+  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
+  LocalActorMsg, Socket, UnifiedBounds,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,5 @@
-use crate::testkit::FailureMode;mod cluster;
+use crate::testkit::FailureMode;
+mod cluster;
 
 mod gossip;
 mod heartbeat_receiver;

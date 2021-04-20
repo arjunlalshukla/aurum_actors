@@ -1,9 +1,8 @@
-//#![allow(unused_imports, dead_code, unused_variables)]
-
 use crate as aurum;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
-  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds, FAILURE_MODE,
+  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
+  FAILURE_MODE,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
@@ -246,13 +245,11 @@ impl InCluster {
       .for_each(|m| {
         guaranteed.insert(m);
       });
-    /*
     println!(
       "{}: gossiping to {:?}",
-      self.member.socket.udp,
-      members.iter().map(|m| m.socket.udp).collect_vec()
+      common.member.socket.udp,
+      guaranteed.iter().map(|m| m.socket.udp).collect_vec()
     );
-    */
     for member in guaranteed {
       udp_select!(
         FAILURE_MODE,
@@ -516,14 +513,10 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
-          //println!("{}: gossip timeout", self.common.member.socket.udp);
+          println!("{}: gossip timeout", self.common.member.socket.udp);
           ic.gossip_round(&self.common, HashSet::new()).await;
           ic.gossip_reqs(&self.common).await;
-          ctx.node.schedule_local_msg(
-            self.common.clr_config.gossip_timeout,
-            ctx.local_interface(),
-            ClusterMsg::GossipTimeout,
-          );
+          self.common.schedule_gossip_timeout(ctx);
         }
       }
       ClusterMsg::Downed(member) => {

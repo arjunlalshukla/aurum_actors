@@ -157,35 +157,14 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
   }
 }
 
-fn run_cluster_coordinator_test(finite: bool, fail_map: FailureConfigMap) {
+fn run_cluster_coordinator_test(
+  finite: bool,
+  events: Vec<(CoordinatorMsg, Duration)>,
+  fail_map: FailureConfigMap,
+) {
   Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
-  let millis = dur(200);
-  let kill_delay = dur(500);
-  let nodes = vec![
-    (Spawn(4000, vec![]), dur(0)),
-    (Spawn(4001, vec![4000]), millis),
-    (Spawn(4002, vec![4001]), millis),
-    (Spawn(4003, vec![4002]), millis),
-    (Spawn(4004, vec![4003]), millis),
-    (Spawn(4005, vec![4004]), millis),
-    (Spawn(4006, vec![4005]), millis),
-    (Spawn(4007, vec![4006]), millis),
-    (Spawn(4008, vec![4007]), millis),
-    (Spawn(4009, vec![4008]), millis),
-    (Kill(4000), kill_delay),
-    (Kill(4001), kill_delay),
-    (Kill(4002), kill_delay),
-    (Kill(4003), kill_delay),
-    (Kill(4004), kill_delay),
-    (Kill(4005), kill_delay),
-    (Kill(4006), kill_delay),
-    (Kill(4007), kill_delay),
-    (Kill(4008), kill_delay),
-    (Kill(4009), kill_delay),
-    (Done, dur(0)),
-  ];
   let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<MemberError>>(1);
   let coor = node.spawn(
     true,
@@ -202,7 +181,7 @@ fn run_cluster_coordinator_test(finite: bool, fail_map: FailureConfigMap) {
     true,
   );
   println!("Starting coordinator on port {}", PORT);
-  node.rt().spawn(events(coor, nodes));
+  node.rt().spawn(execute_events(coor, events));
   let errors = rx.blocking_recv().unwrap();
   if !errors.is_empty() {
     println!("ERRORS:");
@@ -222,7 +201,7 @@ const fn dur(d: u64) -> Duration {
   Duration::from_millis(d)
 }
 
-async fn events(
+async fn execute_events(
   coor: ActorRef<ClusterNodeTypes, CoordinatorMsg>,
   vec: Vec<(CoordinatorMsg, Duration)>,
 ) {
@@ -234,15 +213,54 @@ async fn events(
 
 //#[test]
 #[allow(dead_code)]
-fn cluster_coordinator_test1() {
+fn cluster_coordinator_test_infinite() {
+  let spawn_delay = dur(200);
+  let events = vec![
+    (Spawn(4000, vec![]), dur(0)),
+    (Spawn(4001, vec![4000]), spawn_delay),
+    (Spawn(4002, vec![4001]), spawn_delay),
+    (Spawn(4003, vec![4002]), spawn_delay),
+    (Spawn(4004, vec![4003]), spawn_delay),
+    (Spawn(4005, vec![4004]), spawn_delay),
+    (Spawn(4006, vec![4005]), spawn_delay),
+    (Spawn(4007, vec![4006]), spawn_delay),
+    (Spawn(4008, vec![4007]), spawn_delay),
+    (Spawn(4009, vec![4008]), spawn_delay),
+    (Done, dur(0)),
+  ];
   let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.35;
-  run_cluster_coordinator_test(false, fail_map);
+  fail_map.cluster_wide.drop_prob = 0.25;
+  run_cluster_coordinator_test(false, events, fail_map);
 }
 
 rusty_fork_test! {
   #[test]
   fn cluster_coordinator_test() {
-    run_cluster_coordinator_test(true, FailureConfigMap::default());
+    let spawn_delay = dur(200);
+    let kill_delay = dur(500);
+    let events = vec![
+      (Spawn(4000, vec![]), dur(0)),
+      (Spawn(4001, vec![4000]), spawn_delay),
+      (Spawn(4002, vec![4001]), spawn_delay),
+      (Spawn(4003, vec![4002]), spawn_delay),
+      (Spawn(4004, vec![4003]), spawn_delay),
+      (Spawn(4005, vec![4004]), spawn_delay),
+      (Spawn(4006, vec![4005]), spawn_delay),
+      (Spawn(4007, vec![4006]), spawn_delay),
+      (Spawn(4008, vec![4007]), spawn_delay),
+      (Spawn(4009, vec![4008]), spawn_delay),
+      (Kill(4000), kill_delay),
+      (Kill(4001), kill_delay),
+      (Kill(4002), kill_delay),
+      (Kill(4003), kill_delay),
+      (Kill(4004), kill_delay),
+      (Kill(4005), kill_delay),
+      (Kill(4006), kill_delay),
+      (Kill(4007), kill_delay),
+      (Kill(4008), kill_delay),
+      (Kill(4009), kill_delay),
+      (Done, dur(0)),
+    ];
+    run_cluster_coordinator_test(true, events, FailureConfigMap::default());
   }
 }
