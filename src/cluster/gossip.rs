@@ -1,16 +1,16 @@
+use crate::cluster::{ClusterEvent, Member};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use Ordering::*;
-
-use crate::cluster::{ClusterEvent, Member};
-use serde::{Deserialize, Serialize};
 
 use MachineState::*;
+use Ordering::*;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Gossip {
   pub states: BTreeMap<Arc<Member>, MachineState>,
+
 }
 impl Gossip {
   pub fn merge(&mut self, other: Gossip) -> Vec<ClusterEvent> {

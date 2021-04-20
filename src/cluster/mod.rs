@@ -7,8 +7,8 @@ mod utils;
 
 use crate::core::{FailureConfig, FailureMode};
 
-const FAILURE_MODE: FailureMode = FailureMode::Message;
-const FAILURE_CONFIG: FailureConfig = FailureConfig {
+pub const FAILURE_MODE: FailureMode = FailureMode::Message;
+pub const FAILURE_CONFIG: FailureConfig = FailureConfig {
   drop_prob: 0.0,
   delay: None,
 };
@@ -28,12 +28,12 @@ pub use {
   cluster::ClusterCmd,
   cluster::ClusterMsg,
   cluster::IntraClusterMsg,
-  heartbeat_receiver::HBRConfig,
   heartbeat_receiver::HeartbeatReceiverMsg,
   node_ring::NodeRing,
   utils::ClusterConfig,
   utils::ClusterEvent,
   utils::ClusterEventSimple,
+  utils::HBRConfig,
   utils::Member,
   utils::UnifiedBounds,
 };

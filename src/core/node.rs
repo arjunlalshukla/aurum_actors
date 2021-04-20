@@ -3,23 +3,17 @@ use crate::core::{
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
   RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };
-use rand;
 use std::sync::Arc;
-use std::{
-  io::{Error, ErrorKind},
-  time::Duration,
-};
+use std::io::{Error, ErrorKind};
+use std::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::{
-  runtime::{Builder, Runtime},
-  task::JoinHandle,
-};
+use tokio::runtime::{Builder, Runtime};
+use tokio::task::JoinHandle;
 
 struct NodeImpl<U: UnifiedBounds> {
   socket: Socket,
   registry: LocalRef<RegistryMsg<U>>,
   rt: Runtime,
-  id: u64,
 }
 
 #[derive(Clone)]
@@ -42,7 +36,6 @@ impl<U: UnifiedBounds> Node<U> {
         socket: socket,
         registry: reg,
         rt: rt,
-        id: rand::random(),
       }),
     };
     reg_node_tx
@@ -62,10 +55,6 @@ impl<U: UnifiedBounds> Node<U> {
 
   pub fn rt(&self) -> &Runtime {
     &self.node.rt
-  }
-
-  pub fn id(&self) -> u64 {
-    self.node.id
   }
 
   pub fn schedule<F>(&self, delay: Duration, op: F) -> JoinHandle<()>

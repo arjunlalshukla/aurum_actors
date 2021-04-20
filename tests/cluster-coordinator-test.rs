@@ -68,6 +68,9 @@ impl ClusterCoor {
     if self.finish && self.event_count == 0 {
       ctx.local_interface().signal(ActorSignal::Term);
     }
+    println!("event count: {}, expecteds: {}", self.event_count, 
+      self.nodes.values().map(|h| h.1.len()).sum::<usize>()
+    );
   }
 }
 #[async_trait]
@@ -86,7 +89,10 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
         let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
         let (mut proc, msgs) = self.nodes.remove(&socket).unwrap();
         proc.kill().unwrap();
-        msgs.values().for_each(|to| to.abort());
+        for hdl in msgs.values() {
+          hdl.abort();
+          self.event_count -= 1;
+        }
         for node in self.nodes.keys().cloned().collect_vec() {
           self.expect(ctx, node, ClusterEventSimple::Removed(socket.clone()));
         }
@@ -153,14 +159,29 @@ fn run_cluster_coordinator_test() {
   Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
-  let millis = 500;
+  let millis = dur(200);
+  let kill_delay = dur(500);
   let nodes = vec![
     (Spawn(4000, vec![]), dur(0)),
-    (Spawn(4001, vec![4000]), dur(millis)),
-    (Spawn(4002, vec![4001]), dur(millis)),
-    (Spawn(4003, vec![4002]), dur(millis)),
-    (Spawn(4004, vec![4003]), dur(millis)),
-    (Spawn(4005, vec![4004]), dur(millis)),
+    (Spawn(4001, vec![4000]), millis),
+    (Spawn(4002, vec![4001]), millis),
+    (Spawn(4003, vec![4002]), millis),
+    (Spawn(4004, vec![4003]), millis),
+    (Spawn(4005, vec![4004]), millis),
+    (Spawn(4006, vec![4005]), millis),
+    (Spawn(4007, vec![4006]), millis),
+    (Spawn(4008, vec![4007]), millis),
+    (Spawn(4009, vec![4008]), millis),
+    (Kill(4000), kill_delay),
+    (Kill(4001), kill_delay),
+    (Kill(4002), kill_delay),
+    (Kill(4003), kill_delay),
+    (Kill(4004), kill_delay),
+    (Kill(4005), kill_delay),
+    (Kill(4006), kill_delay),
+    (Kill(4007), kill_delay),
+    (Kill(4008), kill_delay),
+    (Kill(4009), kill_delay),
     (Done, dur(0)),
   ];
   let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<MemberError>>(1);
@@ -207,12 +228,10 @@ async fn events(
   }
 }
 
-/*
-#[test]
+//#[test]
 fn cluster_coordinator_test1() {
   run_cluster_coordinator_test();
 }
-*/
 
 rusty_fork_test! {
   #[test]

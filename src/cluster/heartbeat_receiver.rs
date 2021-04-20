@@ -2,8 +2,8 @@
 
 use crate as aurum;
 use crate::cluster::{
-  ClusterMsg, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds, FAILURE_CONFIG, FAILURE_MODE,
+  ClusterMsg, FAILURE_CONFIG, FAILURE_MODE, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
+  UnifiedBounds
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
 use crate::{udp_select, AurumInterface};
@@ -12,26 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use HeartbeatReceiverMsg::*;
-
-#[derive(Clone)]
-pub struct HBRConfig {
-  pub phi: f64,
-  pub capacity: usize,
-  pub times: usize,
-  pub req_tries: usize,
-  pub req_timeout: Duration,
-}
-impl Default for HBRConfig {
-  fn default() -> Self {
-    HBRConfig {
-      phi: 0.995,
-      capacity: 10,
-      times: 5,
-      req_tries: 3,
-      req_timeout: Duration::from_millis(100),
-    }
-  }
-}
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 pub enum HeartbeatReceiverMsg {
