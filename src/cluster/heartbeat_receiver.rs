@@ -1,9 +1,9 @@
 #![allow(unused_imports, dead_code, unused_variables)]
 
-use crate as aurum;
+use crate::{self as aurum, testkit::FailureConfigMap};
 use crate::cluster::{
-  ClusterMsg, FAILURE_CONFIG, FAILURE_MODE, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds
+  ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
+  UnifiedBounds, FAILURE_MODE,
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
 use crate::{udp_select, AurumInterface};
@@ -30,6 +30,7 @@ where
 {
   supervisor: LocalRef<ClusterMsg<U>>,
   member: Arc<Member>,
+  fail_map: FailureConfigMap,
   clr_dest: Destination<U, IntraClusterMsg<U>>,
   charge: Arc<Member>,
   req: IntraClusterMsg<U>,
@@ -56,6 +57,7 @@ where
         HeartbeatReceiver {
           supervisor: ctx.local_interface(),
           member: common.member.clone(),
+          fail_map: common.fail_map.clone(),
           charge: charge,
           clr_dest: common.clr_dest.clone(),
           req: IntraClusterMsg::ReqHeartbeat(common.member.clone(), cid),
@@ -74,7 +76,7 @@ where
   async fn send_req(&self) {
     udp_select!(
       FAILURE_MODE,
-      FAILURE_CONFIG,
+      &self.fail_map,
       &self.charge.socket,
       &self.clr_dest,
       &self.req
@@ -114,7 +116,7 @@ where
           );
           let is = IntervalStorage::new(
             self.config.capacity,
-            dur*2,
+            dur * 2,
             self.config.times,
             None,
           );
@@ -136,7 +138,7 @@ where
             */
             *storage = IntervalStorage::new(
               self.config.capacity,
-              new_dur*2,
+              new_dur * 2,
               self.config.times,
               None,
             );
@@ -175,9 +177,14 @@ where
           self.charge.socket.udp,
           self.config.req_timeout.as_millis()
         );
-        self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
-        (Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
-      } 
+        self
+          .supervisor
+          .send(ClusterMsg::Downed(self.charge.clone()));
+        (
+          Some(Duration::from_secs(u32::MAX as u64)),
+          Some(HBRState::Downed),
+        )
+      }
       HBRState::Receiving(storage, _) => {
         println!(
           "{}: requesting HB from {}; after timeout: {:?} ms, stdev: {}, mean: {}",
@@ -188,7 +195,10 @@ where
           storage.mean()
         );
         //self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
-        (Some(self.config.req_timeout), Some(HBRState::Initial(self.config.req_tries)))
+        (
+          Some(self.config.req_timeout),
+          Some(HBRState::Initial(self.config.req_tries)),
+        )
         //(Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
       }
       HBRState::Initial(ref mut reqs_left) => {
@@ -196,7 +206,7 @@ where
         self.send_req().await;
         (Some(self.config.req_timeout), None)
       }
-      HBRState::Downed => (Some(Duration::from_secs(u32::MAX as u64)), None)
+      HBRState::Downed => (Some(Duration::from_secs(u32::MAX as u64)), None),
     };
     state.1.into_iter().for_each(|s| self.state = s);
     state.0

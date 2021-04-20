@@ -1,6 +1,5 @@
 use crate::core::{
-  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
-  FailureConfig, LocalActorMsg, Socket, UnifiedBounds,
+  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination, LocalActorMsg, Socket, UnifiedBounds,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -8,8 +7,6 @@ use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
-
-use super::udp_msg_unreliable_packet;
 
 pub struct LocalRef<T> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
@@ -76,10 +73,6 @@ where
 {
   pub async fn remote_send(&self, item: &S) {
     udp_msg(&self.socket, &self.dest, item).await;
-  }
-
-  pub async fn remote_unreliable(&self, item: &S, fail_cfg: FailureConfig) {
-    udp_msg_unreliable_packet(&self.socket, &self.dest, item, fail_cfg).await;
   }
 }
 impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>

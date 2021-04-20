@@ -10,7 +10,6 @@ use Ordering::*;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Gossip {
   pub states: BTreeMap<Arc<Member>, MachineState>,
-
 }
 impl Gossip {
   pub fn merge(&mut self, other: Gossip) -> Vec<ClusterEvent> {

@@ -3,12 +3,12 @@
 use crate as aurum;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
-  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
-  FAILURE_CONFIG, FAILURE_MODE,
+  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds, FAILURE_MODE,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
 };
+use crate::testkit::FailureConfigMap;
 use crate::{udp_select, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -46,10 +46,8 @@ pub enum IntraClusterMsg<U: UnifiedBounds> {
 }
 
 pub enum ClusterCmd {
-  //Leave,
-  //Join,
-  //SetHeartbeatInterval(Duration),
   Subscribe(LocalRef<ClusterEvent>),
+  FailureMap(FailureConfigMap),
 }
 
 struct InCluster {
@@ -86,11 +84,14 @@ impl InCluster {
     match msg {
       Foo(_) => None,
       ReqGossip(member) => {
-        println!("{}: got gossip req from {}", common.member.socket.udp, member.socket.udp);
+        println!(
+          "{}: got gossip req from {}",
+          common.member.socket.udp, member.socket.udp
+        );
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         udp_select!(
           FAILURE_MODE,
-          FAILURE_CONFIG,
+          &common.fail_map,
           &member.socket,
           &common.clr_dest,
           &msg
@@ -121,7 +122,10 @@ impl InCluster {
             }
             ClusterEvent::Removed(member) => {
               if let Err(_) = self.ring.remove(&*member) {
-                println!("{}: failed to remove {} from ring", common.member.socket.udp, member.socket.udp);
+                println!(
+                  "{}: failed to remove {} from ring",
+                  common.member.socket.udp, member.socket.udp
+                );
               }
               if *member == common.member {
                 common.new_id();
@@ -166,8 +170,8 @@ impl InCluster {
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
-    // println!("{}: old charges: {:?}", 
-    //   common.member.socket.udp, 
+    // println!("{}: old charges: {:?}",
+    //   common.member.socket.udp,
     //   self.charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
     // );
     let mut new_charges = HashMap::new();
@@ -181,17 +185,17 @@ impl InCluster {
       hbr.signal(ActorSignal::Term);
     }
     self.charges = new_charges;
-    // println!("{}: new charges: {:?}", 
-    //   common.member.socket.udp, 
+    // println!("{}: new charges: {:?}",
+    //   common.member.socket.udp,
     //   self.charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
     // );
-    // println!("{}: old managers: {:?}", 
-    //   common.member.socket.udp, 
+    // println!("{}: old managers: {:?}",
+    //   common.member.socket.udp,
     //   self.managers.iter().map(|m| (m.socket.udp, m.id)).collect_vec()
     // );
     self.managers = self.ring.node_managers(&common.member).unwrap();
-    // println!("{}: new managers: {:?}", 
-    //   common.member.socket.udp, 
+    // println!("{}: new managers: {:?}",
+    //   common.member.socket.udp,
     //   self.managers.iter().map(|m| (m.socket.udp, m.id)).collect_vec()
     // );
   }
@@ -207,7 +211,7 @@ impl InCluster {
     );
     udp_select!(
       FAILURE_MODE,
-      FAILURE_CONFIG,
+      &common.fail_map,
       &member.socket,
       &common.hbr_dest,
       &msg
@@ -220,18 +224,28 @@ impl InCluster {
     mut guaranteed: HashSet<&Arc<Member>>,
   ) {
     let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-    self.managers.iter().for_each(|m| {guaranteed.insert(m);});
-    self.charges.keys().for_each(|m| {guaranteed.insert(m);});
-    self.gossip
+    self.managers.iter().for_each(|m| {
+      guaranteed.insert(m);
+    });
+    self.charges.keys().for_each(|m| {
+      guaranteed.insert(m);
+    });
+    self
+      .gossip
       .states
       .iter()
       .filter(|(m, s)| {
         (**m) != common.member && s < &&Down && !guaranteed.contains(*m)
       })
       .map(|(m, _)| m)
-      .choose_multiple(&mut rand::thread_rng(), common.clr_config.gossip_disperse)
+      .choose_multiple(
+        &mut rand::thread_rng(),
+        common.clr_config.gossip_disperse,
+      )
       .into_iter()
-      .for_each(|m| {guaranteed.insert(m);});
+      .for_each(|m| {
+        guaranteed.insert(m);
+      });
     /*
     println!(
       "{}: gossiping to {:?}",
@@ -242,7 +256,7 @@ impl InCluster {
     for member in guaranteed {
       udp_select!(
         FAILURE_MODE,
-        FAILURE_CONFIG,
+        &common.fail_map,
         &member.socket,
         &common.clr_dest,
         &msg
@@ -252,33 +266,44 @@ impl InCluster {
 
   async fn gossip_reqs<U: UnifiedBounds>(&self, common: &NodeState<U>) {
     let msg: IntraClusterMsg<U> = ReqGossip(common.member.clone());
-    println!("{}: gossip state: {:?}", 
-      common.member.socket.udp, 
-      self.gossip.states.iter().map(|(m, s)| (m.socket.udp, s)).collect_vec()
+    println!(
+      "{}: gossip state: {:?}",
+      common.member.socket.udp,
+      self
+        .gossip
+        .states
+        .iter()
+        .map(|(m, s)| (m.socket.udp, s))
+        .collect_vec()
     );
-    let members = self.gossip
+    let members = self
+      .gossip
       .states
       .iter()
       .filter(|(m, s)| (**m) != common.member && s < &&Down)
       .map(|(m, _)| m)
-      .choose_multiple(&mut rand::thread_rng(), common.clr_config.gossip_disperse)
+      .choose_multiple(
+        &mut rand::thread_rng(),
+        common.clr_config.gossip_disperse,
+      )
       .into_iter()
       .collect_vec();
-    println!("{}: gossip reqs sent to: {:?}", 
-      common.member.socket.udp, 
+    println!(
+      "{}: gossip reqs sent to: {:?}",
+      common.member.socket.udp,
       members.iter().map(|m| m.socket.udp).collect_vec()
     );
     for member in members {
       udp_select!(
         FAILURE_MODE,
-        FAILURE_CONFIG,
+        &common.fail_map,
         &member.socket,
         &common.clr_dest,
         &msg
       )
     }
   }
-  
+
   async fn down<U: UnifiedBounds>(
     &mut self,
     common: &mut NodeState<U>,
@@ -313,7 +338,7 @@ impl Pinging {
     );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
-      udp_select!(FAILURE_MODE, FAILURE_CONFIG, s, &common.clr_dest, &msg);
+      udp_select!(FAILURE_MODE, &common.fail_map, s, &common.clr_dest, &msg);
     }
     let ar = ctx.local_interface();
     self.timeout =
@@ -402,6 +427,7 @@ pub(crate) struct NodeState<U: UnifiedBounds> {
   pub clr_dest: Destination<U, IntraClusterMsg<U>>,
   pub hbr_dest: Destination<U, HeartbeatReceiverMsg>,
   pub subscribers: Vec<LocalRef<ClusterEvent>>,
+  pub fail_map: FailureConfigMap,
   pub hb_interval_changes: u32,
   pub clr_config: ClusterConfig,
   pub hbr_config: HBRConfig,
@@ -416,12 +442,11 @@ impl<U: UnifiedBounds> NodeState<U> {
     self.member = Arc::new(Member {
       socket: self.member.socket.clone(),
       id: rand::random(),
-      vnodes: self.member.vnodes
+      vnodes: self.member.vnodes,
     });
-    println!("{}: I've been downed, changing id from {} to {}", 
-      self.member.socket.udp, 
-      old_id,
-      self.member.id
+    println!(
+      "{}: I've been downed, changing id from {} to {}",
+      self.member.socket.udp, old_id, self.member.id
     );
   }
 
@@ -444,9 +469,9 @@ pub struct Cluster<U: UnifiedBounds> {
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    print!("STARTING member: {}-{}", 
-      self.common.member.socket.udp, 
-      self.common.member.id
+    print!(
+      "STARTING member: {}-{}",
+      self.common.member.socket.udp, self.common.member.id
     );
     if self.common.clr_config.seed_nodes.is_empty() {
       self.create_cluster(ctx);
@@ -476,6 +501,9 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::LocalCmd(ClusterCmd::Subscribe(subr)) => {
         self.common.subscribers.push(subr);
+      }
+      ClusterMsg::LocalCmd(ClusterCmd::FailureMap(map)) => {
+        self.common.fail_map = map;
       }
       ClusterMsg::PingTimeout => {
         if let InteractionState::Pinging(png) = &mut self.state {
@@ -524,6 +552,7 @@ impl<U: UnifiedBounds> Cluster<U> {
     name: String,
     vnodes: u32,
     subrs: Vec<LocalRef<ClusterEvent>>,
+    fail_map: FailureConfigMap,
     clr_config: ClusterConfig,
     hbr_config: HBRConfig,
   ) -> LocalRef<ClusterCmd> {
@@ -540,6 +569,7 @@ impl<U: UnifiedBounds> Cluster<U> {
           HeartbeatReceiver::<U>::from_clr(name.as_str(), id),
         ),
         subscribers: subrs,
+        fail_map: fail_map,
         hb_interval_changes: 0,
         clr_config: clr_config,
         hbr_config: hbr_config,

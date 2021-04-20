@@ -1,47 +1,74 @@
-#![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterConfig, ClusterEventSimple, HBRConfig};
-use aurum::core::{forge, Actor, ActorContext, ActorRef, Host, Node, Socket};
-use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
-use aurum::{cluster::ClusterCmd, core::LocalRef, unify, AurumInterface};
-use im;
+use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, HBRConfig};
+use aurum::core::{
+  forge, Actor, ActorContext, ActorRef, Host, LocalRef, Node, Socket,
+};
+use aurum::test_commons::{ClusterNodeMsg, ClusterNodeTypes, CoordinatorMsg};
+use aurum::testkit::FailureConfigMap;
 use std::env::args;
 use std::time::Duration;
 use tokio::time::sleep;
+use ClusterNodeState::*;
+
+enum ClusterNodeState {
+  Initial,
+  InCluster(FailureConfigMap, LocalRef<ClusterCmd>),
+}
 
 struct ClusterNode {
-  members: im::HashSet<Socket>,
+  state: ClusterNodeState,
   coor: ActorRef<ClusterNodeTypes, CoordinatorMsg>,
   seeds: Vec<Socket>,
 }
 #[async_trait]
-impl Actor<ClusterNodeTypes, ClusterEventSimple> for ClusterNode {
+impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
   async fn pre_start(
     &mut self,
-    ctx: &ActorContext<ClusterNodeTypes, ClusterEventSimple>,
+    ctx: &ActorContext<ClusterNodeTypes, ClusterNodeMsg>,
   ) {
-    let mut config = ClusterConfig::default();
-    config.seed_nodes = self.seeds.clone();
-    Cluster::new(
-      &ctx.node,
-      "test".to_string(),
-      3,
-      vec![ctx.local_interface()],
-      config,
-      HBRConfig::default(),
-    )
-    .await;
+    self.coor.move_to(CoordinatorMsg::Up(ctx.interface())).await;
   }
 
   async fn recv(
     &mut self,
-    ctx: &ActorContext<ClusterNodeTypes, ClusterEventSimple>,
-    msg: ClusterEventSimple,
+    ctx: &ActorContext<ClusterNodeTypes, ClusterNodeMsg>,
+    msg: ClusterNodeMsg,
   ) {
-    self
-      .coor
-      .move_to(CoordinatorMsg::Event(ctx.node.socket().clone(), msg))
-      .await;
+    match &mut self.state {
+      Initial => match msg {
+        ClusterNodeMsg::FailureMap(map) => {
+          let mut config = ClusterConfig::default();
+          config.seed_nodes = self.seeds.clone();
+          let cluster = Cluster::new(
+            &ctx.node,
+            "test".to_string(),
+            3,
+            vec![ctx.local_interface()],
+            map.clone(),
+            config,
+            HBRConfig::default(),
+          )
+          .await;
+          self.state = InCluster(map, cluster);
+        }
+        _ => unreachable!(),
+      },
+      InCluster(ref mut fail_map, cluster) => match msg {
+        ClusterNodeMsg::Event(event) => {
+          self
+            .coor
+            .move_to(CoordinatorMsg::Event(
+              ctx.node.socket().clone(),
+              event.into(),
+            ))
+            .await;
+        }
+        ClusterNodeMsg::FailureMap(map) => {
+          *fail_map = map.clone();
+          cluster.send(ClusterCmd::FailureMap(map));
+        }
+      },
+    }
   }
 }
 
@@ -72,7 +99,7 @@ fn main() {
   node.spawn(
     true,
     ClusterNode {
-      members: im::HashSet::new(),
+      state: Initial,
       coor: forge::<_, CoordinatorMsg, _>("coordinator".to_string(), coor),
       seeds: seeds,
     },

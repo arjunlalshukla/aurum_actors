@@ -1,16 +1,14 @@
-#![allow(unused_imports, dead_code, unused_variables)]
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterEventSimple};
+use aurum::cluster::ClusterEventSimple;
 use aurum::core::{
-  forge, Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
 };
-use aurum::test_commons::{ClusterNodeTypes, CoordinatorMsg};
-use aurum::{unify, AurumInterface};
-use im;
+use aurum::test_commons::{ClusterNodeMsg, ClusterNodeTypes, CoordinatorMsg};
+use aurum::testkit::FailureConfigMap;
 use itertools::Itertools;
 use rusty_fork::rusty_fork_test;
 use std::collections::HashMap;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
 use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -28,12 +26,14 @@ enum MemberErrorType {
 type MemberError = (MemberErrorType, Socket, ClusterEventSimple);
 
 struct ClusterCoor {
+  finite: bool,
   nodes:
     HashMap<Socket, (Child, HashMap<ClusterEventSimple, JoinHandle<bool>>)>,
   event_count: usize,
   errors: Vec<MemberError>,
   finish: bool,
   notify: tokio::sync::mpsc::Sender<Vec<MemberError>>,
+  fail_map: FailureConfigMap,
 }
 impl ClusterCoor {
   fn expect(
@@ -68,9 +68,6 @@ impl ClusterCoor {
     if self.finish && self.event_count == 0 {
       ctx.local_interface().signal(ActorSignal::Term);
     }
-    println!("event count: {}, expecteds: {}", self.event_count, 
-      self.nodes.values().map(|h| h.1.len()).sum::<usize>()
-    );
   }
 }
 #[async_trait]
@@ -81,8 +78,13 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
     msg: CoordinatorMsg,
   ) {
     match msg {
+      Up(node) => {
+        node
+          .move_to(ClusterNodeMsg::FailureMap(self.fail_map.clone()))
+          .await;
+      }
       Done => {
-        self.finish = true;
+        self.finish = true && self.finite;
         self.complete(ctx);
       }
       Kill(port) => {
@@ -149,13 +151,13 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
 
   async fn post_stop(
     &mut self,
-    ctx: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
+    _: &ActorContext<ClusterNodeTypes, CoordinatorMsg>,
   ) {
     self.notify.send(self.errors.clone()).await.unwrap();
   }
 }
 
-fn run_cluster_coordinator_test() {
+fn run_cluster_coordinator_test(finite: bool, fail_map: FailureConfigMap) {
   Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
   let node = Node::<ClusterNodeTypes>::new(socket.clone(), 1).unwrap();
@@ -188,11 +190,13 @@ fn run_cluster_coordinator_test() {
   let coor = node.spawn(
     true,
     ClusterCoor {
+      finite: finite,
       nodes: HashMap::new(),
       event_count: 0,
       errors: vec![],
       finish: false,
       notify: tx,
+      fail_map: fail_map,
     },
     "coordinator".to_string(),
     true,
@@ -229,13 +233,16 @@ async fn events(
 }
 
 //#[test]
+#[allow(dead_code)]
 fn cluster_coordinator_test1() {
-  run_cluster_coordinator_test();
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.35;
+  run_cluster_coordinator_test(false, fail_map);
 }
 
 rusty_fork_test! {
   #[test]
   fn cluster_coordinator_test() {
-    run_cluster_coordinator_test();
+    run_cluster_coordinator_test(true, FailureConfigMap::default());
   }
 }

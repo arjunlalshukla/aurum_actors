@@ -103,7 +103,11 @@ impl NodeRing {
   }
 
   pub fn contains(&self, member: &Member) -> bool {
-    self.ring.get(&hash_code(member)).filter(|m| member == &*(**m).1).is_some()
+    self
+      .ring
+      .get(&hash_code(member))
+      .filter(|m| member == &*(**m).1)
+      .is_some()
   }
 
   pub fn insert(&mut self, item: Arc<Member>) {

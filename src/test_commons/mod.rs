@@ -1,6 +1,7 @@
 use crate as aurum;
-use crate::cluster::ClusterEventSimple;
-use crate::core::Socket;
+use crate::cluster::{ClusterEvent, ClusterEventSimple};
+use crate::core::{ActorRef, Socket};
+use crate::testkit::FailureConfigMap;
 use crate::{unify, AurumInterface};
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +11,15 @@ pub enum CoordinatorMsg {
   TimedOut(Socket, ClusterEventSimple),
   Spawn(u16, Vec<u16>),
   Kill(u16),
+  Up(ActorRef<ClusterNodeTypes, ClusterNodeMsg>),
   Done,
 }
 
-unify!(pub ClusterNodeTypes = ClusterEventSimple | CoordinatorMsg);
+#[derive(AurumInterface, Serialize, Deserialize)]
+pub enum ClusterNodeMsg {
+  #[aurum(local)]
+  Event(ClusterEvent),
+  FailureMap(FailureConfigMap),
+}
+
+unify!(pub ClusterNodeTypes = ClusterNodeMsg | CoordinatorMsg);

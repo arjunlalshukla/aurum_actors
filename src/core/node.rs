@@ -3,11 +3,11 @@ use crate::core::{
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
   RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };
-use std::sync::Arc;
 use std::io::{Error, ErrorKind};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::task::JoinHandle;
 
 struct NodeImpl<U: UnifiedBounds> {
