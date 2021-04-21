@@ -1,13 +1,18 @@
 use crate::core::{
-  ActorSignal, Case, Destination, Interpretations, MessagePackets, Socket,
-  UnifiedBounds,
+  ActorSignal, Case, Destination, Interpretations, MessagePackets, Node,
+  Socket, UnifiedBounds,
 };
 use crate::testkit::FailureConfigMap;
 use itertools::Itertools;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
+  node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
   msg: &I,
@@ -15,41 +20,65 @@ pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
 ) where
   I: Serialize + DeserializeOwned,
 {
-  udp_unreliable_msg(&socket, &dest, Interpretations::Message, msg, fail_cfg)
-    .await;
+  udp_unreliable_msg(
+    node,
+    socket,
+    dest,
+    Interpretations::Message,
+    msg,
+    fail_cfg,
+  )
+  .await;
 }
 
 pub async fn udp_signal_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
+  node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
   sig: &ActorSignal,
   fail_cfg: &FailureConfigMap,
 ) {
-  udp_unreliable_msg(&socket, &dest, Interpretations::Signal, sig, fail_cfg)
-    .await;
+  udp_unreliable_msg(
+    node,
+    socket,
+    dest,
+    Interpretations::Signal,
+    sig,
+    fail_cfg,
+  )
+  .await;
 }
 
 async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
+  node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
   intp: Interpretations,
   msg: &T,
-  fail_cfg: &FailureConfigMap,
+  fail_map: &FailureConfigMap,
 ) where
   T: Serialize + DeserializeOwned,
 {
-  if rand::random::<f64>() >= fail_cfg.get(socket).drop_prob {
+  let fail_cfg = fail_map.get(socket);
+  if rand::random::<f64>() >= fail_cfg.drop_prob {
     let addrs = socket.as_udp_addr().await.unwrap();
-    let addr = addrs
-      .iter()
-      .exactly_one()
-      .expect(format!("multiple addrs: {:?}", addrs).as_str());
+    let addr = addrs.into_iter().exactly_one().unwrap();
     let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
       .await
       .unwrap();
-    MessagePackets::new(msg, intp, dest)
-      .move_to(&udp, addr)
-      .await;
+    let packets = MessagePackets::new(msg, intp, dest);
+    let dur = fail_cfg.delay.map(|(min, max)| {
+      let range = min.as_millis()..=max.as_millis();
+      Duration::from_millis(SmallRng::from_entropy().gen_range(range) as u64)
+    });
+    if let Some(dur) = dur {
+      node.rt().spawn(async move {
+        sleep(dur).await;
+        packets.move_to(&udp, &addr).await;
+      });
+    } else {
+      packets.move_to(&udp, &addr).await;
+    }
   }
 }
 
@@ -105,14 +134,16 @@ async fn udp_unreliable_packet<U: UnifiedBounds + Case<I>, I, T>(
 
 #[macro_export]
 macro_rules! udp_select {
-  ($reliable:expr, $fail_map:expr, $socket:expr, $dest:expr, $msg:expr) => {
+  ($reliable:expr, $node:expr, $fail_map:expr, $socket:expr, $dest:expr, $msg:expr) => {
     match $reliable {
       crate::testkit::FailureMode::None => {
         aurum::core::udp_msg($socket, $dest, $msg).await
       }
       crate::testkit::FailureMode::Message => {
-        aurum::testkit::udp_msg_unreliable_msg($socket, $dest, $msg, $fail_map)
-          .await
+        aurum::testkit::udp_msg_unreliable_msg(
+          $node, $socket, $dest, $msg, $fail_map,
+        )
+        .await
       }
       crate::testkit::FailureMode::Packet => {
         aurum::testkit::udp_msg_unreliable_packet(

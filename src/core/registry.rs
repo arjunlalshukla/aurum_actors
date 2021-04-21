@@ -76,7 +76,7 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
         }
       }
       RegistryMsg::Deregister(name) => {
-        println!("Removing actor from registry: {:?}", name);
+        //println!("Removing actor from registry: {:?}", name);
         self.register.remove(&name);
       }
     }

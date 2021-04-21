@@ -72,9 +72,10 @@ where
       .unwrap()
   }
 
-  async fn send_req(&self) {
+  async fn send_req(&self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) {
     udp_select!(
       FAILURE_MODE,
+      &ctx.node,
       &self.fail_map,
       &self.charge.socket,
       &self.clr_dest,
@@ -89,13 +90,13 @@ where
 {
   async fn pre_start(
     &mut self,
-    _: &ActorContext<U, HeartbeatReceiverMsg>,
+    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
     println!(
       "{}: started HBR for {}-{}",
       self.member.socket.udp, self.charge.socket.udp, self.charge.id
     );
-    self.send_req().await;
+    self.send_req(ctx).await;
     None
   }
 
@@ -166,7 +167,7 @@ where
 
   async fn timeout(
     &mut self,
-    _: &crate::core::ActorContext<U, HeartbeatReceiverMsg>,
+    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(0) => {
@@ -202,7 +203,7 @@ where
       }
       HBRState::Initial(ref mut reqs_left) => {
         *reqs_left -= 1;
-        self.send_req().await;
+        self.send_req(ctx).await;
         (Some(self.config.req_timeout), None)
       }
       HBRState::Downed => (Some(Duration::from_secs(u32::MAX as u64)), None),

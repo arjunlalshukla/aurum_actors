@@ -211,7 +211,7 @@ async fn execute_events(
   }
 }
 
-//#[test]
+#[test]
 #[allow(dead_code)]
 fn cluster_coordinator_test_infinite() {
   let spawn_delay = dur(200);
@@ -230,6 +230,8 @@ fn cluster_coordinator_test_infinite() {
   ];
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.25;
+  //fail_map.cluster_wide.delay =
+  //  Some((Duration::from_millis(20), Duration::from_millis(50)));
   run_cluster_coordinator_test(false, events, fail_map);
 }
 

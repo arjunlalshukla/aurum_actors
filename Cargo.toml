@@ -7,19 +7,14 @@ edition = "2018"
 [dependencies]
 aurum_macros = { path = "src/macros" }
 async-trait = "*"
-byteorder = "*"
 crdts = "*"
 crossbeam = "*"
 im = { version = "*", features = ["serde"] }
 itertools = "*"
-lazy_static = "*"
 linked-hash-map = "*"
 maplit = "*"
 num_enum = "*"
-once_cell = "*"
-rand = {version = "*", features = ["alloc"] }
-rand_chacha = "*"
-rug = "*"
+rand = {version = "*", features = ["alloc", "small_rng"] }
 rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
@@ -27,4 +22,5 @@ serde_json = "*"
 statrs = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"
+validator = "*"
 wyhash = "*"
