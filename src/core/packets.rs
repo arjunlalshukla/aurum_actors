@@ -7,7 +7,7 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::collections::HashSet;
+use smallvec::{smallvec, SmallVec};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::net::SocketAddr;
@@ -170,19 +170,26 @@ impl MessagePackets {
   }
 }
 
+type OurSmallVec = SmallVec<[u8; 2 * std::mem::size_of::<usize>()]>;
+
 pub struct MessageBuilder {
   msg_size: u32,
   pub max_seq_num: u16,
-  seqs_recvd: HashSet<u16>,
+  seqs_recvd: OurSmallVec,
+  num_recvd: usize,
   buf: Vec<u8>,
   pub intp: Interpretations,
 }
 impl MessageBuilder {
   pub fn new(header: &DatagramHeader) -> MessageBuilder {
+    let recvd_len = header.max_seq_num / 8
+      + (header.max_seq_num % 8 != 0) as u16
+      + (header.max_seq_num == 0) as u16;
     MessageBuilder {
       msg_size: header.msg_size,
       max_seq_num: header.max_seq_num,
-      seqs_recvd: HashSet::new(),
+      seqs_recvd: smallvec![0; recvd_len as usize],
+      num_recvd: 0,
       buf: vec![
         0u8;
         header.msg_size as usize
@@ -194,15 +201,13 @@ impl MessageBuilder {
   }
 
   pub async fn insert(&mut self, header: &DatagramHeader, socket: &UdpSocket) {
-    if self.seqs_recvd.contains(&header.seq_num) {
+    let seq_num = header.seq_num as usize;
+    if self.seqs_recvd[seq_num / 8] & (1 << seq_num % 8) != 0 {
       return;
     }
-    self.seqs_recvd.insert(header.seq_num);
-    let start = if header.seq_num == 0 {
-      0
-    } else {
-      header.seq_num as usize * (MAX_PACKET_SIZE - DatagramHeader::SIZE)
-    };
+    self.num_recvd += 1;
+    self.seqs_recvd[seq_num / 8] |= 1 << seq_num % 8;
+    let start = seq_num * (MAX_PACKET_SIZE - DatagramHeader::SIZE);
     let end = std::cmp::min(start + MAX_PACKET_SIZE, self.buf.len());
     let slice = &mut self.buf[start..end];
     let mut header_buf = [0u8; DatagramHeader::SIZE];
@@ -212,7 +217,7 @@ impl MessageBuilder {
   }
 
   pub fn finished(&self) -> bool {
-    self.seqs_recvd.len() == (self.max_seq_num as usize + 1)
+    self.num_recvd == self.max_seq_num as usize + 1
   }
 
   pub fn dest(&self) -> &[u8] {

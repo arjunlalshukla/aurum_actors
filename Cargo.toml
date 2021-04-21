@@ -19,6 +19,7 @@ rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
 serde_json = "*"
+smallvec = "*"
 statrs = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"
