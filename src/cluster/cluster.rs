@@ -102,7 +102,7 @@ impl InCluster {
         // TODO: What if requester is not the manager?
         // For now, send heartbeat anyway. Conflicts will reconcile eventually.
         if id == common.member.id {
-          self.heartbeat(common, ctx, &member).await;
+          common.heartbeat(ctx, &member).await;
         } else {
           println!(
             "{}: Got HB request for id {} when id is {}",
@@ -196,26 +196,6 @@ impl InCluster {
     //   common.member.socket.udp,
     //   self.managers.iter().map(|m| (m.socket.udp, m.id)).collect_vec()
     // );
-  }
-
-  async fn heartbeat<U: UnifiedBounds>(
-    &self,
-    common: &NodeState<U>,
-    ctx: &ActorContext<U, ClusterMsg<U>>,
-    member: &Member,
-  ) {
-    let msg = HeartbeatReceiverMsg::Heartbeat(
-      common.clr_config.hb_interval,
-      common.hb_interval_changes,
-    );
-    udp_select!(
-      FAILURE_MODE,
-      &ctx.node,
-      &common.fail_map,
-      &member.socket,
-      &common.hbr_dest,
-      &msg
-    );
   }
 
   async fn gossip_round<U: UnifiedBounds>(
@@ -366,6 +346,27 @@ impl Pinging {
     msg: IntraClusterMsg<U>,
   ) -> Option<InteractionState> {
     match msg {
+      // Getting this message means the response to our ping wasn't received.
+      ReqHeartbeat(member, id) => {
+        println!("{}: Got HB request while pinging", common.member.socket.udp);
+        if id == common.member.id {
+          common.heartbeat(ctx, &member).await;
+        } else {
+          println!(
+            "{}: Got HB request for id {} when id is {}",
+            common.member.socket.udp, common.member.id, id
+          );
+        }
+        udp_select!(
+          FAILURE_MODE,
+          &ctx.node,
+          &common.fail_map,
+          &member.socket,
+          &common.clr_dest,
+          &ReqGossip(common.member.clone())
+        );
+        None
+      }
       State(mut gossip) => {
         let me = gossip.states.get(&common.member);
         let downed = me.filter(|s| s >= &&Down).is_some();
@@ -468,6 +469,25 @@ impl<U: UnifiedBounds> NodeState<U> {
     );
   }
 
+  async fn heartbeat(
+    &self,
+    ctx: &ActorContext<U, ClusterMsg<U>>,
+    member: &Member,
+  ) {
+    let msg = HeartbeatReceiverMsg::Heartbeat(
+      self.clr_config.hb_interval,
+      self.hb_interval_changes,
+    );
+    udp_select!(
+      FAILURE_MODE,
+      &ctx.node,
+      &self.fail_map,
+      &member.socket,
+      &self.hbr_dest,
+      &msg
+    );
+  }
+
   fn schedule_gossip_timeout(
     &self,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -548,7 +568,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       ClusterMsg::HeartbeatTick => {
         if let InteractionState::InCluster(ic) = &mut self.state {
           for member in ic.managers.iter() {
-            ic.heartbeat(&self.common, ctx, &*member).await;
+            self.common.heartbeat(ctx, member).await;
           }
         }
         ctx.node.schedule_local_msg(

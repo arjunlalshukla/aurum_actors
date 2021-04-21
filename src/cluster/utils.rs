@@ -21,6 +21,7 @@ impl<T> UnifiedBounds for T where
 {
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ClusterConfig {
   pub gossip_timeout: Duration,
   pub gossip_disperse: usize,
@@ -44,7 +45,7 @@ impl Default for ClusterConfig {
   }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct HBRConfig {
   pub phi: f64,
   pub capacity: usize,
