@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, HBRConfig};
+use aurum::cluster::{Cluster, ClusterCmd};
 use aurum::core::{
   forge, Actor, ActorContext, ActorRef, Host, LocalRef, Node, Socket,
 };
@@ -36,17 +36,16 @@ impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
   ) {
     match &mut self.state {
       Initial => match msg {
-        ClusterNodeMsg::FailureMap(map) => {
-          let mut config = ClusterConfig::default();
-          config.seed_nodes = self.seeds.clone();
+        ClusterNodeMsg::FailureMap(map, mut clr, hbr) => {
+          clr.seed_nodes = self.seeds.clone();
           let cluster = Cluster::new(
             &ctx.node,
             "test".to_string(),
             3,
             vec![ctx.local_interface()],
             map.clone(),
-            config,
-            HBRConfig::default(),
+            clr,
+            hbr,
           )
           .await;
           self.state = InCluster(map, cluster);
@@ -63,7 +62,7 @@ impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
             ))
             .await;
         }
-        ClusterNodeMsg::FailureMap(map) => {
+        ClusterNodeMsg::FailureMap(map, _, _) => {
           *fail_map = map.clone();
           cluster.send(ClusterCmd::FailureMap(map));
         }

@@ -1,5 +1,5 @@
 use crate as aurum;
-use crate::cluster::{ClusterEvent, ClusterEventSimple};
+use crate::cluster::{ClusterConfig, ClusterEvent, ClusterEventSimple, HBRConfig};
 use crate::core::{ActorRef, Socket};
 use crate::testkit::FailureConfigMap;
 use crate::{unify, AurumInterface};
@@ -19,7 +19,7 @@ pub enum CoordinatorMsg {
 pub enum ClusterNodeMsg {
   #[aurum(local)]
   Event(ClusterEvent),
-  FailureMap(FailureConfigMap),
+  FailureMap(FailureConfigMap, ClusterConfig, HBRConfig),
 }
 
 unify!(pub ClusterNodeTypes = ClusterNodeMsg | CoordinatorMsg);

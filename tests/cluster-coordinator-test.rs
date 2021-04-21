@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aurum::cluster::ClusterEventSimple;
+use aurum::cluster::{ClusterConfig, ClusterEventSimple, HBRConfig};
 use aurum::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
 };
@@ -34,6 +34,8 @@ struct ClusterCoor {
   finish: bool,
   notify: tokio::sync::mpsc::Sender<Vec<MemberError>>,
   fail_map: FailureConfigMap,
+  clr_cfg: ClusterConfig,
+  hbr_cfg: HBRConfig,
 }
 impl ClusterCoor {
   fn expect(
@@ -80,7 +82,7 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
     match msg {
       Up(node) => {
         node
-          .move_to(ClusterNodeMsg::FailureMap(self.fail_map.clone()))
+          .move_to(ClusterNodeMsg::FailureMap(self.fail_map.clone(), self.clr_cfg.clone(), self.hbr_cfg.clone()))
           .await;
       }
       Done => {
@@ -161,6 +163,8 @@ fn run_cluster_coordinator_test(
   finite: bool,
   events: Vec<(CoordinatorMsg, Duration)>,
   fail_map: FailureConfigMap,
+  clr_cfg: ClusterConfig,
+  hbr_cfg: HBRConfig,
 ) {
   Command::new("cargo").arg("build").status().unwrap();
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), PORT, 0);
@@ -176,6 +180,8 @@ fn run_cluster_coordinator_test(
       finish: false,
       notify: tx,
       fail_map: fail_map,
+      clr_cfg: clr_cfg,
+      hbr_cfg: hbr_cfg
     },
     "coordinator".to_string(),
     true,
@@ -228,11 +234,13 @@ fn cluster_coordinator_test_infinite() {
     (Spawn(4009, vec![4008]), spawn_delay),
     (Done, dur(0)),
   ];
-  let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.25;
-  fail_map.cluster_wide.delay =
+  let mut fail = FailureConfigMap::default();
+  fail.cluster_wide.drop_prob = 0.25;
+  fail.cluster_wide.delay =
     Some((Duration::from_millis(20), Duration::from_millis(50)));
-  run_cluster_coordinator_test(false, events, fail_map);
+  let clr = ClusterConfig::default();
+  let hbr = HBRConfig::default();
+  run_cluster_coordinator_test(false, events, fail, clr, hbr);
 }
 
 rusty_fork_test! {
@@ -263,6 +271,9 @@ rusty_fork_test! {
       (Kill(4009), kill_delay),
       (Done, dur(0)),
     ];
-    run_cluster_coordinator_test(true, events, FailureConfigMap::default());
+    let fail = FailureConfigMap::default();
+    let clr = ClusterConfig::default();
+    let hbr = HBRConfig::default();
+    run_cluster_coordinator_test(true, events, fail, clr, hbr);
   }
 }
