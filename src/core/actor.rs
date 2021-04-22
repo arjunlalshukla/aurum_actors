@@ -1,14 +1,14 @@
 use crate::core::{
-  ActorRef, Case, Destination, DestinationUntyped, LocalRef, MessageBuilder, Node, SerializedRecvr, SpecificInterface,
-  UnifiedBounds,
+  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr,
+  SpecificInterface, UnifiedBounds,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
-use std::fmt::Debug;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(
@@ -39,7 +39,11 @@ pub trait Actor<U: Case<S> + UnifiedBounds, S: Send + SpecificInterface<U>> {
 }
 
 #[async_trait]
-pub trait TimeoutActor<U: Case<S> + UnifiedBounds, S: Send + SpecificInterface<U>> {
+pub trait TimeoutActor<
+  U: Case<S> + UnifiedBounds,
+  S: Send + SpecificInterface<U>,
+>
+{
   async fn pre_start(&mut self, _: &ActorContext<U, S>) -> Option<Duration> {
     None
   }
@@ -99,10 +103,10 @@ pub fn local_actor_msg_convert<S: From<I>, I>(
   }
 }
 
-pub struct ActorContext<U, S> 
+pub struct ActorContext<U, S>
 where
-  U: Case<S> + UnifiedBounds, 
-  S: 'static + Send + SpecificInterface<U>
+  U: Case<S> + UnifiedBounds,
+  S: 'static + Send + SpecificInterface<U>,
 {
   pub(crate) tx: UnboundedSender<ActorMsg<U, S>>,
   pub name: ActorName<U>,
@@ -110,8 +114,8 @@ where
 }
 impl<U, S> ActorContext<U, S>
 where
-  U: Case<S> + UnifiedBounds, 
-  S: 'static + Send + SpecificInterface<U>
+  U: Case<S> + UnifiedBounds,
+  S: 'static + Send + SpecificInterface<U>,
 {
   pub(in crate::core) fn create_local<T: Send>(
     sender: UnboundedSender<ActorMsg<U, S>>,

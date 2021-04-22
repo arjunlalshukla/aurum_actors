@@ -1,10 +1,10 @@
 use crate as aurum;
 use crate::core::{
-  deserialize, Actor, ActorContext, ActorName, Destination, DestinationUntyped, MessageBuilder,
-  UnifiedBounds,
+  deserialize, Actor, ActorContext, ActorName, DestinationUntyped,
+  MessageBuilder, UnifiedBounds, LOG_LEVEL,
 };
+use crate::{error, info, trace, warn, AurumInterface};
 use async_trait::async_trait;
-use aurum_macros::AurumInterface;
 use std::collections::{hash_map::Entry, HashMap};
 use tokio::sync::oneshot::Sender;
 
@@ -37,46 +37,61 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
   ) {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
-        let _packets = msg_builder.max_seq_num;
-        let DestinationUntyped {
-          name, interface
-        } = deserialize::<DestinationUntyped<U>>(msg_builder.dest()).unwrap();
+        let packets = msg_builder.max_seq_num;
+        let DestinationUntyped { name, interface } =
+          deserialize::<DestinationUntyped<U>>(msg_builder.dest()).unwrap();
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);
-            println!("Forward message to {:?} failed, removing actor", name);
+            warn!(
+              LOG_LEVEL,
+              ctx.node,
+              format!("Message forward failed, removing actor {:?}", name)
+            );
           } else {
-            //println!("Forwarded {} packets to {:?}", packets, name);
+            trace!(
+              LOG_LEVEL,
+              ctx.node,
+              format!("Forwarded {} packets to {:?}", packets, name)
+            );
           }
         } else {
-          println!(
-            "{}: cannot send to {:?}, not in register",
-            ctx.node.socket().udp,
-            name
-          );
+          warn!(LOG_LEVEL, ctx.node, format!("Not in register: {:?}", name));
         }
       }
       RegistryMsg::Register(name, channel, confirmation) => {
         match self.register.entry(name) {
           Entry::Occupied(o) => {
-            println!(
-              "{}: Registry failed - already registered: {:?}",
-              ctx.node.socket().udp,
-              o.key()
+            error!(
+              LOG_LEVEL,
+              ctx.node,
+              format!("Already registered: {:?}", o.key())
             );
           }
           Entry::Vacant(v) => {
             if let Err(_) = confirmation.send(()) {
-              println!("Register confirmation failed: {:?}", v.key());
+              error!(
+                LOG_LEVEL,
+                ctx.node,
+                format!("Register confirmation failed: {:?}", v.key())
+              );
             } else {
-              //println!("{}: Adding actor to registry: {:?}", ctx.node.socket().udp, v.key());
+              info!(
+                LOG_LEVEL,
+                ctx.node,
+                format!("Adding actor to registry: {:?}", v.key())
+              );
               v.insert(channel);
             }
           }
         }
       }
       RegistryMsg::Deregister(name) => {
-        //println!("Removing actor from registry: {:?}", name);
+        info!(
+          LOG_LEVEL,
+          ctx.node,
+          format!("Removing actor from registry: {:?}", name)
+        );
         self.register.remove(&name);
       }
     }

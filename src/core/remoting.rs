@@ -77,7 +77,7 @@ impl<U: UnifiedBounds + Case<I>, I> Destination<U, I> {
   pub fn name(&self) -> &ActorName<U> {
     &self.untyped.name
   }
-  
+
   pub fn untyped(&self) -> &DestinationUntyped<U> {
     &self.untyped
   }

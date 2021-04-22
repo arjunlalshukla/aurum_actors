@@ -1,11 +1,11 @@
 use crate as aurum;
 use crate::cluster::{
   ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds, FAILURE_MODE,
+  UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
 use crate::testkit::FailureConfigMap;
-use crate::{udp_select, AurumInterface};
+use crate::{debug, info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -28,7 +28,6 @@ where
   U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
 {
   supervisor: LocalRef<ClusterMsg<U>>,
-  member: Arc<Member>,
   fail_map: FailureConfigMap,
   clr_dest: Destination<U, IntraClusterMsg<U>>,
   charge: Arc<Member>,
@@ -55,7 +54,6 @@ where
       .spawn_timeout(
         HeartbeatReceiver {
           supervisor: ctx.local_interface(),
-          member: common.member.clone(),
           fail_map: common.fail_map.clone(),
           charge: charge,
           clr_dest: common.clr_dest.clone(),
@@ -92,9 +90,13 @@ where
     &mut self,
     ctx: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
-    println!(
-      "{}: started HBR for {}-{}",
-      self.member.socket.udp, self.charge.socket.udp, self.charge.id
+    debug!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "killed HBR for {}-{}",
+        self.charge.socket.udp, self.charge.id
+      )
     );
     self.send_req(ctx).await;
     None
@@ -102,17 +104,20 @@ where
 
   async fn recv(
     &mut self,
-    _: &ActorContext<U, HeartbeatReceiverMsg>,
+    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
     msg: HeartbeatReceiverMsg,
   ) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(_) => match msg {
         Heartbeat(dur, cnt) => {
-          println!(
-            "{}: new heartbeat interval from {}: {:?} ms",
-            self.member.socket.udp,
-            self.charge.socket.udp,
-            dur.as_millis()
+          debug!(
+            LOG_LEVEL,
+            ctx.node,
+            format!(
+              "new heartbeat interval from {}: {:?} ms",
+              self.charge.socket.udp,
+              dur.as_millis()
+            )
           );
           let is = IntervalStorage::new(
             self.config.capacity,
@@ -128,14 +133,15 @@ where
       HBRState::Receiving(storage, cnt) => match msg {
         Heartbeat(new_dur, new_cnt) => {
           if new_cnt > *cnt {
-            /*
-            println!(
-              "{}: new heartbeat interval from {}: {:?} ms",
-              self.member.socket.udp,
-              self.charge.socket.udp,
-              new_dur.as_millis()
+            info!(
+              LOG_LEVEL,
+              ctx.node,
+              format!(
+                "new heartbeat interval from {}: {:?} ms",
+                self.charge.socket.udp,
+                new_dur.as_millis()
+              )
             );
-            */
             *storage = IntervalStorage::new(
               self.config.capacity,
               new_dur * 2,
@@ -146,16 +152,17 @@ where
             storage.push();
           }
           let new_to = storage.duration_phi(self.config.phi);
-          /*
-          println!(
-            "{}: got heartbeat from {}; new timeout: {:?} ms, stdev: {}, mean: {}",
-            self.member.socket.udp,
-            self.charge.socket.udp,
-            new_to.as_millis(),
-            storage.stdev(),
-            storage.mean()
+          trace!(
+            LOG_LEVEL,
+            ctx.node,
+            format!(
+              "got heartbeat from {}; new timeout: {:?} ms, stdev: {}, mean: {}",
+              self.charge.socket.udp,
+              new_to.as_millis(),
+              storage.stdev(),
+              storage.mean()
+            )
           );
-          */
           (Some(new_to), None)
         }
       },
@@ -171,11 +178,14 @@ where
   ) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(0) => {
-        println!(
-          "{}: DOWNED charge {}; after timeout: {:?} ms",
-          self.member.socket.udp,
-          self.charge.socket.udp,
-          self.config.req_timeout.as_millis()
+        info!(
+          LOG_LEVEL,
+          ctx.node,
+          format!(
+            "DOWNED charge {}; after timeout: {} ms",
+            self.charge.socket.udp,
+            self.config.req_timeout.as_millis()
+          )
         );
         self
           .supervisor
@@ -186,13 +196,16 @@ where
         )
       }
       HBRState::Receiving(storage, _) => {
-        println!(
-          "{}: requesting HB from {}; after timeout: {:?} ms, stdev: {}, mean: {}",
-          self.member.socket.udp,
-          self.charge.socket.udp,
-          storage.duration_phi(self.config.phi).as_millis(),
-          storage.stdev(),
-          storage.mean()
+        debug!(
+          LOG_LEVEL,
+          ctx.node,
+          format!(
+            "requesting HB from {}; after timeout: {} ms, stdev: {}, mean: {}",
+            self.charge.socket.udp,
+            storage.duration_phi(self.config.phi).as_millis(),
+            storage.stdev(),
+            storage.mean()
+          )
         );
         (
           Some(self.config.req_timeout),
@@ -212,11 +225,15 @@ where
 
   async fn post_stop(
     &mut self,
-    _: &ActorContext<U, HeartbeatReceiverMsg>,
+    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
   ) -> Option<Duration> {
-    println!(
-      "{}: killed HBR for {}-{}",
-      self.member.socket.udp, self.charge.socket.udp, self.charge.id
+    debug!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "killed HBR for {}-{}",
+        self.charge.socket.udp, self.charge.id
+      )
     );
     None
   }

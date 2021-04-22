@@ -1,4 +1,5 @@
 extern crate aurum_macros;
+use crate::testkit::LogLevel;
 
 mod actor;
 mod actor_ref;
@@ -10,6 +11,8 @@ mod registry;
 mod remoting;
 mod udp_receiver;
 mod unify;
+
+pub const LOG_LEVEL: LogLevel = LogLevel::Warn;
 
 #[rustfmt::skip]
 pub(crate) use {

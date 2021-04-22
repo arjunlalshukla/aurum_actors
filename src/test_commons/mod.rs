@@ -1,5 +1,7 @@
 use crate as aurum;
-use crate::cluster::{ClusterConfig, ClusterEvent, ClusterEventSimple, HBRConfig};
+use crate::cluster::{
+  ClusterConfig, ClusterEvent, ClusterEventSimple, HBRConfig,
+};
 use crate::core::{ActorRef, Socket};
 use crate::testkit::FailureConfigMap;
 use crate::{unify, AurumInterface};

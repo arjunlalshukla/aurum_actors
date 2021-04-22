@@ -2,13 +2,13 @@ use crate as aurum;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
   HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
-  FAILURE_MODE,
+  FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{udp_select, AurumInterface};
+use crate::{debug, info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
 use maplit::{btreemap, hashset};
@@ -83,9 +83,10 @@ impl InCluster {
     match msg {
       Foo(_) => None,
       ReqGossip(member) => {
-        println!(
-          "{}: got gossip req from {}",
-          common.member.socket.udp, member.socket.udp
+        debug!(
+          LOG_LEVEL,
+          ctx.node,
+          format!("got gossip req from {}", member.socket.udp)
         );
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         udp_select!(
@@ -104,9 +105,13 @@ impl InCluster {
         if id == common.member.id {
           common.heartbeat(ctx, &member).await;
         } else {
-          println!(
-            "{}: Got HB request for id {} when id is {}",
-            common.member.socket.udp, common.member.id, id
+          debug!(
+            LOG_LEVEL,
+            ctx.node,
+            format!(
+              "got HB request for id {} when id is {}",
+              common.member.id, id
+            )
           );
         }
         None
@@ -122,13 +127,14 @@ impl InCluster {
             }
             ClusterEvent::Removed(member) => {
               if let Err(_) = self.ring.remove(&*member) {
-                println!(
-                  "{}: failed to remove {} from ring",
-                  common.member.socket.udp, member.socket.udp
+                trace!(
+                  LOG_LEVEL,
+                  ctx.node,
+                  format!("failed to remove {} from ring", member.socket.udp)
                 );
               }
               if *member == common.member {
-                common.new_id();
+                common.new_id(ctx);
                 self.ring.insert(common.member.clone());
                 self.gossip.states.insert(common.member.clone(), Up);
               }
@@ -145,9 +151,10 @@ impl InCluster {
         None
       }
       Ping(member) => {
-        println!(
-          "{}: received ping from {:?}",
-          common.member.socket.udp, member
+        info!(
+          LOG_LEVEL,
+          ctx.node,
+          format!("received ping from {:?}", member)
         );
         if let Entry::Vacant(v) = self.gossip.states.entry(member.clone()) {
           v.insert(Up);
@@ -155,7 +162,7 @@ impl InCluster {
           self.ring.insert(member.clone());
           self.update_charges_managers(common, ctx);
         } else {
-          println!("{}: pinger already exists", common.member.socket.udp);
+          info!(LOG_LEVEL, ctx.node, format!("pinger already exists"));
         }
         self.gossip_round(common, ctx, hashset!(&member)).await;
         None
@@ -168,10 +175,18 @@ impl InCluster {
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
-    // println!("{}: old charges: {:?}",
-    //   common.member.socket.udp,
-    //   self.charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
-    // );
+    trace!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "old charges: {:?}",
+        self
+          .charges
+          .keys()
+          .map(|m| (m.socket.udp, m.id))
+          .collect_vec()
+      )
+    );
     let mut new_charges = HashMap::new();
     for member in self.ring.charges(&common.member).unwrap() {
       let hbr = self.charges.remove(&member).unwrap_or_else(|| {
@@ -183,19 +198,43 @@ impl InCluster {
       hbr.signal(ActorSignal::Term);
     }
     self.charges = new_charges;
-    // println!("{}: new charges: {:?}",
-    //   common.member.socket.udp,
-    //   self.charges.keys().map(|m| (m.socket.udp, m.id)).collect_vec()
-    // );
-    // println!("{}: old managers: {:?}",
-    //   common.member.socket.udp,
-    //   self.managers.iter().map(|m| (m.socket.udp, m.id)).collect_vec()
-    // );
+    trace!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "new charges: {:?}",
+        self
+          .charges
+          .keys()
+          .map(|m| (m.socket.udp, m.id))
+          .collect_vec()
+      )
+    );
+    trace!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "old managers: {:?}",
+        self
+          .managers
+          .iter()
+          .map(|m| (m.socket.udp, m.id))
+          .collect_vec()
+      )
+    );
     self.managers = self.ring.node_managers(&common.member).unwrap();
-    // println!("{}: new managers: {:?}",
-    //   common.member.socket.udp,
-    //   self.managers.iter().map(|m| (m.socket.udp, m.id)).collect_vec()
-    // );
+    trace!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "old managers: {:?}",
+        self
+          .managers
+          .iter()
+          .map(|m| (m.socket.udp, m.id))
+          .collect_vec()
+      )
+    );
   }
 
   async fn gossip_round<U: UnifiedBounds>(
@@ -227,10 +266,13 @@ impl InCluster {
       .for_each(|m| {
         guaranteed.insert(m);
       });
-    println!(
-      "{}: gossiping to {:?}",
-      common.member.socket.udp,
-      guaranteed.iter().map(|m| m.socket.udp).collect_vec()
+    debug!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "gossiping to {:?}",
+        guaranteed.iter().map(|m| m.socket.udp).collect_vec()
+      )
     );
     for member in guaranteed {
       udp_select!(
@@ -250,15 +292,18 @@ impl InCluster {
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
     let msg: IntraClusterMsg<U> = ReqGossip(common.member.clone());
-    println!(
-      "{}: gossip state: {:?}",
-      common.member.socket.udp,
-      self
-        .gossip
-        .states
-        .iter()
-        .map(|(m, s)| (m.socket.udp, s))
-        .collect_vec()
+    debug!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "gossip state: {:?}",
+        self
+          .gossip
+          .states
+          .iter()
+          .map(|(m, s)| (m.socket.udp, s))
+          .collect_vec()
+      )
     );
     let members = self
       .gossip
@@ -272,10 +317,13 @@ impl InCluster {
       )
       .into_iter()
       .collect_vec();
-    println!(
-      "{}: gossip reqs sent to: {:?}",
-      common.member.socket.udp,
-      members.iter().map(|m| m.socket.udp).collect_vec()
+    debug!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "gossip reqs sent to: {:?}",
+        members.iter().map(|m| m.socket.udp).collect_vec()
+      )
     );
     for member in members {
       udp_select!(
@@ -317,9 +365,10 @@ impl Pinging {
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
     self.count -= 1;
-    println!(
-      "{}: starting ping. {} attempts left",
-      common.member.socket.udp, self.count
+    info!(
+      LOG_LEVEL,
+      ctx.node,
+      format!("starting ping. {} attempts left", self.count)
     );
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
@@ -348,13 +397,17 @@ impl Pinging {
     match msg {
       // Getting this message means the response to our ping wasn't received.
       ReqHeartbeat(member, id) => {
-        println!("{}: Got HB request while pinging", common.member.socket.udp);
+        debug!(LOG_LEVEL, ctx.node, format!("Got HB request while pinging"));
         if id == common.member.id {
           common.heartbeat(ctx, &member).await;
         } else {
-          println!(
-            "{}: Got HB request for id {} when id is {}",
-            common.member.socket.udp, common.member.id, id
+          debug!(
+            LOG_LEVEL,
+            ctx.node,
+            format!(
+              "Got HB request for id {} when id is {}",
+              common.member.id, id
+            )
           );
         }
         udp_select!(
@@ -371,7 +424,7 @@ impl Pinging {
         let me = gossip.states.get(&common.member);
         let downed = me.filter(|s| s >= &&Down).is_some();
         if downed {
-          common.new_id();
+          common.new_id(ctx);
         }
         if me.is_none() || downed {
           gossip.states.insert(common.member.clone(), Up);
@@ -393,13 +446,16 @@ impl Pinging {
         };
         ic.update_charges_managers(common, ctx);
         ic.gossip_round(common, ctx, hashset!()).await;
-        println!(
-          "{}: responsible for {:?}",
-          common.member.socket.udp,
-          ic.charges
-            .keys()
-            .map(|m| (m.socket.udp, m.id))
-            .collect_vec()
+        debug!(
+          LOG_LEVEL,
+          ctx.node,
+          format!(
+            "responsible for {:?}",
+            ic.charges
+              .keys()
+              .map(|m| (m.socket.udp, m.id))
+              .collect_vec()
+          )
         );
         Some(InteractionState::InCluster(ic))
       }
@@ -450,7 +506,7 @@ impl<U: UnifiedBounds> NodeState<U> {
     self.subscribers.retain(|s| s.send(event.clone()));
   }
 
-  fn new_id(&mut self) {
+  fn new_id(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     let old_id = self.member.id;
     self.member = Arc::new(Member {
       socket: self.member.socket.clone(),
@@ -463,9 +519,13 @@ impl<U: UnifiedBounds> NodeState<U> {
         self.member.id,
       ),
     );
-    println!(
-      "{}: I've been downed, changing id from {} to {}",
-      self.member.socket.udp, old_id, self.member.id
+    info!(
+      LOG_LEVEL,
+      ctx.node,
+      format!(
+        "I've been downed, changing id from {} to {}",
+        old_id, self.member.id
+      )
     );
   }
 
@@ -507,9 +567,10 @@ pub struct Cluster<U: UnifiedBounds> {
 #[async_trait]
 impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    print!(
-      "STARTING member: {}-{}",
-      self.common.member.socket.udp, self.common.member.id
+    info!(
+      LOG_LEVEL,
+      ctx.node,
+      format!("STARTING member with id: {}", self.common.member.id)
     );
     if self.common.clr_config.seed_nodes.is_empty() {
       self.create_cluster(ctx);
@@ -554,7 +615,6 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
       }
       ClusterMsg::GossipTimeout => {
         if let InteractionState::InCluster(ic) = &self.state {
-          println!("{}: gossip timeout", self.common.member.socket.udp);
           ic.gossip_round(&self.common, ctx, hashset!()).await;
           ic.gossip_reqs(&self.common, ctx).await;
           self.common.schedule_gossip_timeout(ctx);

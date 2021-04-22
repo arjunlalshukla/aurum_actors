@@ -31,7 +31,6 @@ pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
             continue;
           }
         };
-        //println!("Got header {:?}", header);
         if header.max_seq_num == 0 {
           let mut mb = MessageBuilder::new(&header);
           mb.insert(&header, &udp).await;

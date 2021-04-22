@@ -125,7 +125,6 @@ impl MessagePackets {
   ) {
     let mut nums = (0..=self.max_seq_num).collect::<Vec<_>>();
     nums.shuffle(&mut rand::thread_rng());
-    //println!("Nums: {:?}", nums);
     self.send(socket, addr, nums, fail_cfg).await;
   }
 
@@ -146,7 +145,6 @@ impl MessagePackets {
       dest_size: self.dest_size as u16,
       intp: self.intp,
     };
-    //println!("Sending msg with id: {}", header.msg_id);
     let mut buf: [u8; MAX_PACKET_SIZE] = [0u8; MAX_PACKET_SIZE];
     for i in idxs {
       if rand::random::<f64>() >= fail_cfg.drop_prob {
@@ -182,9 +180,7 @@ pub struct MessageBuilder {
 }
 impl MessageBuilder {
   pub fn new(header: &DatagramHeader) -> MessageBuilder {
-    let recvd_len = header.max_seq_num / 8
-      + (header.max_seq_num % 8 != 0) as u16
-      + (header.max_seq_num == 0) as u16;
+    let recvd_len = header.max_seq_num / 8 + 1;
     MessageBuilder {
       msg_size: header.msg_size,
       max_seq_num: header.max_seq_num,

@@ -91,10 +91,6 @@ fn main() {
       )
     })
     .collect::<Vec<_>>();
-  println!("STARTED {}, contacting coor on {:?}", socket.udp, coor);
-  for seed in seeds.iter() {
-    println!("{}: using seed {}", socket.udp, seed.udp);
-  }
   node.spawn(
     true,
     ClusterNode {

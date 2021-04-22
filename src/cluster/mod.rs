@@ -1,4 +1,4 @@
-use crate::testkit::FailureMode;
+use crate::testkit::{FailureMode, LogLevel};
 mod cluster;
 
 mod gossip;
@@ -8,6 +8,7 @@ mod node_ring;
 mod utils;
 
 pub const FAILURE_MODE: FailureMode = FailureMode::Message;
+pub const LOG_LEVEL: LogLevel = LogLevel::Info;
 
 #[rustfmt::skip]
 pub(crate) use {

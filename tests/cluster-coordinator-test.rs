@@ -82,7 +82,11 @@ impl Actor<ClusterNodeTypes, CoordinatorMsg> for ClusterCoor {
     match msg {
       Up(node) => {
         node
-          .move_to(ClusterNodeMsg::FailureMap(self.fail_map.clone(), self.clr_cfg.clone(), self.hbr_cfg.clone()))
+          .move_to(ClusterNodeMsg::FailureMap(
+            self.fail_map.clone(),
+            self.clr_cfg.clone(),
+            self.hbr_cfg.clone(),
+          ))
           .await;
       }
       Done => {
@@ -181,7 +185,7 @@ fn run_cluster_coordinator_test(
       notify: tx,
       fail_map: fail_map,
       clr_cfg: clr_cfg,
-      hbr_cfg: hbr_cfg
+      hbr_cfg: hbr_cfg,
     },
     "coordinator".to_string(),
     true,
@@ -217,7 +221,7 @@ async fn execute_events(
   }
 }
 
-//#[test]
+#[test]
 #[allow(dead_code)]
 fn cluster_coordinator_test_infinite() {
   let spawn_delay = dur(200);
@@ -235,10 +239,11 @@ fn cluster_coordinator_test_infinite() {
     (Done, dur(0)),
   ];
   let mut fail = FailureConfigMap::default();
-  fail.cluster_wide.drop_prob = 0.25;
+  fail.cluster_wide.drop_prob = 0.5;
   fail.cluster_wide.delay =
     Some((Duration::from_millis(20), Duration::from_millis(50)));
-  let clr = ClusterConfig::default();
+  let mut clr = ClusterConfig::default();
+  clr.num_pings = 20;
   let hbr = HBRConfig::default();
   run_cluster_coordinator_test(false, events, fail, clr, hbr);
 }
