@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr,
+  ActorRef, Case, Destination, DestinationUntyped, LocalRef, MessageBuilder, Node, SerializedRecvr, SpecificInterface,
   UnifiedBounds,
 };
 use async_trait::async_trait;
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{fmt::Debug, marker::PhantomData};
+use std::fmt::Debug;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(
@@ -32,22 +32,22 @@ impl<U: UnifiedBounds> ActorName<U> {
 }
 
 #[async_trait]
-pub trait Actor<U: Case<Msg> + UnifiedBounds, Msg: Send> {
-  async fn pre_start(&mut self, _: &ActorContext<U, Msg>) {}
-  async fn recv(&mut self, ctx: &ActorContext<U, Msg>, msg: Msg);
-  async fn post_stop(&mut self, _: &ActorContext<U, Msg>) {}
+pub trait Actor<U: Case<S> + UnifiedBounds, S: Send + SpecificInterface<U>> {
+  async fn pre_start(&mut self, _: &ActorContext<U, S>) {}
+  async fn recv(&mut self, ctx: &ActorContext<U, S>, msg: S);
+  async fn post_stop(&mut self, _: &ActorContext<U, S>) {}
 }
 
 #[async_trait]
-pub trait TimeoutActor<U: Case<M> + UnifiedBounds, M: Send> {
-  async fn pre_start(&mut self, _: &ActorContext<U, M>) -> Option<Duration> {
+pub trait TimeoutActor<U: Case<S> + UnifiedBounds, S: Send + SpecificInterface<U>> {
+  async fn pre_start(&mut self, _: &ActorContext<U, S>) -> Option<Duration> {
     None
   }
-  async fn recv(&mut self, _: &ActorContext<U, M>, _: M) -> Option<Duration>;
-  async fn post_stop(&mut self, _: &ActorContext<U, M>) -> Option<Duration> {
+  async fn recv(&mut self, _: &ActorContext<U, S>, _: S) -> Option<Duration>;
+  async fn post_stop(&mut self, _: &ActorContext<U, S>) -> Option<Duration> {
     None
   }
-  async fn timeout(&mut self, _: &ActorContext<U, M>) -> Option<Duration>;
+  async fn timeout(&mut self, _: &ActorContext<U, S>) -> Option<Duration>;
 }
 
 pub(crate) enum ActorMsg<U, S> {
@@ -99,12 +99,20 @@ pub fn local_actor_msg_convert<S: From<I>, I>(
   }
 }
 
-pub struct ActorContext<U: Case<S> + UnifiedBounds, S> {
+pub struct ActorContext<U, S> 
+where
+  U: Case<S> + UnifiedBounds, 
+  S: 'static + Send + SpecificInterface<U>
+{
   pub(crate) tx: UnboundedSender<ActorMsg<U, S>>,
   pub name: ActorName<U>,
   pub node: Node<U>,
 }
-impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
+impl<U, S> ActorContext<U, S>
+where
+  U: Case<S> + UnifiedBounds, 
+  S: 'static + Send + SpecificInterface<U>
+{
   pub(in crate::core) fn create_local<T: Send>(
     sender: UnboundedSender<ActorMsg<U, S>>,
   ) -> LocalRef<T>
@@ -134,11 +142,7 @@ impl<U: Case<S> + UnifiedBounds, S: 'static + Send> ActorContext<U, S> {
   {
     ActorRef {
       socket: self.node.socket().clone(),
-      dest: Destination {
-        name: self.name.clone(),
-        interface: <U as Case<T>>::VARIANT,
-        x: PhantomData,
-      },
+      dest: Destination::new::<S>(self.name.name.clone()),
       local: Some(self.local_interface::<T>()),
     }
   }

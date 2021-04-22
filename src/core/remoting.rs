@@ -46,45 +46,58 @@ impl Socket {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct Destination<U: UnifiedBounds + Case<I>, I> {
+pub struct DestinationUntyped<U: UnifiedBounds> {
   pub name: ActorName<U>,
   pub interface: U,
+}
+
+#[derive(Eq, Deserialize, Serialize)]
+#[serde(bound = "U: Serialize + DeserializeOwned")]
+pub struct Destination<U: UnifiedBounds + Case<I>, I> {
+  pub untyped: DestinationUntyped<U>,
   pub x: PhantomData<I>,
 }
-impl<U: UnifiedBounds + Case<I>, I: Send> Destination<U, I> {
+impl<U: UnifiedBounds + Case<I>, I> Destination<U, I> {
   pub fn new<S>(s: String) -> Destination<U, I>
   where
     U: Case<S>,
     S: From<I> + SpecificInterface<U>,
   {
     Destination {
-      name: ActorName::new::<S>(s),
-      interface: <U as Case<I>>::VARIANT,
+      untyped: DestinationUntyped {
+        name: ActorName::new::<S>(s),
+        interface: <U as Case<I>>::VARIANT,
+      },
       x: PhantomData,
     }
+  }
+
+  pub fn name(&self) -> &ActorName<U> {
+    &self.untyped.name
+  }
+  
+  pub fn untyped(&self) -> &DestinationUntyped<U> {
+    &self.untyped
   }
 }
 impl<U: UnifiedBounds + Case<I>, I> Clone for Destination<U, I> {
   fn clone(&self) -> Self {
     Destination {
-      name: self.name.clone(),
-      interface: self.interface,
+      untyped: self.untyped.clone(),
       x: PhantomData,
     }
   }
 }
 impl<U: UnifiedBounds + Case<I>, I> PartialEq for Destination<U, I> {
   fn eq(&self, other: &Self) -> bool {
-    self.name == other.name && self.interface == other.interface
+    self.untyped == other.untyped
   }
 }
-impl<U: UnifiedBounds + Case<I>, I> Eq for Destination<U, I> {}
 impl<U: UnifiedBounds + Case<I>, I> Hash for Destination<U, I> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.name.hash(state);
-    self.interface.hash(state);
+    self.untyped.hash(state);
   }
 }
 impl<U: UnifiedBounds + Case<I>, I> Debug for Destination<U, I> {
@@ -92,7 +105,7 @@ impl<U: UnifiedBounds + Case<I>, I> Debug for Destination<U, I> {
     f.debug_struct("ActorRef")
       .field("Unified", &std::any::type_name::<U>())
       .field("Interface", &std::any::type_name::<I>())
-      .field("name", &self.name)
+      .field("name", &self.untyped)
       .finish()
   }
 }

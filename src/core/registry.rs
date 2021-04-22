@@ -1,6 +1,6 @@
 use crate as aurum;
 use crate::core::{
-  deserialize, Actor, ActorContext, ActorName, Destination, MessageBuilder,
+  deserialize, Actor, ActorContext, ActorName, Destination, DestinationUntyped, MessageBuilder,
   UnifiedBounds,
 };
 use async_trait::async_trait;
@@ -38,9 +38,9 @@ impl<U: UnifiedBounds> Actor<U, RegistryMsg<U>> for Registry<U> {
     match msg {
       RegistryMsg::Forward(msg_builder) => {
         let _packets = msg_builder.max_seq_num;
-        let Destination {
-          name, interface, ..
-        } = deserialize::<Destination<U, _>>(msg_builder.dest()).unwrap();
+        let DestinationUntyped {
+          name, interface
+        } = deserialize::<DestinationUntyped<U>>(msg_builder.dest()).unwrap();
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);

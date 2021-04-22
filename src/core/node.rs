@@ -3,6 +3,7 @@ use crate::core::{
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
   RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
 };
+use crate::testkit::{Logger, LoggerMsg, LogLevel};
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,6 +14,7 @@ use tokio::task::JoinHandle;
 struct NodeImpl<U: UnifiedBounds> {
   socket: Socket,
   registry: LocalRef<RegistryMsg<U>>,
+  logger: LocalRef<LoggerMsg>,
   rt: Runtime,
 }
 
@@ -31,10 +33,12 @@ impl<U: UnifiedBounds> Node<U> {
       .build()?;
     let (reg, reg_node_tx) =
       Self::start_codependent(&rt, Registry::new(), "registry".to_string());
+    //let (log, log_node_tx) = Self::start_codependent(&rt, Logger::new(LogLevel::Trace), "registry".to_string());
     let node = Node {
       node: Arc::new(NodeImpl {
         socket: socket,
         registry: reg,
+        logger: LocalRef::void(),
         rt: rt,
       }),
     };
@@ -42,6 +46,7 @@ impl<U: UnifiedBounds> Node<U> {
       .send(node.clone())
       .map_err(|_| Error::new(ErrorKind::NotFound, "Registry"))?;
     node.node.rt.spawn(udp_receiver::<U>(node.clone()));
+    
     Ok(node)
   }
 

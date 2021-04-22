@@ -66,7 +66,7 @@ impl MessagePackets {
   ) -> MessagePackets {
     let mut ser = serialize(item).unwrap();
     let msg_size = ser.len();
-    ser.append(&mut serialize(dest).unwrap());
+    ser.append(&mut serialize(dest.untyped()).unwrap());
     MessagePackets {
       msg_size: msg_size as u32,
       dest_size: (ser.len() - msg_size) as u16,

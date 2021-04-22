@@ -19,10 +19,13 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     aurum::cluster::ClusterMsg<#unified>
   });
   specifics.push(quote! {
+    aurum::cluster::HeartbeatReceiverMsg
+  });
+  specifics.push(quote! {
     aurum::cluster::IntraClusterMsg<#unified>
   });
   specifics.push(quote! {
-    aurum::cluster::HeartbeatReceiverMsg
+    aurum::testkit::LoggerMsg
   });
   let variants = std::iter::repeat(('A'..='B').collect::<Vec<_>>())
     .take((specifics.len() as f64).log(1.9).ceil() as usize)

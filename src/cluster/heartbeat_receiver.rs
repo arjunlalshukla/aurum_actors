@@ -63,7 +63,7 @@ where
           state: HBRState::Initial(common.hbr_config.req_tries),
           config: common.hbr_config.clone(),
         },
-        Self::from_clr(common.clr_dest.name.name.as_str(), cid),
+        Self::from_clr(common.clr_dest.name().name.as_str(), cid),
         true,
         common.hbr_config.req_timeout,
       )
@@ -194,12 +194,10 @@ where
           storage.stdev(),
           storage.mean()
         );
-        //self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
         (
           Some(self.config.req_timeout),
           Some(HBRState::Initial(self.config.req_tries)),
         )
-        //(Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
       }
       HBRState::Initial(ref mut reqs_left) => {
         *reqs_left -= 1;

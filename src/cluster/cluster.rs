@@ -459,7 +459,7 @@ impl<U: UnifiedBounds> NodeState<U> {
     });
     self.hbr_dest = Destination::new::<HeartbeatReceiverMsg>(
       HeartbeatReceiver::<U>::from_clr(
-        self.clr_dest.name.name.as_str(),
+        self.clr_dest.name().name.as_str(),
         self.member.id,
       ),
     );

@@ -1,12 +1,13 @@
+use crate::core::{
+  ActorRef, DeserializeError, Destination, Interpretations, LocalActorMsg,
+  RegistryMsg, Socket,
+};
+use crate::testkit::LoggerMsg;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::core::{
-  ActorRef, DeserializeError, Destination, Interpretations, LocalActorMsg,
-  RegistryMsg, Socket,
-};
 pub trait UnifiedBounds:
   'static
   + Send
@@ -23,6 +24,7 @@ pub trait UnifiedBounds:
   + PartialOrd
   + Ord
   + Case<RegistryMsg<Self>>
+  + Case<LoggerMsg>
 {
 }
 impl<T> UnifiedBounds for T where
@@ -41,6 +43,7 @@ impl<T> UnifiedBounds for T where
     + PartialOrd
     + Ord
     + Case<RegistryMsg<Self>>
+    + Case<LoggerMsg>
 {
 }
 
