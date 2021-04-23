@@ -1,5 +1,5 @@
 use crate::core::Socket;
-use im::HashMap;
+use im;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -18,7 +18,7 @@ pub struct FailureConfig {
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct FailureConfigMap {
   pub cluster_wide: FailureConfig,
-  pub node_wide: HashMap<Socket, FailureConfig>,
+  pub node_wide: im::HashMap<Socket, FailureConfig>,
 }
 impl FailureConfigMap {
   pub fn get(&self, socket: &Socket) -> &FailureConfig {

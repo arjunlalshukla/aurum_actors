@@ -40,13 +40,13 @@ pub enum LogSpecial {
 #[derive(AurumInterface)]
 #[aurum(local)]
 pub enum LoggerMsg {
-  Log(
-    LogLevel,
-    &'static str,
-    u32,
-    u32,
-    Box<dyn Display + Send + 'static>,
-  ),
+  Log {
+    level: LogLevel,
+    file: &'static str,
+    line: u32,
+    column: u32,
+    msg: Box<dyn Display + Send + 'static>,
+  },
   SetLevel(LogLevel),
   Special(LogSpecial),
 }
@@ -69,7 +69,13 @@ impl Logger {
 impl<U: Case<LoggerMsg> + UnifiedBounds> Actor<U, LoggerMsg> for Logger {
   async fn recv(&mut self, ctx: &ActorContext<U, LoggerMsg>, msg: LoggerMsg) {
     match msg {
-      Log(level, file, line, column, log) => {
+      Log {
+        level,
+        file,
+        line,
+        column,
+        msg: log,
+      } => {
         if level >= self.level {
           println!(
             "{} {}:{}:{} - port {} - {}",
@@ -95,13 +101,13 @@ impl<U: Case<LoggerMsg> + UnifiedBounds> Actor<U, LoggerMsg> for Logger {
 macro_rules! log {
   ($env_level:expr, $node:expr, $msg_level:expr, $msg:expr) => {
     if $msg_level >= $env_level {
-      $node.log(aurum::testkit::LoggerMsg::Log(
-        $msg_level,
-        std::file!(),
-        std::line!(),
-        std::column!(),
-        std::boxed::Box::new($msg),
-      ));
+      $node.log(aurum::testkit::LoggerMsg::Log {
+        level: $msg_level,
+        file: std::file!(),
+        line: std::line!(),
+        column: std::column!(),
+        msg: std::boxed::Box::new($msg),
+      });
     }
   };
 }

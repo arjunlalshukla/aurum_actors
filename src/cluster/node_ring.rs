@@ -1,21 +1,23 @@
 use crate::cluster::Member;
 #[cfg(test)]
 use crate::core::{Host, Socket};
+use im;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use std::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use wyhash::{wyrng, WyHash};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct NodeRing {
-  ring: BTreeMap<u64, (bool, Arc<Member>)>,
+  ring: im::OrdMap<u64, (bool, Arc<Member>)>,
   rep_factor: usize,
 }
 impl NodeRing {
   pub fn new(rep_factor: usize) -> NodeRing {
     NodeRing {
-      ring: BTreeMap::new(),
+      ring: im::OrdMap::new(),
       rep_factor: rep_factor,
     }
   }

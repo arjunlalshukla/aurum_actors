@@ -1,8 +1,8 @@
 use crate as aurum;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
-  HeartbeatReceiverMsg, MachineState, Member, NodeRing, UnifiedBounds,
-  FAILURE_MODE, LOG_LEVEL,
+  HeartbeatReceiverMsg, MachineState, Member, NodeRing, Subscriber,
+  UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
@@ -10,8 +10,10 @@ use crate::core::{
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
+use im;
 use itertools::Itertools;
 use maplit::{btreemap, hashset};
+use odds::vec::VecExt;
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::Entry;
@@ -45,7 +47,7 @@ pub enum IntraClusterMsg<U: UnifiedBounds> {
 }
 
 pub enum ClusterCmd {
-  Subscribe(LocalRef<ClusterEvent>),
+  Subscribe(Subscriber),
   FailureMap(FailureConfigMap),
 }
 
@@ -53,6 +55,7 @@ struct InCluster {
   charges: HashMap<Arc<Member>, LocalRef<HeartbeatReceiverMsg>>,
   managers: Vec<Arc<Member>>,
   gossip: Gossip,
+  members: im::HashSet<Arc<Member>>,
   ring: NodeRing,
   gossip_timeout: JoinHandle<bool>,
 }
@@ -69,6 +72,7 @@ impl InCluster {
       gossip: Gossip {
         states: btreemap! {common.member.clone() => Up},
       },
+      members: im::hashset![common.member.clone()],
       ring: ring,
       gossip_timeout: ctx.node.rt().spawn(async { true }),
     }
@@ -120,8 +124,8 @@ impl InCluster {
         self.gossip_timeout.abort();
         let events = self.gossip.merge(gossip);
         let disperse = !events.is_empty();
-        for e in events {
-          match &e {
+        for e in &events {
+          match e {
             ClusterEvent::Added(member) => {
               self.ring.insert(member.clone());
             }
@@ -141,8 +145,8 @@ impl InCluster {
             }
             _ => {}
           }
-          common.notify(e);
         }
+        self.notify(common, events);
         if disperse {
           self.gossip_round(common, ctx, hashset!()).await;
         }
@@ -158,7 +162,7 @@ impl InCluster {
         );
         if let Entry::Vacant(v) = self.gossip.states.entry(member.clone()) {
           v.insert(Up);
-          common.notify(ClusterEvent::Added(member.clone()));
+          self.notify(common, vec![ClusterEvent::Added(member.clone())]);
           self.ring.insert(member.clone());
           self.update_charges_managers(common, ctx);
         } else {
@@ -349,8 +353,30 @@ impl InCluster {
       self.ring.remove(&member).unwrap();
       self.update_charges_managers(common, ctx);
       self.gossip_round(common, ctx, hashset!(&member)).await;
-      common.notify(ClusterEvent::Removed(member));
+      self.notify(common, vec![ClusterEvent::Removed(member)]);
     }
+  }
+
+  fn notify<U: UnifiedBounds>(
+    &self,
+    common: &mut NodeState<U>,
+    events: Vec<ClusterEvent>,
+  ) {
+    common.subscribers.retain_mut(|mut subr| {
+      subr.events = subr.events.take().filter(|a| {
+        events.iter().all(|e| {
+          if !subr.ends_only || e.end() {
+            a.send(e.clone())
+          } else {
+            true
+          }
+        })
+      });
+      subr.members =
+        subr.members.take().filter(|a| a.send(self.members.clone()));
+      subr.ring = subr.ring.take().filter(|a| a.send(self.ring.clone()));
+      subr.events.is_some() || subr.members.is_some() || subr.ring.is_some()
+    })
   }
 }
 
@@ -429,7 +455,6 @@ impl Pinging {
         if me.is_none() || downed {
           gossip.states.insert(common.member.clone(), Up);
         }
-        common.notify(ClusterEvent::Joined(common.member.clone()));
         let mut ring = NodeRing::new(common.clr_config.replication_factor);
         gossip
           .states
@@ -441,11 +466,13 @@ impl Pinging {
           charges: HashMap::new(),
           managers: Vec::new(),
           gossip: gossip,
+          members: im::HashSet::new(),
           ring: ring,
           gossip_timeout: common.schedule_gossip_timeout(ctx),
         };
         ic.update_charges_managers(common, ctx);
         ic.gossip_round(common, ctx, hashset!()).await;
+        ic.notify(common, vec![ClusterEvent::Joined(common.member.clone())]);
         debug!(
           LOG_LEVEL,
           ctx.node,
@@ -495,17 +522,13 @@ pub(crate) struct NodeState<U: UnifiedBounds> {
   pub member: Arc<Member>,
   pub clr_dest: Destination<U, IntraClusterMsg<U>>,
   pub hbr_dest: Destination<U, HeartbeatReceiverMsg>,
-  pub subscribers: Vec<LocalRef<ClusterEvent>>,
+  pub subscribers: Vec<Subscriber>,
   pub fail_map: FailureConfigMap,
   pub hb_interval_changes: u32,
   pub clr_config: ClusterConfig,
   pub hbr_config: HBRConfig,
 }
 impl<U: UnifiedBounds> NodeState<U> {
-  fn notify(&mut self, event: ClusterEvent) {
-    self.subscribers.retain(|s| s.send(event.clone()));
-  }
-
   fn new_id(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     let old_id = self.member.id;
     self.member = Arc::new(Member {
@@ -645,7 +668,7 @@ impl<U: UnifiedBounds> Cluster<U> {
     node: &Node<U>,
     name: String,
     vnodes: u32,
-    subrs: Vec<LocalRef<ClusterEvent>>,
+    subrs: Vec<Subscriber>,
     fail_map: FailureConfigMap,
     clr_config: ClusterConfig,
     hbr_config: HBRConfig,
@@ -679,10 +702,9 @@ impl<U: UnifiedBounds> Cluster<U> {
   }
 
   fn create_cluster(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    self
-      .common
-      .notify(ClusterEvent::Alone(self.common.member.clone()));
-    self.state =
-      InteractionState::InCluster(InCluster::alone(&self.common, ctx));
+    let ic = InCluster::alone(&self.common, ctx);
+    let mem = self.common.member.clone();
+    ic.notify(&mut self.common, vec![ClusterEvent::Alone(mem)]);
+    self.state = InteractionState::InCluster(ic);
   }
 }

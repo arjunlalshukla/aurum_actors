@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aurum::cluster::{Cluster, ClusterCmd};
+use aurum::cluster::{Cluster, ClusterCmd, Subscriber};
 use aurum::core::{
   forge, Actor, ActorContext, ActorRef, Host, LocalRef, Node, Socket,
 };
@@ -42,7 +42,12 @@ impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
             &ctx.node,
             "test".to_string(),
             3,
-            vec![ctx.local_interface()],
+            vec![Subscriber {
+              events: Some(ctx.local_interface()),
+              ends_only: false,
+              members: None,
+              ring: None,
+            }],
             map.clone(),
             clr,
             hbr,

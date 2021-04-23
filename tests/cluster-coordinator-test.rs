@@ -221,7 +221,7 @@ async fn execute_events(
   }
 }
 
-#[test]
+//#[test]
 #[allow(dead_code)]
 fn cluster_coordinator_test_infinite() {
   let spawn_delay = dur(200);

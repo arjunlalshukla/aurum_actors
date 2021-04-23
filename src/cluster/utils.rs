@@ -1,10 +1,13 @@
 use crate as aurum;
-use crate::cluster::{ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg};
-use crate::core::{Case, Socket};
+use crate::cluster::{
+  ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg, NodeRing,
+};
+use crate::core::{Case, LocalRef, Socket};
 use crate::AurumInterface;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
+use ClusterEvent::*;
 
 pub trait UnifiedBounds:
   crate::core::UnifiedBounds
@@ -97,6 +100,11 @@ pub enum ClusterEvent {
   Removed(Arc<Member>),
   Left,
 }
+impl ClusterEvent {
+  pub fn end(&self) -> bool {
+    matches!(self, Alone(_) | Joined(_) | Left)
+  }
+}
 
 #[derive(Serialize, Deserialize, Hash, Eq, Clone, Ord, PartialOrd, Debug)]
 pub struct Member {
@@ -115,4 +123,11 @@ impl PartialEq for Member {
     }
     self.vnodes == other.vnodes
   }
+}
+
+pub struct Subscriber {
+  pub events: Option<LocalRef<ClusterEvent>>,
+  pub members: Option<LocalRef<im::HashSet<Arc<Member>>>>,
+  pub ring: Option<LocalRef<NodeRing>>,
+  pub ends_only: bool,
 }

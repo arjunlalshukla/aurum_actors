@@ -14,7 +14,8 @@ itertools = "*"
 linked-hash-map = "*"
 maplit = "*"
 num_enum = "*"
-rand = {version = "*", features = ["alloc", "small_rng"] }
+odds = { version = "*", features = ["std-vec"] }
+rand = { version = "*", features = ["alloc", "small_rng"] }
 rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
