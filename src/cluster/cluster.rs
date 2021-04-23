@@ -128,18 +128,22 @@ impl InCluster {
           match e {
             ClusterEvent::Added(member) => {
               self.ring.insert(member.clone());
+              self.members.insert(member.clone());
             }
             ClusterEvent::Removed(member) => {
-              if let Err(_) = self.ring.remove(&*member) {
+              if self.ring.remove(&*member).is_err()
+                || self.members.remove(member).is_none()
+              {
                 trace!(
                   LOG_LEVEL,
                   ctx.node,
-                  format!("failed to remove {} from ring", member.socket.udp)
+                  format!("failed to remove {:?}", member)
                 );
               }
               if *member == common.member {
                 common.new_id(ctx);
                 self.ring.insert(common.member.clone());
+                self.members.insert(member.clone());
                 self.gossip.states.insert(common.member.clone(), Up);
               }
             }
@@ -164,6 +168,7 @@ impl InCluster {
           v.insert(Up);
           self.notify(common, vec![ClusterEvent::Added(member.clone())]);
           self.ring.insert(member.clone());
+          self.members.insert(member.clone());
           self.update_charges_managers(common, ctx);
         } else {
           info!(LOG_LEVEL, ctx.node, format!("pinger already exists"));
@@ -254,14 +259,11 @@ impl InCluster {
     self.charges.keys().for_each(|m| {
       guaranteed.insert(m);
     });
+    guaranteed.insert(&common.member);
     self
-      .gossip
-      .states
+      .members
       .iter()
-      .filter(|(m, s)| {
-        (**m) != common.member && s < &&Down && !guaranteed.contains(*m)
-      })
-      .map(|(m, _)| m)
+      .filter(|m| !guaranteed.contains(*m))
       .choose_multiple(
         &mut rand::thread_rng(),
         common.clr_config.gossip_disperse,
@@ -270,6 +272,7 @@ impl InCluster {
       .for_each(|m| {
         guaranteed.insert(m);
       });
+    guaranteed.remove(&common.member);
     debug!(
       LOG_LEVEL,
       ctx.node,
@@ -309,12 +312,10 @@ impl InCluster {
           .collect_vec()
       )
     );
-    let members = self
-      .gossip
-      .states
+    let recipients = self
+      .members
       .iter()
-      .filter(|(m, s)| (**m) != common.member && s < &&Down)
-      .map(|(m, _)| m)
+      .filter(|m| (**m) != common.member)
       .choose_multiple(
         &mut rand::thread_rng(),
         common.clr_config.gossip_disperse,
@@ -326,10 +327,10 @@ impl InCluster {
       ctx.node,
       format!(
         "gossip reqs sent to: {:?}",
-        members.iter().map(|m| m.socket.udp).collect_vec()
+        recipients.iter().map(|m| m.socket.udp).collect_vec()
       )
     );
-    for member in members {
+    for member in recipients {
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
@@ -351,6 +352,7 @@ impl InCluster {
     if *state == Up {
       *state = Down;
       self.ring.remove(&member).unwrap();
+      self.members.remove(&member).unwrap();
       self.update_charges_managers(common, ctx);
       self.gossip_round(common, ctx, hashset!(&member)).await;
       self.notify(common, vec![ClusterEvent::Removed(member)]);
@@ -456,17 +458,21 @@ impl Pinging {
           gossip.states.insert(common.member.clone(), Up);
         }
         let mut ring = NodeRing::new(common.clr_config.replication_factor);
+        let mut members = im::HashSet::new();
         gossip
           .states
           .iter()
           .filter(|(_, s)| s < &&Down)
           .map(|(m, _)| m.clone())
-          .for_each(|member| ring.insert(member));
+          .for_each(|member| {
+            ring.insert(member.clone());
+            members.insert(member);
+          });
         let mut ic = InCluster {
           charges: HashMap::new(),
           managers: Vec::new(),
           gossip: gossip,
-          members: im::HashSet::new(),
+          members: members,
           ring: ring,
           gossip_timeout: common.schedule_gossip_timeout(ctx),
         };

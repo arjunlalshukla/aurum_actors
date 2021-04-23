@@ -60,17 +60,18 @@ async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
   T: Serialize + DeserializeOwned,
 {
   let fail_cfg = fail_map.get(socket);
+  let addrs = socket.as_udp_addr().await.unwrap();
+  let addr = addrs.into_iter().exactly_one().unwrap();
+  let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+    .await
+    .unwrap();
+  let packets = MessagePackets::new(msg, intp, dest);
+  let dur = fail_cfg.delay.map(|(min, max)| {
+    let range = min.as_millis()..=max.as_millis();
+    Duration::from_millis(SmallRng::from_entropy().gen_range(range) as u64)
+  });
+  // We need to to the serialization work, even if the send fails.
   if rand::random::<f64>() >= fail_cfg.drop_prob {
-    let addrs = socket.as_udp_addr().await.unwrap();
-    let addr = addrs.into_iter().exactly_one().unwrap();
-    let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-      .await
-      .unwrap();
-    let packets = MessagePackets::new(msg, intp, dest);
-    let dur = fail_cfg.delay.map(|(min, max)| {
-      let range = min.as_millis()..=max.as_millis();
-      Duration::from_millis(SmallRng::from_entropy().gen_range(range) as u64)
-    });
     if let Some(dur) = dur {
       node.rt().spawn(async move {
         sleep(dur).await;
