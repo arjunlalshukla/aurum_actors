@@ -1,6 +1,7 @@
 use crate::testkit::{FailureMode, LogLevel};
 mod cluster;
-
+pub mod crdt;
+pub mod devices;
 mod gossip;
 mod heartbeat_receiver;
 mod interval_storage;

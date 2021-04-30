@@ -1,6 +1,8 @@
+use crate as aurum;
 use crate::core::{
-  DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds,
+  DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds, LOG_LEVEL,
 };
+use crate::fatal;
 use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::net::Ipv4Addr;
@@ -13,16 +15,26 @@ const MSG_TIMEOUT: Duration = Duration::from_millis(1000);
 
 pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
   let mut recvd = HashMap::<u64, (JoinHandle<()>, MessageBuilder)>::new();
-  let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp))
-    .await
-    .unwrap();
+  let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp)).await;
+  let udp = match udp {
+    Ok(u) => u,
+    Err(error) => {
+      fatal!(
+        LOG_LEVEL,
+        &node,
+        format!("Could not bind to UDP port. Error: {}", error)
+      );
+      return;
+    }
+  };
   let (tx, mut rx) = unbounded_channel::<u64>();
   let mut header_buf = [0u8; DatagramHeader::SIZE];
   loop {
     tokio::select! {
       res = udp.peek_from(&mut header_buf[..]) => {
         if res.is_err() {
-          panic!("UDP peek failed!");
+          fatal!(LOG_LEVEL, &node, format!("UDP socket read failed"));
+          return;
         }
         let header = match DatagramHeader::try_from(&header_buf[..]) {
           Ok(h) => h,
