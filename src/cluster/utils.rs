@@ -2,9 +2,10 @@ use crate as aurum;
 use crate::cluster::{
   ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg, NodeRing,
 };
-use crate::core::{Case, LocalRef, Socket};
+use crate::core::{Case, Host, LocalRef, Socket};
 use crate::AurumInterface;
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::Duration;
 use ClusterEvent::*;
@@ -122,6 +123,19 @@ impl PartialEq for Member {
       return false;
     }
     self.vnodes == other.vnodes
+  }
+}
+impl Default for Member {
+  fn default() -> Self {
+    Member {
+      socket: Socket::new(
+        Host::IP(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
+        0,
+        0,
+      ),
+      id: 0,
+      vnodes: 0,
+    }
   }
 }
 

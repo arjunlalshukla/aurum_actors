@@ -3,9 +3,18 @@ use std::hash::Hash;
 
 pub trait CRDT
 where
-  Self: Clone + DeserializeOwned + Hash + Serialize + Sized,
+  Self: Clone
+    + DeserializeOwned
+    + Eq
+    + PartialEq
+    + Hash
+    + Send
+    + Serialize
+    + Sized
+    + Sync
+    + 'static,
 {
-  type Delta: DeltaMutator<Self>;
+  type Delta: DeltaMutator<Self> + Send;
   fn delta(&self, changes: &Self::Delta) -> Self;
   fn empty(&self) -> bool;
   fn join(self, other: Self) -> Self;
@@ -17,3 +26,5 @@ pub trait DeltaMutator<T> {
 }
 
 mod causal;
+
+pub use {causal::CausalCmd, causal::CausalDisperse};
