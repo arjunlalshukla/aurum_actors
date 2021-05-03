@@ -26,5 +26,6 @@ pub trait DeltaMutator<T> {
 }
 
 mod causal;
+mod test_crdt;
 
 pub use {causal::CausalCmd, causal::CausalDisperse};

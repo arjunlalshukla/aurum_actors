@@ -1,7 +1,10 @@
 #![allow(unused_imports, dead_code)]
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT};
-use crate::cluster::{ClusterCmd, Member, UnifiedBounds, FAILURE_MODE};
+use crate::cluster::{
+  ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, UnifiedBounds,
+  FAILURE_MODE,
+};
 use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node};
 use crate::testkit::FailureConfigMap;
 use crate::{udp_select, AurumInterface};
@@ -10,7 +13,10 @@ use im;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::iter::FromIterator;
+use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Duration;
 
 /*
 This dispersal algorithm is based on algorithm 2 from
@@ -25,6 +31,9 @@ pub enum CausalMsg<S: CRDT> {
   Cmd(CausalCmd<S>),
   #[aurum]
   Intra(CausalIntraMsg<S>),
+  #[aurum(local)]
+  Update(ClusterUpdate),
+  DisperseTimeout,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,6 +53,7 @@ pub struct DispersalPreference {
   priority: im::HashSet<Arc<Member>>,
   amount: u32,
   selector: DispersalSelector,
+  timeout: Duration,
 }
 
 pub enum DispersalSelector {
@@ -51,18 +61,12 @@ pub enum DispersalSelector {
   //Random
 }
 
-pub struct CausalDisperse<S, U>
+struct InCluster<S, U>
 where
   U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
-  dest: Destination<U, CausalIntraMsg<S>>,
-  fail_map: FailureConfigMap,
-  subscribers: Vec<LocalRef<S>>,
-  preference: DispersalPreference,
-  cluster_ref: LocalRef<ClusterCmd>,
-
-  state: S,
+  data: S,
   clock: u64,
   member: Arc<Member>,
   cluster: im::HashSet<Arc<Member>>,
@@ -70,59 +74,43 @@ where
   acks: im::HashMap<u64, (Arc<Member>, u64)>,
   ord_acks: im::Vector<(u64, u64)>,
   min_ord: u64,
+  x: PhantomData<U>,
 }
-impl<S, U> CausalDisperse<S, U>
+impl<S, U> InCluster<S, U>
 where
   U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
-  pub fn new(
-    node: &Node<U>,
-    name: String,
-    fail_map: FailureConfigMap,
-    subscribers: Vec<LocalRef<S>>,
-    preference: DispersalPreference,
-    cluster_ref: LocalRef<ClusterCmd>,
+  async fn disperse(
+    &mut self,
+    common: &Common<S, U>,
+    ctx: &ActorContext<U, CausalMsg<S>>,
   ) {
-    let actor = Self {
-      dest: Destination::new::<CausalMsg<S>>(name.clone()),
-      fail_map: fail_map,
-      subscribers: subscribers,
-      preference: preference,
-      cluster_ref: cluster_ref,
-      state: S::minimum(),
-      clock: 0,
-      member: Arc::new(Member::default()),
-      cluster: im::hashset!(),
-      deltas: VecDeque::new(),
-      acks: im::hashmap!(),
-      ord_acks: im::vector!(),
-      min_ord: 0,
-    };
-    node.spawn(false, actor, name, true);
-  }
-
-  async fn disperse(&mut self, ctx: &ActorContext<U, CausalMsg<S>>) {
-    let to_send = match self.preference.selector {
+    let to_send = match common.preference.selector {
       DispersalSelector::OutOfDate => self
         .ord_acks
         .iter()
         .map(|(_, id)| &self.acks.get(id).unwrap().0)
-        .filter(|member| !self.preference.priority.contains(*member))
-        .take(self.preference.amount as usize),
+        .filter(|member| !common.preference.priority.contains(*member))
+        .take(common.preference.amount as usize),
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
-    for member in self.preference.priority.iter().chain(to_send) {
+    for member in common.preference.priority.iter().chain(to_send) {
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
-        &self.fail_map,
+        &common.fail_map,
         &member.socket,
-        &self.dest,
+        &common.dest,
         &msg
       );
     }
+    ctx.node.schedule_local_msg(
+      common.preference.timeout,
+      ctx.local_interface(),
+      CausalMsg::DisperseTimeout,
+    );
   }
 
   fn ack(&mut self, id: u64, clock: u64) {
@@ -141,27 +129,28 @@ where
     self.min_ord = new_min;
   }
 
-  fn op(&mut self, op: S::Delta) {
-    let d = op.apply(&self.state);
-    self.state = self.state.clone().join(d.clone());
+  async fn op(
+    &mut self,
+    common: &Common<S, U>,
+    ctx: &ActorContext<U, CausalMsg<S>>,
+    op: S::Delta,
+  ) {
+    let d = op.apply(&self.data);
+    self.data = self.data.clone().join(d.clone());
     self.deltas.push_back(d);
     self.clock += 1;
+    self.disperse(common, ctx).await;
   }
 
   async fn delta(
     &mut self,
+    common: &Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
     delta: S,
     id: u64,
     clock: u64,
   ) {
     if let Some(socket) = self.acks.get(&id).map(|x| &x.0.socket) {
-      let new_state = self.state.clone().join(delta.clone());
-      if new_state != self.state {
-        self.state = new_state;
-        self.deltas.push_back(delta);
-        self.clock += 1;
-      }
       let msg = CausalIntraMsg::Ack {
         id: self.member.id,
         clock: clock,
@@ -169,12 +158,113 @@ where
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
-        &self.fail_map,
+        &common.fail_map,
         socket,
-        &self.dest,
+        &common.dest,
         &msg
       );
+      let new_state = self.data.clone().join(delta.clone());
+      if new_state != self.data {
+        self.data = new_state;
+        self.deltas.push_back(delta);
+        self.clock += 1;
+        self.disperse(common, ctx).await;
+      }
     }
+  }
+
+  fn update(&mut self, update: ClusterUpdate) {
+    match update.event {
+      ClusterEvent::Alone(m) => self.member = m,
+      ClusterEvent::Joined(m) => self.member = m,
+      _ => (),
+    }
+    self.cluster = update.nodes;
+    self.cluster.remove(&self.member);
+  }
+}
+
+struct Waiting<S: CRDT> {
+  ops_queue: Vec<S::Delta>,
+}
+impl<S: CRDT> Waiting<S> {
+  fn to_ic<U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>>(
+    &self,
+    member: Arc<Member>,
+    mut nodes: im::HashSet<Arc<Member>>,
+  ) -> InCluster<S, U> {
+    let init_data = self.ops_queue.iter().fold(S::minimum(), |data, op| {
+      let delta = op.apply(&data);
+      data.join(delta)
+    });
+    nodes.remove(&member);
+    InCluster {
+      data: init_data.clone(),
+      clock: 1,
+      deltas: VecDeque::from(vec![init_data]),
+      member: member,
+      acks: nodes.iter().map(|m| (m.id, (m.clone(), 0))).collect(),
+      ord_acks: nodes.iter().map(|m| (0, m.id)).sorted().collect(),
+      cluster: nodes,
+      min_ord: 0,
+      x: PhantomData,
+    }
+  }
+}
+
+enum InteractionState<S, U>
+where
+  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  S: CRDT,
+{
+  InCluster(InCluster<S, U>),
+  Waiting(Waiting<S>),
+}
+
+struct Common<S, U>
+where
+  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  S: CRDT,
+{
+  dest: Destination<U, CausalIntraMsg<S>>,
+  fail_map: FailureConfigMap,
+  subscribers: Vec<LocalRef<S>>,
+  preference: DispersalPreference,
+  cluster_ref: LocalRef<ClusterCmd>,
+}
+
+pub struct CausalDisperse<S, U>
+where
+  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  S: CRDT,
+{
+  common: Common<S, U>,
+  state: InteractionState<S, U>,
+}
+impl<S, U> CausalDisperse<S, U>
+where
+  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  S: CRDT,
+{
+  pub fn new(
+    node: &Node<U>,
+    name: String,
+    fail_map: FailureConfigMap,
+    subscribers: Vec<LocalRef<S>>,
+    preference: DispersalPreference,
+    cluster_ref: LocalRef<ClusterCmd>,
+  ) {
+    let actor = Self {
+      common: Common {
+        dest: Destination::new::<CausalMsg<S>>(name.clone()),
+        fail_map: fail_map,
+        subscribers: subscribers,
+        preference: preference,
+        cluster_ref: cluster_ref,
+      },
+      state: InteractionState::Waiting(Waiting { ops_queue: vec![] }),
+    };
+    node.spawn(false, actor, name, true);
   }
 }
 #[async_trait]
@@ -184,8 +274,10 @@ where
   S: CRDT,
 {
   async fn pre_start(&mut self, ctx: &ActorContext<U, CausalMsg<S>>) {
-    //let subr = S
-    //self.cluster_ref.send(ClusterCmd::Subscribe(ctx.local_interface()));
+    self
+      .common
+      .cluster_ref
+      .send(ClusterCmd::Subscribe(ctx.local_interface()));
   }
 
   async fn recv(
@@ -195,20 +287,45 @@ where
   ) {
     match msg {
       CausalMsg::Cmd(cmd) => match cmd {
-        CausalCmd::Mutate(op) => self.op(op),
+        CausalCmd::Mutate(op) => match &mut self.state {
+          InteractionState::InCluster(ic) => ic.op(&self.common, ctx, op).await,
+          InteractionState::Waiting(w) => w.ops_queue.push(op),
+        },
         CausalCmd::Subscribe(subr) => {
-          self.subscribers.push(subr);
+          self.common.subscribers.push(subr);
         }
         CausalCmd::SetDispersalPreference(pref) => {
-          self.preference = pref;
+          self.common.preference = pref;
         }
       },
-      CausalMsg::Intra(intra) => match intra {
-        CausalIntraMsg::Ack { id, clock } => self.ack(id, clock),
-        CausalIntraMsg::Delta(delta, id, clock) => {
-          self.delta(ctx, delta, id, clock).await
+      CausalMsg::Intra(intra) => {
+        if let InteractionState::InCluster(ic) = &mut self.state {
+          match intra {
+            CausalIntraMsg::Ack { id, clock } => ic.ack(id, clock),
+            CausalIntraMsg::Delta(delta, id, clock) => {
+              ic.delta(&self.common, ctx, delta, id, clock).await
+            }
+          }
+        }
+      }
+      CausalMsg::Update(update) => match &mut self.state {
+        InteractionState::InCluster(ic) => ic.update(update),
+        InteractionState::Waiting(w) => {
+          let ic = match update.event {
+            ClusterEvent::Alone(m) => w.to_ic(m, update.nodes),
+            ClusterEvent::Joined(m) => w.to_ic(m, update.nodes),
+            _ => unreachable!(),
+          };
+          self.state = InteractionState::InCluster(ic);
         }
       },
+      CausalMsg::DisperseTimeout => {
+        if let InteractionState::InCluster(ic) = &mut self.state {
+          if ic.min_ord != ic.clock {
+            ic.disperse(&self.common, ctx).await;
+          }
+        }
+      }
     };
   }
 }

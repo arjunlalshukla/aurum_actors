@@ -107,9 +107,7 @@ impl ClusterEvent {
   }
 }
 
-#[derive(
-  Clone, Serialize, Deserialize,
-)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ClusterUpdate {
   pub event: ClusterEvent,
   pub nodes: im::HashSet<Arc<Member>>,

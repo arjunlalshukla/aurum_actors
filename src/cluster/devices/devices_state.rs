@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::cluster::crdt::{DeltaMutator, CRDT};
 #[cfg(test)]
 use crate::core::Host;

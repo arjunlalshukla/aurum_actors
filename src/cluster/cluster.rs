@@ -1,7 +1,7 @@
 use crate as aurum;
 use crate::cluster::{
-  ClusterConfig, ClusterEvent, ClusterUpdate, Gossip, HBRConfig, HeartbeatReceiver,
-  HeartbeatReceiverMsg, MachineState, Member, NodeRing,
+  ClusterConfig, ClusterEvent, ClusterUpdate, Gossip, HBRConfig,
+  HeartbeatReceiver, HeartbeatReceiverMsg, MachineState, Member, NodeRing,
   UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
@@ -366,7 +366,7 @@ impl InCluster {
     let msgs = events.into_iter().map(|e| ClusterUpdate {
       event: e,
       nodes: self.members.clone(),
-      ring: self.ring.clone()
+      ring: self.ring.clone(),
     });
     for msg in msgs {
       common.subscribers.retain(|s| s.send(msg.clone()));
@@ -620,6 +620,20 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
         self.state.process(&mut self.common, ctx, msg).await;
       }
       ClusterMsg::LocalCmd(ClusterCmd::Subscribe(subr)) => {
+        if let InteractionState::InCluster(ic) = &self.state {
+          let nodes = ic.members.clone();
+          let ring = ic.ring.clone();
+          let event = if nodes.len() == 1 {
+            ClusterEvent::Alone(self.common.member.clone())
+          } else {
+            ClusterEvent::Joined(self.common.member.clone())
+          };
+          subr.send(ClusterUpdate {
+            event: event,
+            nodes: nodes,
+            ring: ring,
+          });
+        }
         self.common.subscribers.push(subr);
       }
       ClusterMsg::LocalCmd(ClusterCmd::FailureMap(map)) => {
