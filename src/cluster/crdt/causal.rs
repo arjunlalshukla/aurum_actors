@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT};
-use crate::cluster::{ClusterCmd, Member, Subscriber, UnifiedBounds, FAILURE_MODE};
+use crate::cluster::{ClusterCmd, Member, UnifiedBounds, FAILURE_MODE};
 use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node};
 use crate::testkit::FailureConfigMap;
 use crate::{udp_select, AurumInterface};

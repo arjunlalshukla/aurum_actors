@@ -2,7 +2,7 @@ use crate as aurum;
 use crate::cluster::{
   ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg, NodeRing,
 };
-use crate::core::{Case, Host, LocalRef, Socket};
+use crate::core::{Case, Host, Socket};
 use crate::AurumInterface;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
@@ -107,6 +107,15 @@ impl ClusterEvent {
   }
 }
 
+#[derive(
+  Clone, Serialize, Deserialize,
+)]
+pub struct ClusterUpdate {
+  pub event: ClusterEvent,
+  pub nodes: im::HashSet<Arc<Member>>,
+  pub ring: NodeRing,
+}
+
 #[derive(Serialize, Deserialize, Hash, Eq, Clone, Ord, PartialOrd, Debug)]
 pub struct Member {
   pub socket: Socket,
@@ -137,11 +146,4 @@ impl Default for Member {
       vnodes: 0,
     }
   }
-}
-
-pub struct Subscriber {
-  pub events: Option<LocalRef<ClusterEvent>>,
-  pub members: Option<LocalRef<im::HashSet<Arc<Member>>>>,
-  pub ring: Option<LocalRef<NodeRing>>,
-  pub ends_only: bool,
 }

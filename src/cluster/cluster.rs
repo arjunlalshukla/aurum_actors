@@ -1,7 +1,7 @@
 use crate as aurum;
 use crate::cluster::{
-  ClusterConfig, ClusterEvent, Gossip, HBRConfig, HeartbeatReceiver,
-  HeartbeatReceiverMsg, MachineState, Member, NodeRing, Subscriber,
+  ClusterConfig, ClusterEvent, ClusterUpdate, Gossip, HBRConfig, HeartbeatReceiver,
+  HeartbeatReceiverMsg, MachineState, Member, NodeRing,
   UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use im;
 use itertools::Itertools;
 use maplit::{btreemap, hashset};
-use odds::vec::VecExt;
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::btree_map::Entry;
@@ -47,7 +46,7 @@ pub enum IntraClusterMsg<U: UnifiedBounds> {
 }
 
 pub enum ClusterCmd {
-  Subscribe(Subscriber),
+  Subscribe(LocalRef<ClusterUpdate>),
   FailureMap(FailureConfigMap),
 }
 
@@ -150,11 +149,11 @@ impl InCluster {
             _ => {}
           }
         }
-        self.notify(common, events);
         if disperse {
           self.gossip_round(common, ctx, hashset!()).await;
         }
         self.update_charges_managers(common, ctx);
+        self.notify(common, events);
         self.gossip_timeout = common.schedule_gossip_timeout(ctx);
         None
       }
@@ -166,10 +165,10 @@ impl InCluster {
         );
         if let Entry::Vacant(v) = self.gossip.states.entry(member.clone()) {
           v.insert(Up);
-          self.notify(common, vec![ClusterEvent::Added(member.clone())]);
           self.ring.insert(member.clone());
           self.members.insert(member.clone());
           self.update_charges_managers(common, ctx);
+          self.notify(common, vec![ClusterEvent::Added(member.clone())]);
         } else {
           info!(LOG_LEVEL, ctx.node, format!("pinger already exists"));
         }
@@ -364,21 +363,14 @@ impl InCluster {
     common: &mut NodeState<U>,
     events: Vec<ClusterEvent>,
   ) {
-    common.subscribers.retain_mut(|mut subr| {
-      subr.events = subr.events.take().filter(|a| {
-        events.iter().all(|e| {
-          if !subr.ends_only || e.end() {
-            a.send(e.clone())
-          } else {
-            true
-          }
-        })
-      });
-      subr.members =
-        subr.members.take().filter(|a| a.send(self.members.clone()));
-      subr.ring = subr.ring.take().filter(|a| a.send(self.ring.clone()));
-      subr.events.is_some() || subr.members.is_some() || subr.ring.is_some()
-    })
+    let msgs = events.into_iter().map(|e| ClusterUpdate {
+      event: e,
+      nodes: self.members.clone(),
+      ring: self.ring.clone()
+    });
+    for msg in msgs {
+      common.subscribers.retain(|s| s.send(msg.clone()));
+    }
   }
 }
 
@@ -528,7 +520,7 @@ pub(crate) struct NodeState<U: UnifiedBounds> {
   pub member: Arc<Member>,
   pub clr_dest: Destination<U, IntraClusterMsg<U>>,
   pub hbr_dest: Destination<U, HeartbeatReceiverMsg>,
-  pub subscribers: Vec<Subscriber>,
+  pub subscribers: Vec<LocalRef<ClusterUpdate>>,
   pub fail_map: FailureConfigMap,
   pub hb_interval_changes: u32,
   pub clr_config: ClusterConfig,
@@ -674,7 +666,7 @@ impl<U: UnifiedBounds> Cluster<U> {
     node: &Node<U>,
     name: String,
     vnodes: u32,
-    subrs: Vec<Subscriber>,
+    subrs: Vec<LocalRef<ClusterUpdate>>,
     fail_map: FailureConfigMap,
     clr_config: ClusterConfig,
     hbr_config: HBRConfig,

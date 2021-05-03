@@ -31,8 +31,8 @@ pub use {
   utils::ClusterConfig,
   utils::ClusterEvent,
   utils::ClusterEventSimple,
+  utils::ClusterUpdate,
   utils::HBRConfig,
   utils::Member,
-  utils::Subscriber,
   utils::UnifiedBounds,
 };
