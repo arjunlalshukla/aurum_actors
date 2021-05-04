@@ -49,13 +49,25 @@ pub enum CausalCmd<S: CRDT> {
   SetDispersalPreference(DispersalPreference),
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DispersalPreference {
   priority: im::HashSet<Arc<Member>>,
   amount: u32,
   selector: DispersalSelector,
   timeout: Duration,
 }
+impl Default for DispersalPreference {
+  fn default() -> Self {
+    Self {
+      priority: im::HashSet::new(),
+      amount: 1,
+      selector: DispersalSelector::OutOfDate,
+      timeout: Duration::from_millis(50),
+    }
+  }
+}
 
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum DispersalSelector {
   OutOfDate,
   //Random
@@ -131,7 +143,7 @@ where
 
   async fn op(
     &mut self,
-    common: &Common<S, U>,
+    common: &mut Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
     op: S::Delta,
   ) {
@@ -140,11 +152,12 @@ where
     self.deltas.push_back(d);
     self.clock += 1;
     self.disperse(common, ctx).await;
+    self.publish(common);
   }
 
   async fn delta(
     &mut self,
-    common: &Common<S, U>,
+    common: &mut Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
     delta: S,
     id: u64,
@@ -169,6 +182,7 @@ where
         self.deltas.push_back(delta);
         self.clock += 1;
         self.disperse(common, ctx).await;
+        self.publish(common);
       }
     }
   }
@@ -177,10 +191,27 @@ where
     match update.event {
       ClusterEvent::Alone(m) => self.member = m,
       ClusterEvent::Joined(m) => self.member = m,
-      _ => (),
+      ClusterEvent::Removed(m) => {
+        let cnt = self.acks.remove(&m.id).unwrap().1;
+        let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
+        self.ord_acks.remove(idx);
+        self.min_ord = self.ord_acks.front().clone().unwrap().0;
+      }
+      ClusterEvent::Added(m) => {
+        self.ord_acks.insert_ord((0, m.id));
+        self.acks.insert(m.id, (m, 0));
+        self.min_ord = 0;
+      }
+      ClusterEvent::Left => unreachable!(),
     }
     self.cluster = update.nodes;
     self.cluster.remove(&self.member);
+  }
+
+  fn publish(&self, common: &mut Common<S, U>) {
+    common
+      .subscribers
+      .retain(|subr| subr.send(self.data.clone()));
   }
 }
 
@@ -253,7 +284,7 @@ where
     subscribers: Vec<LocalRef<S>>,
     preference: DispersalPreference,
     cluster_ref: LocalRef<ClusterCmd>,
-  ) {
+  ) -> LocalRef<CausalCmd<S>> {
     let actor = Self {
       common: Common {
         dest: Destination::new::<CausalMsg<S>>(name.clone()),
@@ -264,7 +295,12 @@ where
       },
       state: InteractionState::Waiting(Waiting { ops_queue: vec![] }),
     };
-    node.spawn(false, actor, name, true);
+    node
+      .spawn(false, actor, name, true)
+      .local()
+      .clone()
+      .unwrap()
+      .transform()
   }
 }
 #[async_trait]
@@ -288,7 +324,9 @@ where
     match msg {
       CausalMsg::Cmd(cmd) => match cmd {
         CausalCmd::Mutate(op) => match &mut self.state {
-          InteractionState::InCluster(ic) => ic.op(&self.common, ctx, op).await,
+          InteractionState::InCluster(ic) => {
+            ic.op(&mut self.common, ctx, op).await
+          }
           InteractionState::Waiting(w) => w.ops_queue.push(op),
         },
         CausalCmd::Subscribe(subr) => {
@@ -303,7 +341,7 @@ where
           match intra {
             CausalIntraMsg::Ack { id, clock } => ic.ack(id, clock),
             CausalIntraMsg::Delta(delta, id, clock) => {
-              ic.delta(&self.common, ctx, delta, id, clock).await
+              ic.delta(&mut self.common, ctx, delta, id, clock).await
             }
           }
         }

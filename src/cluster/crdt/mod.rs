@@ -26,6 +26,19 @@ pub trait DeltaMutator<T> {
 }
 
 mod causal;
-mod test_crdt;
 
-pub use {causal::CausalCmd, causal::CausalDisperse};
+// Actual public interface
+#[rustfmt::skip]
+pub use {
+  causal::CausalCmd, 
+  causal::CausalDisperse,
+  causal::DispersalPreference,
+  causal::DispersalSelector,
+};
+
+// Needed for macros
+#[rustfmt::skip]
+pub use {
+  causal::CausalIntraMsg,
+  causal::CausalMsg
+};
