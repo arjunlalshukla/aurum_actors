@@ -96,16 +96,18 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
     &mut self,
     ctx: &ActorContext<CRDTTestType, CoordinatorMsg>,
   ) {
-    for port in self.ports.iter().cloned() {
+    for (i, port) in self.ports.iter().cloned().enumerate() {
       let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
       let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
+      let mut clr_cfg = self.clr_cfg.clone();
+      //clr_cfg.seed_nodes = 
       let cluster = Cluster::new(
         &node,
         "test-crdt-cluster".to_string(),
         3,
         vec![],
         self.fail_map.clone(),
-        self.clr_cfg.clone(),
+        clr_cfg,
         self.hbr_cfg.clone(),
       )
       .await;

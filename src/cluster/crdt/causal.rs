@@ -1,13 +1,13 @@
 #![allow(unused_imports, dead_code)]
 use crate as aurum;
-use crate::cluster::crdt::{DeltaMutator, CRDT};
+use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
 use crate::cluster::{
   ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, UnifiedBounds,
   FAILURE_MODE,
 };
 use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node};
 use crate::testkit::FailureConfigMap;
-use crate::{udp_select, AurumInterface};
+use crate::{trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use im;
 use itertools::Itertools;
@@ -98,6 +98,11 @@ where
     common: &Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
   ) {
+    trace!(
+      LOG_LEVEL,
+      &ctx.node,
+      format!("ORD_ACKS: {:?}", self.ord_acks)
+    );
     let to_send = match common.preference.selector {
       DispersalSelector::OutOfDate => self
         .ord_acks
@@ -108,7 +113,13 @@ where
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
-    for member in common.preference.priority.iter().chain(to_send) {
+    let members = common.preference.priority.iter().chain(to_send).collect_vec();
+    trace!(
+      LOG_LEVEL,
+      &ctx.node,
+      format!("Dispersing to {:?}", members.iter().map(|m| m.socket.udp).collect_vec())
+    );
+    for member in members.iter().cloned() {
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
@@ -168,6 +179,11 @@ where
         id: self.member.id,
         clock: clock,
       };
+      trace!(
+        LOG_LEVEL,
+        &ctx.node,
+        format!("Got delta from {:?}", socket.udp)
+      );
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
@@ -359,7 +375,7 @@ where
       },
       CausalMsg::DisperseTimeout => {
         if let InteractionState::InCluster(ic) = &mut self.state {
-          if ic.min_ord != ic.clock {
+          if ic.min_ord != ic.clock && !ic.acks.is_empty() {
             ic.disperse(&self.common, ctx).await;
           }
         }

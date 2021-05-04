@@ -1,3 +1,4 @@
+use crate::testkit::LogLevel;
 use serde::{de::DeserializeOwned, Serialize};
 use std::hash::Hash;
 
@@ -24,6 +25,8 @@ where
 pub trait DeltaMutator<T> {
   fn apply(&self, target: &T) -> T;
 }
+
+pub const LOG_LEVEL: LogLevel = LogLevel::Trace;
 
 mod causal;
 
