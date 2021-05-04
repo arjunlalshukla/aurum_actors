@@ -121,7 +121,8 @@ impl InCluster {
       }
       State(gossip) => {
         self.gossip_timeout.abort();
-        let events = self.gossip.merge(gossip);
+        let mut events = self.gossip.merge(gossip);
+        let mut new_self_member = None;
         let disperse = !events.is_empty();
         for e in &events {
           match e {
@@ -144,11 +145,13 @@ impl InCluster {
                 self.ring.insert(common.member.clone());
                 self.members.insert(member.clone());
                 self.gossip.states.insert(common.member.clone(), Up);
+                new_self_member = Some(ClusterEvent::Joined(common.member.clone()));
               }
             }
             _ => {}
           }
         }
+        new_self_member.into_iter().for_each(|e| events.push(e));
         if disperse {
           self.gossip_round(common, ctx, hashset!()).await;
         }
@@ -363,12 +366,14 @@ impl InCluster {
     common: &mut NodeState<U>,
     events: Vec<ClusterEvent>,
   ) {
-    let msg  = ClusterUpdate {
-      events: events,
-      nodes: self.members.clone(),
-      ring: self.ring.clone(),
-    };
-    common.subscribers.retain(|s| s.send(msg.clone()));
+    if !events.is_empty() {
+      let msg  = ClusterUpdate {
+        events: events,
+        nodes: self.members.clone(),
+        ring: self.ring.clone(),
+      };
+      common.subscribers.retain(|s| s.send(msg.clone()));    
+    }
   }
 }
 

@@ -98,11 +98,7 @@ where
     common: &Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
   ) {
-    trace!(
-      LOG_LEVEL,
-      &ctx.node,
-      format!("ORD_ACKS: {:?}", self.ord_acks)
-    );
+    trace!(LOG_LEVEL, &ctx.node, format!("ORD_ACKS: {:?}", self.ord_acks));
     let to_send = match common.preference.selector {
       DispersalSelector::OutOfDate => self
         .ord_acks
@@ -221,10 +217,12 @@ where
         ClusterEvent::Alone(m) => self.member = m,
         ClusterEvent::Joined(m) => self.member = m,
         ClusterEvent::Removed(m) => {
-          let cnt = self.acks.remove(&m.id).unwrap().1;
-          let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
-          self.ord_acks.remove(idx);
-          self.min_ord = self.ord_acks.front().clone().unwrap().0;
+          if m.id != self.member.id {
+            let cnt = self.acks.remove(&m.id).unwrap().1;
+            let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
+            self.ord_acks.remove(idx);
+            self.min_ord = self.ord_acks.front().map(|(c, _)| *c).unwrap_or(0);
+          }
         }
         ClusterEvent::Added(m) => {
           self.ord_acks.insert_ord((0, m.id));

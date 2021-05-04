@@ -209,6 +209,7 @@ impl Actor<CRDTTestType, DataReceiverMsg> for DataReceiver {
 }
 
 //#[test]
+#[allow(dead_code)]
 fn crdt_test() {
   let mut clr = ClusterConfig::default();
   clr.ping_timeout = Duration::from_millis(200);
