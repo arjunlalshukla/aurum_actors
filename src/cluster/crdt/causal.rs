@@ -51,10 +51,10 @@ pub enum CausalCmd<S: CRDT> {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DispersalPreference {
-  priority: im::HashSet<Arc<Member>>,
-  amount: u32,
-  selector: DispersalSelector,
-  timeout: Duration,
+  pub priority: im::HashSet<Arc<Member>>,
+  pub amount: u32,
+  pub selector: DispersalSelector,
+  pub timeout: Duration,
 }
 impl Default for DispersalPreference {
   fn default() -> Self {
@@ -113,11 +113,19 @@ where
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
-    let members = common.preference.priority.iter().chain(to_send).collect_vec();
+    let members = common
+      .preference
+      .priority
+      .iter()
+      .chain(to_send)
+      .collect_vec();
     trace!(
       LOG_LEVEL,
       &ctx.node,
-      format!("Dispersing to {:?}", members.iter().map(|m| m.socket.udp).collect_vec())
+      format!(
+        "Dispersing to {:?}",
+        members.iter().map(|m| m.socket.udp).collect_vec()
+      )
     );
     for member in members.iter().cloned() {
       udp_select!(
@@ -144,6 +152,7 @@ where
     let idx = self.ord_acks.binary_search(&(*cnt, id)).unwrap();
     self.ord_acks.remove(idx);
     *cnt = clock;
+    self.ord_acks.insert_ord((*cnt, id));
     let new_min = self.ord_acks.front().unwrap().0;
     let to_remove = new_min - self.min_ord;
     for _ in 0..to_remove {
@@ -159,11 +168,13 @@ where
     op: S::Delta,
   ) {
     let d = op.apply(&self.data);
-    self.data = self.data.clone().join(d.clone());
-    self.deltas.push_back(d);
-    self.clock += 1;
-    self.disperse(common, ctx).await;
-    self.publish(common);
+    if !d.empty() {
+      self.data = self.data.clone().join(d.clone());
+      self.deltas.push_back(d);
+      self.clock += 1;
+      self.disperse(common, ctx).await;
+      self.publish(common);    
+    }
   }
 
   async fn delta(
@@ -203,25 +214,29 @@ where
     }
   }
 
-  fn update(&mut self, update: ClusterUpdate) {
-    match update.event {
-      ClusterEvent::Alone(m) => self.member = m,
-      ClusterEvent::Joined(m) => self.member = m,
-      ClusterEvent::Removed(m) => {
-        let cnt = self.acks.remove(&m.id).unwrap().1;
-        let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
-        self.ord_acks.remove(idx);
-        self.min_ord = self.ord_acks.front().clone().unwrap().0;
+  fn update(&mut self, ctx: &ActorContext<U, CausalMsg<S>>, update: ClusterUpdate) {
+    trace!(LOG_LEVEL, &ctx.node, format!("Got cluster update"));
+    for event in update.events {
+      match event {
+        ClusterEvent::Alone(m) => self.member = m,
+        ClusterEvent::Joined(m) => self.member = m,
+        ClusterEvent::Removed(m) => {
+          let cnt = self.acks.remove(&m.id).unwrap().1;
+          let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
+          self.ord_acks.remove(idx);
+          self.min_ord = self.ord_acks.front().clone().unwrap().0;
+        }
+        ClusterEvent::Added(m) => {
+          self.ord_acks.insert_ord((0, m.id));
+          self.acks.insert(m.id, (m, 0));
+          self.min_ord = 0;
+        }
+        ClusterEvent::Left => unreachable!(),
       }
-      ClusterEvent::Added(m) => {
-        self.ord_acks.insert_ord((0, m.id));
-        self.acks.insert(m.id, (m, 0));
-        self.min_ord = 0;
-      }
-      ClusterEvent::Left => unreachable!(),
     }
     self.cluster = update.nodes;
     self.cluster.remove(&self.member);
+    trace!(LOG_LEVEL, &ctx.node, format!("Finished cluster update"));
   }
 
   fn publish(&self, common: &mut Common<S, U>) {
@@ -363,9 +378,9 @@ where
         }
       }
       CausalMsg::Update(update) => match &mut self.state {
-        InteractionState::InCluster(ic) => ic.update(update),
+        InteractionState::InCluster(ic) => ic.update(ctx, update),
         InteractionState::Waiting(w) => {
-          let ic = match update.event {
+          let ic = match update.events.into_iter().next().unwrap() {
             ClusterEvent::Alone(m) => w.to_ic(m, update.nodes),
             ClusterEvent::Joined(m) => w.to_ic(m, update.nodes),
             _ => unreachable!(),

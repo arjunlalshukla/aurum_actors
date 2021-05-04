@@ -109,7 +109,7 @@ impl ClusterEvent {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ClusterUpdate {
-  pub event: ClusterEvent,
+  pub events: Vec<ClusterEvent>,
   pub nodes: im::HashSet<Arc<Member>>,
   pub ring: NodeRing,
 }

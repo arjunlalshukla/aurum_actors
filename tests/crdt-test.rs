@@ -80,6 +80,8 @@ struct TestNode {
 enum CoordinatorMsg {
   Data(u16, LocalGCounter),
   Mutate(Increment),
+  Spawn(u16),
+  WaitForConvergence
 }
 
 struct Coordinator {
@@ -87,58 +89,16 @@ struct Coordinator {
   hbr_cfg: HBRConfig,
   fail_map: FailureConfigMap,
   preference: DispersalPreference,
-  ports: Vec<u16>,
   nodes: BTreeMap<u16, TestNode>,
+  convergence: LocalGCounter,
+  queue: Vec<CoordinatorMsg>,
+  waiting: bool
 }
 #[async_trait]
 impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
-  async fn pre_start(
-    &mut self,
-    ctx: &ActorContext<CRDTTestType, CoordinatorMsg>,
-  ) {
-    for (i, port) in self.ports.iter().cloned().enumerate() {
-      let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
-      let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
-      let mut clr_cfg = self.clr_cfg.clone();
-      //clr_cfg.seed_nodes = 
-      let cluster = Cluster::new(
-        &node,
-        "test-crdt-cluster".to_string(),
-        3,
-        vec![],
-        self.fail_map.clone(),
-        clr_cfg,
-        self.hbr_cfg.clone(),
-      )
-      .await;
-      let counter = CausalDisperse::new(
-        &node,
-        "test-crdt-causal".to_string(),
-        self.fail_map.clone(),
-        vec![],
-        self.preference.clone(),
-        cluster.clone(),
-      );
-      let recvr = DataReceiver {
-        coor: ctx.local_interface(),
-        data: counter.clone(),
-      };
-      let recvr = node.spawn(false, recvr, "".to_string(), false).local().clone().unwrap();
-      counter.send(CausalCmd::Subscribe(recvr.transform()));
-      let entry = TestNode {
-        node: node,
-        cluster: cluster,
-        counter: counter,
-        recvr: recvr,
-        view: None,
-      };
-      self.nodes.insert(port, entry);
-    }
-  }
-
   async fn recv(
     &mut self,
-    _: &ActorContext<CRDTTestType, CoordinatorMsg>,
+    ctx: &ActorContext<CRDTTestType, CoordinatorMsg>,
     msg: CoordinatorMsg,
   ) {
     match msg {
@@ -168,6 +128,54 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           .recvr
           .send(DataReceiverMsg::Mutate(mutator));
       }
+      Spawn(port) => {
+        let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
+        let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
+        let mut clr_cfg = self.clr_cfg.clone();
+        clr_cfg.seed_nodes = self
+          .nodes
+          .keys()
+          .take(3)
+          .map(|p| Socket::new(Host::DNS("127.0.0.1".to_string()), *p, 0))
+          .collect();
+        let cluster = Cluster::new(
+          &node,
+          "test-crdt-cluster".to_string(),
+          3,
+          vec![],
+          self.fail_map.clone(),
+          clr_cfg,
+          self.hbr_cfg.clone(),
+        )
+        .await;
+        let counter = CausalDisperse::new(
+          &node,
+          "test-crdt-causal".to_string(),
+          self.fail_map.clone(),
+          vec![],
+          self.preference.clone(),
+          cluster.clone(),
+        );
+        let recvr = DataReceiver {
+          coor: ctx.local_interface(),
+          data: counter.clone(),
+        };
+        let recvr = node
+          .spawn(false, recvr, "".to_string(), false)
+          .local()
+          .clone()
+          .unwrap();
+        counter.send(CausalCmd::Subscribe(recvr.transform()));
+        let entry = TestNode {
+          node: node,
+          cluster: cluster,
+          counter: counter,
+          recvr: recvr,
+          view: None,
+        };
+        self.nodes.insert(port, entry);
+      }
+      WaitForConvergence => {}
     }
   }
 }
@@ -203,29 +211,39 @@ impl Actor<CRDTTestType, DataReceiverMsg> for DataReceiver {
 //#[test]
 fn crdt_test() {
   let mut clr = ClusterConfig::default();
-  clr.ping_timeout = Duration::from_millis(50);
+  clr.ping_timeout = Duration::from_millis(200);
   clr.num_pings = 20;
   let hbr = HBRConfig::default();
-  let fail_map = FailureConfigMap::default();
-  let preference = DispersalPreference::default();
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  let mut preference = DispersalPreference::default();
+  preference.timeout = Duration::from_millis(200);
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
-  let ports = vec![5501, 5502, 5503, 5504];
   let actor = Coordinator {
     clr_cfg: clr,
     hbr_cfg: hbr,
     fail_map: fail_map,
     preference: preference,
-    ports: ports,
     nodes: BTreeMap::new(),
+    convergence: LocalGCounter::minimum(),
+    queue: Vec::new(),
+    waiting: false
   };
   let coor = node
     .spawn(false, actor, "".to_string(), false)
     .local()
     .clone()
     .unwrap();
+  let zero = Duration::from_millis(0);
   let millis = Duration::from_millis(200);
   let events = vec![
+    (Spawn(5501), zero),
+    (Spawn(5502), zero),
+    (Spawn(5503), zero),
+    (Spawn(5504), zero),
     (Mutate(Increment { port: 5501 }), millis),
     (Mutate(Increment { port: 5502 }), millis),
     (Mutate(Increment { port: 5503 }), millis),

@@ -363,14 +363,12 @@ impl InCluster {
     common: &mut NodeState<U>,
     events: Vec<ClusterEvent>,
   ) {
-    let msgs = events.into_iter().map(|e| ClusterUpdate {
-      event: e,
+    let msg  = ClusterUpdate {
+      events: events,
       nodes: self.members.clone(),
       ring: self.ring.clone(),
-    });
-    for msg in msgs {
-      common.subscribers.retain(|s| s.send(msg.clone()));
-    }
+    };
+    common.subscribers.retain(|s| s.send(msg.clone()));
   }
 }
 
@@ -629,7 +627,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
             ClusterEvent::Joined(self.common.member.clone())
           };
           subr.send(ClusterUpdate {
-            event: event,
+            events: vec![event],
             nodes: nodes,
             ring: ring,
           });

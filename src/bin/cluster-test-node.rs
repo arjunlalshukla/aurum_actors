@@ -54,13 +54,15 @@ impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
       },
       InCluster(ref mut fail_map, cluster) => match msg {
         ClusterNodeMsg::Update(update) => {
-          self
-            .coor
-            .move_to(CoordinatorMsg::Event(
-              ctx.node.socket().clone(),
-              update.event.into(),
-            ))
-            .await;
+          for event in update.events {
+            self
+              .coor
+              .move_to(CoordinatorMsg::Event(
+                ctx.node.socket().clone(),
+                event.into(),
+              ))
+              .await;
+          }
         }
         ClusterNodeMsg::FailureMap(map, _, _) => {
           *fail_map = map.clone();
