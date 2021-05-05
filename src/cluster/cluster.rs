@@ -145,7 +145,8 @@ impl InCluster {
                 self.ring.insert(common.member.clone());
                 self.members.insert(member.clone());
                 self.gossip.states.insert(common.member.clone(), Up);
-                new_self_member = Some(ClusterEvent::Joined(common.member.clone()));
+                new_self_member =
+                  Some(ClusterEvent::Joined(common.member.clone()));
               }
             }
             _ => {}
@@ -367,12 +368,12 @@ impl InCluster {
     events: Vec<ClusterEvent>,
   ) {
     if !events.is_empty() {
-      let msg  = ClusterUpdate {
+      let msg = ClusterUpdate {
         events: events,
         nodes: self.members.clone(),
         ring: self.ring.clone(),
       };
-      common.subscribers.retain(|s| s.send(msg.clone()));    
+      common.subscribers.retain(|s| s.send(msg.clone()));
     }
   }
 }

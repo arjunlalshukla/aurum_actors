@@ -7,7 +7,7 @@ use crate::cluster::{
 };
 use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node};
 use crate::testkit::FailureConfigMap;
-use crate::{trace, udp_select, AurumInterface};
+use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use im;
 use itertools::Itertools;
@@ -86,6 +86,7 @@ where
   acks: im::HashMap<u64, (Arc<Member>, u64)>,
   ord_acks: im::Vector<(u64, u64)>,
   min_ord: u64,
+  min_delta: u64,
   x: PhantomData<U>,
 }
 impl<S, U> InCluster<S, U>
@@ -98,32 +99,38 @@ where
     common: &Common<S, U>,
     ctx: &ActorContext<U, CausalMsg<S>>,
   ) {
-    trace!(LOG_LEVEL, &ctx.node, format!("ORD_ACKS: {:?}", self.ord_acks));
+    trace!(
+      LOG_LEVEL,
+      &ctx.node,
+      format!("CLOCK: {} ORD_ACKS: {:?}", self.clock, self.ord_acks)
+    );
     let to_send = match common.preference.selector {
       DispersalSelector::OutOfDate => self
         .ord_acks
         .iter()
-        .map(|(_, id)| &self.acks.get(id).unwrap().0)
-        .filter(|member| !common.preference.priority.contains(*member))
+        .map(|(_, id)| self.acks.get(id).unwrap())
+        .filter(|(member, _)| !common.preference.priority.contains(member))
         .take(common.preference.amount as usize),
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
-    let msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
+    let delta_msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
+    let full_msg = CausalIntraMsg::Delta(self.data.clone(), self.member.id, self.clock);
     let members = common
       .preference
       .priority
       .iter()
+      .map(|m| self.acks.get(&m.id).unwrap())
       .chain(to_send)
-      .collect_vec();
-    trace!(
-      LOG_LEVEL,
-      &ctx.node,
-      format!(
-        "Dispersing to {:?}",
-        members.iter().map(|m| m.socket.udp).collect_vec()
-      )
-    );
-    for member in members.iter().cloned() {
+      .filter(|(_, cnt)| *cnt < self.clock);
+    for (member, cnt) in members {
+      let p = member.socket.udp;
+      let msg = if *cnt < self.min_delta {
+        trace!(LOG_LEVEL, &ctx.node, format!("full data to {}", p));
+        &full_msg
+      } else {
+        trace!(LOG_LEVEL, &ctx.node, format!("delta to {}", p));
+        &delta_msg
+      };
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
@@ -140,21 +147,28 @@ where
     );
   }
 
-  fn ack(&mut self, id: u64, clock: u64) {
-    let cnt = match self.acks.get_mut(&id) {
-      Some((_, c)) if *c < clock => c,
+  fn ack(&mut self, ctx: &ActorContext<U, CausalMsg<S>>, id: u64, clock: u64) {
+    let (cnt, member) = match self.acks.get_mut(&id) {
+      Some((m, c)) if *c < clock => (c, m),
       _ => return,
     };
+    debug!(
+      LOG_LEVEL,
+      &ctx.node,
+      format!(
+        "CLOCK: {} - ACK({}) from {}",
+        self.clock, clock, member.socket.udp
+      )
+    );
     let idx = self.ord_acks.binary_search(&(*cnt, id)).unwrap();
     self.ord_acks.remove(idx);
     *cnt = clock;
     self.ord_acks.insert_ord((*cnt, id));
-    let new_min = self.ord_acks.front().unwrap().0;
-    let to_remove = new_min - self.min_ord;
-    for _ in 0..to_remove {
+    self.min_ord = self.ord_acks.front().unwrap().0;
+    for _ in self.min_delta..self.min_ord {
       self.deltas.pop_front().unwrap();
     }
-    self.min_ord = new_min;
+    self.min_delta = std::cmp::max(self.min_delta, self.min_ord);
   }
 
   async fn op(
@@ -169,7 +183,7 @@ where
       self.deltas.push_back(d);
       self.clock += 1;
       self.disperse(common, ctx).await;
-      self.publish(common);    
+      self.publish(common);
     }
   }
 
@@ -186,11 +200,6 @@ where
         id: self.member.id,
         clock: clock,
       };
-      trace!(
-        LOG_LEVEL,
-        &ctx.node,
-        format!("Got delta from {:?}", socket.udp)
-      );
       udp_select!(
         FAILURE_MODE,
         &ctx.node,
@@ -204,14 +213,24 @@ where
         self.data = new_state;
         self.deltas.push_back(delta);
         self.clock += 1;
+        debug!(
+          LOG_LEVEL,
+          &ctx.node,
+          format!("CLOCK: {} - Got delta from {:?}", self.clock, socket.udp)
+        );
         self.disperse(common, ctx).await;
         self.publish(common);
       }
     }
   }
 
-  fn update(&mut self, ctx: &ActorContext<U, CausalMsg<S>>, update: ClusterUpdate) {
-    trace!(LOG_LEVEL, &ctx.node, format!("Got cluster update"));
+  async fn update(
+    &mut self,
+    common: &mut Common<S, U>,
+    ctx: &ActorContext<U, CausalMsg<S>>,
+    update: ClusterUpdate,
+  ) {
+    let mut disperse = false;
     for event in update.events {
       match event {
         ClusterEvent::Alone(m) => self.member = m,
@@ -222,19 +241,23 @@ where
             let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
             self.ord_acks.remove(idx);
             self.min_ord = self.ord_acks.front().map(|(c, _)| *c).unwrap_or(0);
+            disperse = true;
           }
         }
         ClusterEvent::Added(m) => {
           self.ord_acks.insert_ord((0, m.id));
           self.acks.insert(m.id, (m, 0));
           self.min_ord = 0;
+          disperse = true;
         }
         ClusterEvent::Left => unreachable!(),
       }
     }
     self.cluster = update.nodes;
     self.cluster.remove(&self.member);
-    trace!(LOG_LEVEL, &ctx.node, format!("Finished cluster update"));
+    if disperse {
+      self.disperse(common, ctx).await;
+    }
   }
 
   fn publish(&self, common: &mut Common<S, U>) {
@@ -258,15 +281,20 @@ impl<S: CRDT> Waiting<S> {
       data.join(delta)
     });
     nodes.remove(&member);
+    let mut deltas = VecDeque::new();
+    if !init_data.empty() {
+      deltas.push_back(init_data.clone());
+    }
     InCluster {
-      data: init_data.clone(),
-      clock: 1,
-      deltas: VecDeque::from(vec![init_data]),
+      clock: !init_data.empty() as u64,
+      data: init_data,
+      deltas: deltas,
       member: member,
       acks: nodes.iter().map(|m| (m.id, (m.clone(), 0))).collect(),
       ord_acks: nodes.iter().map(|m| (0, m.id)).sorted().collect(),
       cluster: nodes,
       min_ord: 0,
+      min_delta: 0,
       x: PhantomData,
     }
   }
@@ -368,7 +396,7 @@ where
       CausalMsg::Intra(intra) => {
         if let InteractionState::InCluster(ic) = &mut self.state {
           match intra {
-            CausalIntraMsg::Ack { id, clock } => ic.ack(id, clock),
+            CausalIntraMsg::Ack { id, clock } => ic.ack(ctx, id, clock),
             CausalIntraMsg::Delta(delta, id, clock) => {
               ic.delta(&mut self.common, ctx, delta, id, clock).await
             }
@@ -376,7 +404,9 @@ where
         }
       }
       CausalMsg::Update(update) => match &mut self.state {
-        InteractionState::InCluster(ic) => ic.update(ctx, update),
+        InteractionState::InCluster(ic) => {
+          ic.update(&mut self.common, ctx, update).await;
+        }
         InteractionState::Waiting(w) => {
           let ic = match update.events.into_iter().next().unwrap() {
             ClusterEvent::Alone(m) => w.to_ic(m, update.nodes),

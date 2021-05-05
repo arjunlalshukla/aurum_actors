@@ -12,7 +12,7 @@ mod remoting;
 mod udp_receiver;
 mod unify;
 
-pub const LOG_LEVEL: LogLevel = LogLevel::Warn;
+pub const LOG_LEVEL: LogLevel = LogLevel::Error;
 
 #[rustfmt::skip]
 pub(crate) use {

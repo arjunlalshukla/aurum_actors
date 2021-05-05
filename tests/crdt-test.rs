@@ -81,7 +81,7 @@ enum CoordinatorMsg {
   Data(u16, LocalGCounter),
   Mutate(Increment),
   Spawn(u16),
-  WaitForConvergence
+  WaitForConvergence,
 }
 
 struct Coordinator {
@@ -92,7 +92,7 @@ struct Coordinator {
   nodes: BTreeMap<u16, TestNode>,
   convergence: LocalGCounter,
   queue: Vec<CoordinatorMsg>,
-  waiting: bool
+  waiting: bool,
 }
 #[async_trait]
 impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
@@ -231,7 +231,7 @@ fn crdt_test() {
     nodes: BTreeMap::new(),
     convergence: LocalGCounter::minimum(),
     queue: Vec::new(),
-    waiting: false
+    waiting: false,
   };
   let coor = node
     .spawn(false, actor, "".to_string(), false)
