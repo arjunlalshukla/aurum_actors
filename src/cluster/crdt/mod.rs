@@ -26,7 +26,7 @@ pub trait DeltaMutator<T> {
   fn apply(&self, target: &T) -> T;
 }
 
-pub const LOG_LEVEL: LogLevel = LogLevel::Trace;
+pub const LOG_LEVEL: LogLevel = LogLevel::Debug;
 
 mod causal;
 

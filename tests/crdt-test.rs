@@ -1,20 +1,18 @@
-#![allow(dead_code)]
 use async_trait::async_trait;
 use aurum::cluster::crdt::{
   CausalCmd, CausalDisperse, CausalIntraMsg, CausalMsg, DeltaMutator,
   DispersalPreference, CRDT,
 };
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, HBRConfig};
+use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, Socket};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
+use crossbeam::channel::{unbounded, Sender};
 use im;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
-use std::thread;
 use std::time::Duration;
-use tokio::time::sleep;
 use CoordinatorMsg::*;
 
 unify!(CRDTTestType =
@@ -69,9 +67,6 @@ impl CRDT for LocalGCounter {
 }
 
 struct TestNode {
-  node: Node<CRDTTestType>,
-  cluster: LocalRef<ClusterCmd>,
-  counter: LocalRef<CausalCmd<LocalGCounter>>,
   recvr: LocalRef<DataReceiverMsg>,
   view: Option<LocalGCounter>,
 }
@@ -82,6 +77,7 @@ enum CoordinatorMsg {
   Mutate(Increment),
   Spawn(u16),
   WaitForConvergence,
+  Done
 }
 
 struct Coordinator {
@@ -91,8 +87,15 @@ struct Coordinator {
   preference: DispersalPreference,
   nodes: BTreeMap<u16, TestNode>,
   convergence: LocalGCounter,
+  converged: HashSet<u16>,
   queue: Vec<CoordinatorMsg>,
   waiting: bool,
+  notification: Sender<()>,
+}
+impl Coordinator {
+  fn convergence_reached(&self) -> bool {
+    self.nodes.keys().all(|k| self.converged.contains(k))
+  }
 }
 #[async_trait]
 impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
@@ -103,6 +106,9 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
   ) {
     match msg {
       Data(port, data) => {
+        if self.waiting && data == self.convergence {
+          self.converged.insert(port);
+        }
         let test = self.nodes.get_mut(&port).unwrap();
         test.view = Some(data);
         // use one string to ensure atomic printing
@@ -119,8 +125,25 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           }
         }
         println!("{}", print);
+        if self.waiting && self.convergence_reached() {
+          println!("CONVERGENCE reached!");
+          self.waiting = false;
+          let my_ref = ctx.local_interface();
+          for msg in self.queue.drain(..) {
+            my_ref.send(msg);
+          }
+        }
       }
       Mutate(mutator) => {
+        if self.waiting {
+          self.queue.push(Mutate(mutator));
+          return;
+        }
+        let d = mutator.apply(&self.convergence);
+        if !d.empty() {
+          self.convergence = self.convergence.clone().join(d);
+          self.converged = HashSet::new();
+        }
         self
           .nodes
           .get(&mutator.port)
@@ -129,6 +152,10 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           .send(DataReceiverMsg::Mutate(mutator));
       }
       Spawn(port) => {
+        if self.waiting {
+          self.queue.push(Spawn(port));
+          return;
+        }
         let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
         let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
@@ -167,15 +194,39 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           .unwrap();
         counter.send(CausalCmd::Subscribe(recvr.transform()));
         let entry = TestNode {
-          node: node,
-          cluster: cluster,
-          counter: counter,
           recvr: recvr,
           view: None,
         };
         self.nodes.insert(port, entry);
       }
-      WaitForConvergence => {}
+      WaitForConvergence => {
+        if self.waiting {
+          self.queue.push(WaitForConvergence);
+          return;
+        }
+        if !self.convergence_reached() {
+          println!("Waiting for CONVERGENCE");
+          self.waiting = true;
+          self.queue.clear();
+        } else {
+          println!("CONVERGENCE already reached");
+        }
+      }
+      Done => {
+        if self.waiting {
+          self.queue.push(Done);
+          return;
+        }
+        if self.convergence_reached() {
+          println!("Done!");
+          self.notification.send(()).unwrap();
+        } else {
+          println!("Waiting for CONVERGENCE");
+          self.waiting = true;
+          self.queue.clear();
+          self.queue.push(Done);
+        }
+      }
     }
   }
 }
@@ -208,8 +259,8 @@ impl Actor<CRDTTestType, DataReceiverMsg> for DataReceiver {
   }
 }
 
-//#[test]
-#[allow(dead_code)]
+#[test]
+// #[allow(dead_code)]
 fn crdt_test() {
   let mut clr = ClusterConfig::default();
   clr.ping_timeout = Duration::from_millis(200);
@@ -223,6 +274,7 @@ fn crdt_test() {
   preference.timeout = Duration::from_millis(200);
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
+  let (tx, rx) = unbounded();
   let actor = Coordinator {
     clr_cfg: clr,
     hbr_cfg: hbr,
@@ -230,38 +282,41 @@ fn crdt_test() {
     preference: preference,
     nodes: BTreeMap::new(),
     convergence: LocalGCounter::minimum(),
+    converged: HashSet::new(),
     queue: Vec::new(),
     waiting: false,
+    notification: tx,
   };
   let coor = node
     .spawn(false, actor, "".to_string(), false)
     .local()
     .clone()
     .unwrap();
-  let zero = Duration::from_millis(0);
-  let millis = Duration::from_millis(200);
   let events = vec![
-    (Spawn(5501), zero),
-    (Spawn(5502), zero),
-    (Spawn(5503), zero),
-    (Spawn(5504), zero),
-    (Mutate(Increment { port: 5501 }), millis),
-    (Mutate(Increment { port: 5502 }), millis),
-    (Mutate(Increment { port: 5503 }), millis),
-    (Mutate(Increment { port: 5504 }), millis),
-    (Mutate(Increment { port: 5501 }), millis),
-    (Mutate(Increment { port: 5502 }), millis),
+    Spawn(5501),
+    Spawn(5502),
+    Spawn(5503),
+    Spawn(5504),
+    Mutate(Increment { port: 5501 }),
+    Mutate(Increment { port: 5502 }),
+    Mutate(Increment { port: 5503 }),
+    Mutate(Increment { port: 5504 }),
+    Mutate(Increment { port: 5501 }),
+    Mutate(Increment { port: 5502 }),
+    WaitForConvergence,
+    Spawn(5505),
+    Spawn(5506),
+    Mutate(Increment { port: 5505 }),
+    Mutate(Increment { port: 5505 }),
+    Mutate(Increment { port: 5505 }),
+    Mutate(Increment { port: 5506 }),
+    Mutate(Increment { port: 5506 }),
+    Mutate(Increment { port: 5506 }),
+    Done
   ];
-  node.rt().spawn(execute_events(coor, events));
-  thread::sleep(Duration::from_secs(5000));
-}
-
-async fn execute_events(
-  coor: LocalRef<CoordinatorMsg>,
-  vec: Vec<(CoordinatorMsg, Duration)>,
-) {
-  for (msg, dur) in vec.into_iter() {
-    sleep(dur).await;
-    coor.send(msg);
+  for e in events {
+    coor.send(e);
   }
+  // std::thread::sleep(Duration::from_secs(5000));
+  rx.recv_timeout(Duration::from_millis(10_000)).unwrap();
 }
