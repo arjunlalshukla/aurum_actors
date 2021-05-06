@@ -1,6 +1,6 @@
 use crate::core::{
   local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
-  LocalActorMsg, Socket, UnifiedType,
+  LocalActorMsg, Socket, SpecificInterface, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -57,27 +57,39 @@ impl<T: Send + 'static> LocalRef<T> {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct ActorRef<U: UnifiedType + Case<S>, S> {
+pub struct ActorRef<U: UnifiedType + Case<I>, I> {
   pub(in crate::core) socket: Socket,
-  pub(in crate::core) dest: Destination<U, S>,
+  pub(in crate::core) dest: Destination<U, I>,
   #[serde(skip, default)]
-  pub(in crate::core) local: Option<LocalRef<S>>,
+  pub(in crate::core) local: Option<LocalRef<I>>,
 }
-impl<U: UnifiedType + Case<S>, S> ActorRef<U, S> {
+impl<U: UnifiedType + Case<I>, I> ActorRef<U, I> {
   pub fn valid(&self) -> bool {
     self.dest.valid()
   }
+
+  pub fn new<S>(name: String, socket: Socket) -> Self
+  where
+    U: Case<S>,
+    S: From<I> + SpecificInterface<U>,
+  {
+    Self {
+      socket: socket,
+      dest: Destination::new::<S>(name),
+      local: None,
+    }
+  }
 }
-impl<U: UnifiedType + Case<S>, S: Send + 'static> ActorRef<U, S> {
-  pub fn local(&self) -> &Option<LocalRef<S>> {
+impl<U: UnifiedType + Case<I>, I: Send + 'static> ActorRef<U, I> {
+  pub fn local(&self) -> &Option<LocalRef<I>> {
     &self.local
   }
 }
-impl<U: UnifiedType + Case<S>, S> ActorRef<U, S>
+impl<U: UnifiedType + Case<I>, I> ActorRef<U, I>
 where
-  S: Serialize + DeserializeOwned,
+  I: Serialize + DeserializeOwned,
 {
-  pub async fn remote_send(&self, item: &S) {
+  pub async fn remote_send(&self, item: &I) {
     udp_msg(&self.socket, &self.dest, item).await;
   }
 }
@@ -140,7 +152,7 @@ impl<U: UnifiedType + Case<S>, S: Send> Debug for ActorRef<U, S> {
 }
 
 #[cfg(test)]
-use crate::core::{deserialize, forge, serialize, Host};
+use crate::core::{deserialize, serialize, Host};
 
 #[cfg(test)]
 mod ref_safety {
@@ -173,7 +185,7 @@ use ref_safety::*;
 #[allow(dead_code)]
 fn actor_ref_valid_test() {
   let socket = Socket::new(Host::DNS("localhost".to_string()), 0, 0);
-  let foo = forge::<Quz, Foo, Foo>("foo".to_string(), socket.clone());
+  let foo = ActorRef::<Quz, Foo>::new::<Foo>("foo".to_string(), socket.clone());
   let ser = serialize(&foo).unwrap();
   let invalid = deserialize::<ActorRef<Quz, Bar>>(&ser[..]).unwrap();
   assert!(!invalid.valid());

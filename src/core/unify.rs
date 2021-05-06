@@ -1,7 +1,6 @@
 use crate::cluster::{ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg};
 use crate::core::{
-  ActorRef, DeserializeError, Destination, Interpretations, LocalActorMsg,
-  RegistryMsg, Socket,
+  DeserializeError, Interpretations, LocalActorMsg, RegistryMsg,
 };
 use crate::testkit::LoggerMsg;
 use serde::de::DeserializeOwned;
@@ -34,24 +33,11 @@ pub trait UnifiedType:
   fn has_interface(self, interface: Self) -> bool;
 }
 
-pub fn forge<U, S, I>(name: String, socket: Socket) -> ActorRef<U, I>
-where
-  U: Case<S> + Case<I> + UnifiedType,
-  S: From<I> + SpecificInterface<U>,
-  I: Send,
-{
-  ActorRef {
-    socket: socket,
-    dest: Destination::new::<S>(name),
-    local: None,
-  }
-}
-
 pub trait Case<S> {
   const VARIANT: Self;
 }
 
-pub trait SpecificInterface<U: UnifiedType>
+pub trait SpecificInterface<U: UnifiedType + Case<Self>>
 where
   Self: Sized,
 {

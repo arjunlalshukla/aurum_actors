@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use aurum::cluster::{Cluster, ClusterCmd};
 use aurum::core::{
-  forge, Actor, ActorContext, ActorRef, Host, LocalRef, Node, Socket,
+  Actor, ActorContext, ActorRef, Host, LocalRef, Node, Socket,
 };
 use aurum::test_commons::{ClusterNodeMsg, ClusterNodeTypes, CoordinatorMsg};
 use aurum::testkit::FailureConfigMap;
@@ -97,7 +97,7 @@ fn main() {
     true,
     ClusterNode {
       state: Initial,
-      coor: forge::<_, CoordinatorMsg, _>("coordinator".to_string(), coor),
+      coor: ActorRef::new::<CoordinatorMsg>("coordinator".to_string(), coor),
       seeds: seeds,
     },
     format!("node-{}", port),
