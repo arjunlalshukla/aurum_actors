@@ -1,29 +1,12 @@
 use crate as aurum;
-use crate::cluster::{
-  ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg, NodeRing,
-};
-use crate::core::{Case, Host, Socket};
+use crate::cluster::NodeRing;
+use crate::core::{Host, Socket};
 use crate::AurumInterface;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::Duration;
 use ClusterEvent::*;
-
-pub trait UnifiedBounds:
-  crate::core::UnifiedBounds
-  + Case<ClusterMsg<Self>>
-  + Case<IntraClusterMsg<Self>>
-  + Case<HeartbeatReceiverMsg>
-{
-}
-impl<T> UnifiedBounds for T where
-  T: crate::core::UnifiedBounds
-    + Case<ClusterMsg<Self>>
-    + Case<IntraClusterMsg<Self>>
-    + Case<HeartbeatReceiverMsg>
-{
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ClusterConfig {

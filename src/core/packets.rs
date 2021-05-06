@@ -1,6 +1,4 @@
-use crate::core::{
-  ActorSignal, Case, Destination, LocalActorMsg, UnifiedBounds,
-};
+use crate::core::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedType};
 use crate::testkit::FailureConfig;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::SliceRandom;
@@ -21,7 +19,9 @@ pub enum DeserializeError<U: Debug> {
   Other(U),
 }
 
-pub fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
+pub(crate) fn serialize<T: Serialize + DeserializeOwned>(
+  item: &T,
+) -> Option<Vec<u8>> {
   Some(serde_cbor::to_vec(item).unwrap())
 }
 
@@ -35,7 +35,7 @@ pub fn deserialize_msg<U, S, I>(
   bytes: &[u8],
 ) -> Result<LocalActorMsg<S>, DeserializeError<U>>
 where
-  U: Case<S> + Case<I> + UnifiedBounds,
+  U: Case<S> + Case<I> + UnifiedType,
   S: From<I>,
   I: Serialize + DeserializeOwned,
 {
@@ -59,7 +59,7 @@ pub struct MessagePackets {
   intp: Interpretations,
 }
 impl MessagePackets {
-  pub fn new<T: Serialize + DeserializeOwned, U: UnifiedBounds + Case<I>, I>(
+  pub fn new<T: Serialize + DeserializeOwned, U: UnifiedType + Case<I>, I>(
     item: &T,
     intp: Interpretations,
     dest: &Destination<U, I>,

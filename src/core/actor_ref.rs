@@ -1,6 +1,6 @@
 use crate::core::{
   local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
-  LocalActorMsg, Socket, UnifiedBounds,
+  LocalActorMsg, Socket, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -57,18 +57,23 @@ impl<T: Send + 'static> LocalRef<T> {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct ActorRef<U: UnifiedBounds + Case<S>, S> {
+pub struct ActorRef<U: UnifiedType + Case<S>, S> {
   pub(in crate::core) socket: Socket,
   pub(in crate::core) dest: Destination<U, S>,
   #[serde(skip, default)]
   pub(in crate::core) local: Option<LocalRef<S>>,
 }
-impl<U: UnifiedBounds + Case<S>, S: Send + 'static> ActorRef<U, S> {
+impl<U: UnifiedType + Case<S>, S> ActorRef<U, S> {
+  pub fn valid(&self) -> bool {
+    self.dest.valid()
+  }
+}
+impl<U: UnifiedType + Case<S>, S: Send + 'static> ActorRef<U, S> {
   pub fn local(&self) -> &Option<LocalRef<S>> {
     &self.local
   }
 }
-impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
+impl<U: UnifiedType + Case<S>, S> ActorRef<U, S>
 where
   S: Serialize + DeserializeOwned,
 {
@@ -76,7 +81,7 @@ where
     udp_msg(&self.socket, &self.dest, item).await;
   }
 }
-impl<U: UnifiedBounds + Case<S>, S> ActorRef<U, S>
+impl<U: UnifiedType + Case<S>, S> ActorRef<U, S>
 where
   S: Send + Serialize + DeserializeOwned + 'static,
 {
@@ -110,19 +115,19 @@ where
     }
   }
 }
-impl<U: UnifiedBounds + Case<S>, S: Send> PartialEq for ActorRef<U, S> {
+impl<U: UnifiedType + Case<S>, S: Send> PartialEq for ActorRef<U, S> {
   fn eq(&self, other: &Self) -> bool {
     self.socket == other.socket && self.dest == other.dest
   }
 }
-impl<U: UnifiedBounds + Case<S>, S: Send> Eq for ActorRef<U, S> {}
-impl<U: UnifiedBounds + Case<S>, S: Send> Hash for ActorRef<U, S> {
+impl<U: UnifiedType + Case<S>, S: Send> Eq for ActorRef<U, S> {}
+impl<U: UnifiedType + Case<S>, S: Send> Hash for ActorRef<U, S> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     self.socket.hash(state);
     self.dest.hash(state);
   }
 }
-impl<U: UnifiedBounds + Case<S>, S: Send> Debug for ActorRef<U, S> {
+impl<U: UnifiedType + Case<S>, S: Send> Debug for ActorRef<U, S> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("ActorRef")
       .field("Unified", &std::any::type_name::<U>())
@@ -132,4 +137,50 @@ impl<U: UnifiedBounds + Case<S>, S: Send> Debug for ActorRef<U, S> {
       .field("has_local", &self.local.is_some())
       .finish()
   }
+}
+
+#[cfg(test)]
+use crate::core::{deserialize, forge, serialize, Host};
+
+#[cfg(test)]
+mod ref_safety {
+
+  use crate as aurum;
+  use crate::{unify, AurumInterface};
+  use serde::{Deserialize, Serialize};
+
+  #[derive(AurumInterface, Serialize, Deserialize)]
+  pub enum Foo {
+    #[aurum]
+    One(String),
+  }
+
+  #[derive(AurumInterface, Serialize, Deserialize)]
+  pub enum Bar {
+    #[aurum]
+    One(String),
+    #[aurum]
+    Two(i32),
+  }
+
+  unify!(pub Quz = Foo | Bar ; String | i32);
+}
+#[cfg(test)]
+use ref_safety::*;
+
+#[test]
+#[cfg(test)]
+#[allow(dead_code)]
+fn actor_ref_valid_test() {
+  let socket = Socket::new(Host::DNS("localhost".to_string()), 0, 0);
+  let foo = forge::<Quz, Foo, Foo>("foo".to_string(), socket.clone());
+  let ser = serialize(&foo).unwrap();
+  let invalid = deserialize::<ActorRef<Quz, Bar>>(&ser[..]).unwrap();
+  assert!(!invalid.valid());
+  let invalid = deserialize::<ActorRef<Quz, i32>>(&ser[..]).unwrap();
+  assert!(!invalid.valid());
+  let valid = deserialize::<ActorRef<Quz, Foo>>(&ser[..]).unwrap();
+  assert!(valid.valid());
+  let valid = deserialize::<ActorRef<Quz, String>>(&ser[..]).unwrap();
+  assert!(valid.valid());
 }

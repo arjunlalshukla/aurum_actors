@@ -1,9 +1,11 @@
 use crate as aurum;
 use crate::cluster::{
   ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
+  FAILURE_MODE, LOG_LEVEL,
 };
-use crate::core::{ActorContext, Case, Destination, LocalRef, TimeoutActor};
+use crate::core::{
+  ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType,
+};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
@@ -23,10 +25,7 @@ pub(crate) enum HBRState {
   Downed,
 }
 
-pub(crate) struct HeartbeatReceiver<U>
-where
-  U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
-{
+pub(crate) struct HeartbeatReceiver<U: UnifiedType> {
   supervisor: LocalRef<ClusterMsg<U>>,
   fail_map: FailureConfigMap,
   clr_dest: Destination<U, IntraClusterMsg<U>>,
@@ -35,10 +34,7 @@ where
   state: HBRState,
   config: HBRConfig,
 }
-impl<U> HeartbeatReceiver<U>
-where
-  U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
-{
+impl<U: UnifiedType> HeartbeatReceiver<U> {
   pub fn from_clr(clr: &str, id: u64) -> String {
     format!("{}-{}", clr, id)
   }
@@ -84,7 +80,7 @@ where
 #[async_trait]
 impl<U> TimeoutActor<U, HeartbeatReceiverMsg> for HeartbeatReceiver<U>
 where
-  U: UnifiedBounds + Case<HeartbeatReceiverMsg>,
+  U: UnifiedType,
 {
   async fn pre_start(
     &mut self,

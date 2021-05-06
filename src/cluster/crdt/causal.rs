@@ -2,10 +2,11 @@
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
 use crate::cluster::{
-  ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, UnifiedBounds,
-  FAILURE_MODE,
+  ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, FAILURE_MODE,
 };
-use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node};
+use crate::core::{
+  Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType,
+};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
@@ -75,7 +76,7 @@ pub enum DispersalSelector {
 
 struct InCluster<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   data: S,
@@ -91,7 +92,7 @@ where
 }
 impl<S, U> InCluster<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   async fn disperse(
@@ -114,7 +115,8 @@ where
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let delta_msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
-    let full_msg = CausalIntraMsg::Delta(self.data.clone(), self.member.id, self.clock);
+    let full_msg =
+      CausalIntraMsg::Delta(self.data.clone(), self.member.id, self.clock);
     let members = common
       .preference
       .priority
@@ -271,7 +273,7 @@ struct Waiting<S: CRDT> {
   ops_queue: Vec<S::Delta>,
 }
 impl<S: CRDT> Waiting<S> {
-  fn to_ic<U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>>(
+  fn to_ic<U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>>(
     &self,
     member: Arc<Member>,
     mut nodes: im::HashSet<Arc<Member>>,
@@ -302,7 +304,7 @@ impl<S: CRDT> Waiting<S> {
 
 enum InteractionState<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   InCluster(InCluster<S, U>),
@@ -311,7 +313,7 @@ where
 
 struct Common<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   dest: Destination<U, CausalIntraMsg<S>>,
@@ -323,7 +325,7 @@ where
 
 pub struct CausalDisperse<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   common: Common<S, U>,
@@ -331,7 +333,7 @@ where
 }
 impl<S, U> CausalDisperse<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   pub fn new(
@@ -363,7 +365,7 @@ where
 #[async_trait]
 impl<U, S> Actor<U, CausalMsg<S>> for CausalDisperse<S, U>
 where
-  U: UnifiedBounds + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
+  U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
   async fn pre_start(&mut self, ctx: &ActorContext<U, CausalMsg<S>>) {

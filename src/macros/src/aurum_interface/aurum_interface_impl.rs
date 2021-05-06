@@ -72,7 +72,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
 
     impl<__Unified, #generics> aurum::core::SpecificInterface<__Unified>
     for #type_id_with_generics
-    where __Unified: aurum::core::UnifiedBounds #(+ aurum::core::Case<#cases>)* ,
+    where __Unified: aurum::core::UnifiedType #(+ aurum::core::Case<#cases>)* ,
     #where_clause
     {
       fn deserialize_as(
@@ -97,6 +97,10 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
         return std::result::Result::Err(
           aurum::core::DeserializeError::IncompatibleInterface(interface)
         );
+      }
+
+      fn has_interface(interface: __Unified) -> bool {
+        #(<__Unified as aurum::core::Case<#non_locals>>::VARIANT == interface || )* false
       }
     }
   });

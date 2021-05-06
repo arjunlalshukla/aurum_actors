@@ -1,5 +1,5 @@
 use crate as aurum;
-use crate::core::{Actor, ActorContext, Case, UnifiedBounds};
+use crate::core::{Actor, ActorContext, Case, UnifiedType};
 use crate::AurumInterface;
 use async_trait::async_trait;
 use std::fmt::Display;
@@ -66,7 +66,7 @@ impl Logger {
   }
 }
 #[async_trait]
-impl<U: Case<LoggerMsg> + UnifiedBounds> Actor<U, LoggerMsg> for Logger {
+impl<U: Case<LoggerMsg> + UnifiedType> Actor<U, LoggerMsg> for Logger {
   async fn recv(&mut self, ctx: &ActorContext<U, LoggerMsg>, msg: LoggerMsg) {
     match msg {
       Log {

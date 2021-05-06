@@ -1,6 +1,6 @@
 use crate::core::{
   ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
-  SpecificInterface, TimeoutActor, UnifiedBounds,
+  SpecificInterface, TimeoutActor, UnifiedType,
 };
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -13,7 +13,7 @@ pub(crate) async fn run_single_timeout<U, S, A>(
   register: bool,
   mut timeout: Duration,
 ) where
-  U: UnifiedBounds + Case<S>,
+  U: UnifiedType + Case<S>,
   S: 'static + Send + SpecificInterface<U>,
   A: TimeoutActor<U, S> + Send + 'static,
 {

@@ -1,6 +1,6 @@
 use crate::core::{
   Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
-  SpecificInterface, UnifiedBounds,
+  SpecificInterface, UnifiedType,
 };
 use std::collections::VecDeque;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
@@ -12,7 +12,7 @@ pub(crate) async fn unit_single<U, S, A>(
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
-  U: UnifiedBounds + Case<S>,
+  U: UnifiedType + Case<S>,
   S: 'static + Send + SpecificInterface<U>,
   A: Actor<U, S> + Send + 'static,
 {
@@ -57,7 +57,7 @@ pub(crate) async fn unit_secondary<U, S, A>(
   mut rx: UnboundedReceiver<ActorMsg<U, S>>,
   register: bool,
 ) where
-  U: UnifiedBounds + Case<S>,
+  U: UnifiedType + Case<S>,
   S: 'static + Send + SpecificInterface<U>,
   A: Actor<U, S> + Send + 'static,
 {
@@ -124,7 +124,7 @@ async fn unit_primary<U, S, A>(
   ctx: ActorContext<U, S>,
   mut rx: UnboundedReceiver<PrimaryMsg<S>>,
 ) where
-  U: UnifiedBounds + Case<S>,
+  U: UnifiedType + Case<S>,
   S: 'static + Send + SpecificInterface<U>,
   A: Actor<U, S> + Send + 'static,
 {

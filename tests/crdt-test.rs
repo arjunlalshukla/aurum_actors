@@ -16,10 +16,11 @@ use std::time::Duration;
 use CoordinatorMsg::*;
 
 unify!(CRDTTestType =
-  CausalIntraMsg<LocalGCounter> |
   CausalMsg<LocalGCounter> |
   CoordinatorMsg |
   DataReceiverMsg
+  ;
+  CausalIntraMsg<LocalGCounter>
 );
 
 #[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -77,7 +78,7 @@ enum CoordinatorMsg {
   Mutate(Increment),
   Spawn(u16),
   WaitForConvergence,
-  Done
+  Done,
 }
 
 struct Coordinator {
@@ -312,7 +313,7 @@ fn crdt_test() {
     Mutate(Increment { port: 5506 }),
     Mutate(Increment { port: 5506 }),
     Mutate(Increment { port: 5506 }),
-    Done
+    Done,
   ];
   for e in events {
     coor.send(e);

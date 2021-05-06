@@ -15,6 +15,12 @@ mod unify;
 pub const LOG_LEVEL: LogLevel = LogLevel::Error;
 
 #[rustfmt::skip]
+#[cfg(test)]
+pub(crate) use {
+  packets::serialize,
+};
+
+#[rustfmt::skip]
 pub(crate) use {
   actor::local_actor_msg_convert, 
   actor::ActorMsg,
@@ -40,7 +46,7 @@ pub use {
   packets::Interpretations,
   unify::Case, 
   unify::SpecificInterface, 
-  unify::UnifiedBounds,
+  unify::UnifiedType,
 };
 
 // Actual public interface

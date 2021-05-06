@@ -1,6 +1,6 @@
 use crate::core::{
   ActorName, ActorSignal, Case, Interpretations, MessagePackets,
-  SpecificInterface, UnifiedBounds,
+  SpecificInterface, UnifiedType,
 };
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -48,18 +48,19 @@ impl Socket {
 
 #[derive(Eq, PartialEq, Clone, Hash, Debug, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct DestinationUntyped<U: UnifiedBounds> {
+pub struct DestinationUntyped<U: UnifiedType> {
   pub name: ActorName<U>,
   pub interface: U,
 }
 
 #[derive(Eq, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct Destination<U: UnifiedBounds + Case<I>, I> {
+pub struct Destination<U: UnifiedType + Case<I>, I> {
   pub untyped: DestinationUntyped<U>,
+  #[serde(skip)]
   pub x: PhantomData<I>,
 }
-impl<U: UnifiedBounds + Case<I>, I> Destination<U, I> {
+impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
   pub fn new<S>(s: String) -> Destination<U, I>
   where
     U: Case<S>,
@@ -81,8 +82,16 @@ impl<U: UnifiedBounds + Case<I>, I> Destination<U, I> {
   pub fn untyped(&self) -> &DestinationUntyped<U> {
     &self.untyped
   }
+
+  pub fn valid(&self) -> bool {
+    self
+      .untyped
+      .name
+      .recv_type
+      .has_interface(<U as Case<I>>::VARIANT)
+  }
 }
-impl<U: UnifiedBounds + Case<I>, I> Clone for Destination<U, I> {
+impl<U: UnifiedType + Case<I>, I> Clone for Destination<U, I> {
   fn clone(&self) -> Self {
     Destination {
       untyped: self.untyped.clone(),
@@ -90,27 +99,27 @@ impl<U: UnifiedBounds + Case<I>, I> Clone for Destination<U, I> {
     }
   }
 }
-impl<U: UnifiedBounds + Case<I>, I> PartialEq for Destination<U, I> {
+impl<U: UnifiedType + Case<I>, I> PartialEq for Destination<U, I> {
   fn eq(&self, other: &Self) -> bool {
     self.untyped == other.untyped
   }
 }
-impl<U: UnifiedBounds + Case<I>, I> Hash for Destination<U, I> {
+impl<U: UnifiedType + Case<I>, I> Hash for Destination<U, I> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     self.untyped.hash(state);
   }
 }
-impl<U: UnifiedBounds + Case<I>, I> Debug for Destination<U, I> {
+impl<U: UnifiedType + Case<I>, I> Debug for Destination<U, I> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("ActorRef")
+    f.debug_struct("Destination")
       .field("Unified", &std::any::type_name::<U>())
       .field("Interface", &std::any::type_name::<I>())
-      .field("name", &self.untyped)
+      .field("untyped", &self.untyped)
       .finish()
   }
 }
 
-pub async fn udp_msg<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_msg<U: UnifiedType + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   msg: &I,
@@ -120,7 +129,7 @@ pub async fn udp_msg<U: UnifiedBounds + Case<I>, I>(
   udp_send(&socket, &dest, Interpretations::Message, msg).await;
 }
 
-pub async fn udp_signal<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_signal<U: UnifiedType + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   sig: &ActorSignal,
@@ -128,7 +137,7 @@ pub async fn udp_signal<U: UnifiedBounds + Case<I>, I>(
   udp_send(&socket, &dest, Interpretations::Signal, sig).await;
 }
 
-async fn udp_send<U: UnifiedBounds + Case<I>, I, T>(
+async fn udp_send<U: UnifiedType + Case<I>, I, T>(
   socket: &Socket,
   dest: &Destination<U, I>,
   intp: Interpretations,

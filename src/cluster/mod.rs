@@ -34,5 +34,4 @@ pub use {
   utils::ClusterUpdate,
   utils::HBRConfig,
   utils::Member,
-  utils::UnifiedBounds,
 };

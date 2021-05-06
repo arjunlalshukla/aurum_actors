@@ -6,7 +6,7 @@ use syn::parse::Parse;
 use syn::{punctuated::Punctuated, Ident, Token, TypePath, Visibility};
 
 pub fn unify_impl(toks: TokenStream) -> TokenStream {
-  let UnifiedType { unified, specifics, vis } =
+  let UnifiedType { unified, specifics, interfaces, vis } =
     syn::parse::<UnifiedType>(toks).unwrap();
   let mut specifics = specifics
     .into_iter()
@@ -22,22 +22,29 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     aurum::cluster::HeartbeatReceiverMsg
   });
   specifics.push(quote! {
-    aurum::cluster::IntraClusterMsg<#unified>
-  });
-  specifics.push(quote! {
     aurum::testkit::LoggerMsg
   });
-  let variants = std::iter::repeat(('A'..='B').collect::<Vec<_>>())
-    .take((specifics.len() as f64).log(1.9).ceil() as usize)
+  let mut interfaces = interfaces
+    .into_iter()
+    .map(|x| x.path.to_token_stream())
+    .collect::<Vec<proc_macro2::TokenStream>>();
+  interfaces.push(quote! {
+    aurum::cluster::IntraClusterMsg<#unified>
+  });
+  let mut all = specifics.clone();
+  all.append(&mut interfaces.clone());
+  let all_variants = std::iter::repeat(('A'..='B').collect_vec())
+    .take((all.len() as f64).log(1.9).ceil() as usize)
     .multi_cartesian_product()
-    .take(specifics.len())
+    .take(all.len())
     .map(|x| {
       Ident::new(
         x.into_iter().collect::<String>().as_str(),
         Span::call_site(),
       )
     })
-    .collect::<Vec<_>>();
+    .collect_vec();
+  let specific_variants = all_variants.clone().into_iter().take(specifics.len()).collect_vec();
   let code = TokenStream::from(quote! {
     #[derive(
       serde::Serialize, serde::Deserialize, std::cmp::Eq,
@@ -45,13 +52,23 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       std::marker::Copy, std::cmp::PartialOrd, std::cmp::Ord
     )]
     #vis enum #unified {
-      #(#variants,)*
+      #(#all_variants,)*
+    }
+    impl aurum::core::UnifiedType for #unified {
+      fn has_interface(self, interface: Self) -> bool {
+        match self {
+          #(
+            #unified::#specific_variants => <#specifics as aurum::core::SpecificInterface<#unified>>::has_interface(interface),
+          )*
+          _ => false
+        }
+      }
     }
     impl std::fmt::Display for #unified {
       fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let specific = match self {
           #(
-            #unified::#variants => std::any::type_name::<#specifics>(),
+            #unified::#all_variants => std::any::type_name::<#all>(),
           )*
         };
         write!(f, "{}<{}>", std::any::type_name::<#unified>(), specific)
@@ -63,8 +80,8 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       }
     }
     #(
-      impl aurum::core::Case<#specifics> for #unified {
-        const VARIANT: #unified = #unified::#variants;
+      impl aurum::core::Case<#all> for #unified {
+        const VARIANT: #unified = #unified::#all_variants;
       }
     )*
   });
@@ -75,6 +92,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
 struct UnifiedType {
   unified: Ident,
   specifics: Vec<SpecificType>,
+  interfaces: Vec<SpecificType>,
   vis: Visibility
 }
 impl Parse for UnifiedType {
@@ -83,12 +101,23 @@ impl Parse for UnifiedType {
     let unified = input.parse::<Ident>()?;
     input.parse::<Token![=]>()?;
     let specifics =
-      Punctuated::<SpecificType, Token![|]>::parse_terminated(&input)?
+      Punctuated::<SpecificType, Token![|]>::parse_separated_nonempty(&input)?
         .into_iter()
-        .collect::<Vec<SpecificType>>();
+        .collect();
+    let interfaces = {
+      if input.peek(Token![;]) {
+        input.parse::<Token![;]>()?;
+        Punctuated::<SpecificType, Token![|]>::parse_terminated(&input)?
+          .into_iter()
+          .collect()
+      } else {
+        vec![]
+      }
+    };
     Ok(UnifiedType {
       unified: unified,
       specifics: specifics,
+      interfaces: interfaces,
       vis: vis
     })
   }

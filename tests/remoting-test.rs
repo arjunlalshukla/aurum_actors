@@ -43,7 +43,7 @@ impl Actor<RemoteTestTypes, RemoteLoggerMsg> for Logger {
   }
 }
 
-unify!(RemoteTestTypes = RemoteLoggerMsg | std::string::String | i32);
+unify!(RemoteTestTypes = RemoteLoggerMsg ; std::string::String | i32);
 
 fn actor_ref_test(double: bool, port: u16) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 1001);

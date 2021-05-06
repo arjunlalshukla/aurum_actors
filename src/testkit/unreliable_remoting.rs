@@ -1,6 +1,6 @@
 use crate::core::{
   ActorSignal, Case, Destination, Interpretations, MessagePackets, Node,
-  Socket, UnifiedBounds,
+  Socket, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_msg_unreliable_msg<U: UnifiedType + Case<I>, I>(
   node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
@@ -31,7 +31,7 @@ pub async fn udp_msg_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
   .await;
 }
 
-pub async fn udp_signal_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_signal_unreliable_msg<U: UnifiedType + Case<I>, I>(
   node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
@@ -49,7 +49,7 @@ pub async fn udp_signal_unreliable_msg<U: UnifiedBounds + Case<I>, I>(
   .await;
 }
 
-async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
+async fn udp_unreliable_msg<U: UnifiedType + Case<I>, I, T>(
   node: &Node<U>,
   socket: &Socket,
   dest: &Destination<U, I>,
@@ -83,7 +83,7 @@ async fn udp_unreliable_msg<U: UnifiedBounds + Case<I>, I, T>(
   }
 }
 
-pub async fn udp_msg_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_msg_unreliable_packet<U: UnifiedType + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   msg: &I,
@@ -101,7 +101,7 @@ pub async fn udp_msg_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
   .await;
 }
 
-pub async fn udp_signal_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
+pub async fn udp_signal_unreliable_packet<U: UnifiedType + Case<I>, I>(
   socket: &Socket,
   dest: &Destination<U, I>,
   sig: &ActorSignal,
@@ -111,7 +111,7 @@ pub async fn udp_signal_unreliable_packet<U: UnifiedBounds + Case<I>, I>(
     .await;
 }
 
-async fn udp_unreliable_packet<U: UnifiedBounds + Case<I>, I, T>(
+async fn udp_unreliable_packet<U: UnifiedType + Case<I>, I, T>(
   socket: &Socket,
   dest: &Destination<U, I>,
   intp: Interpretations,

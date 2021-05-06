@@ -2,10 +2,11 @@ use crate as aurum;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, ClusterUpdate, Gossip, HBRConfig,
   HeartbeatReceiver, HeartbeatReceiverMsg, MachineState, Member, NodeRing,
-  UnifiedBounds, FAILURE_MODE, LOG_LEVEL,
+  FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node,
+  UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, udp_select, AurumInterface};
@@ -24,7 +25,7 @@ use MachineState::*;
 
 #[derive(AurumInterface)]
 #[aurum(local)]
-pub enum ClusterMsg<U: UnifiedBounds> {
+pub enum ClusterMsg<U: UnifiedType> {
   #[aurum]
   IntraMsg(IntraClusterMsg<U>),
   #[aurum(local)]
@@ -36,8 +37,8 @@ pub enum ClusterMsg<U: UnifiedBounds> {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound = "U: UnifiedBounds")]
-pub enum IntraClusterMsg<U: UnifiedBounds> {
+#[serde(bound = "U: UnifiedType")]
+pub enum IntraClusterMsg<U: UnifiedType> {
   Foo(ActorRef<U, IntraClusterMsg<U>>),
   ReqHeartbeat(Arc<Member>, u64),
   ReqGossip(Arc<Member>),
@@ -59,7 +60,7 @@ struct InCluster {
   gossip_timeout: JoinHandle<bool>,
 }
 impl InCluster {
-  fn alone<U: UnifiedBounds>(
+  fn alone<U: UnifiedType>(
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) -> InCluster {
@@ -77,7 +78,7 @@ impl InCluster {
     }
   }
 
-  async fn process<U: UnifiedBounds>(
+  async fn process<U: UnifiedType>(
     &mut self,
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -182,7 +183,7 @@ impl InCluster {
     }
   }
 
-  fn update_charges_managers<U: UnifiedBounds>(
+  fn update_charges_managers<U: UnifiedType>(
     &mut self,
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -249,7 +250,7 @@ impl InCluster {
     );
   }
 
-  async fn gossip_round<U: UnifiedBounds>(
+  async fn gossip_round<U: UnifiedType>(
     &self,
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -296,7 +297,7 @@ impl InCluster {
     }
   }
 
-  async fn gossip_reqs<U: UnifiedBounds>(
+  async fn gossip_reqs<U: UnifiedType>(
     &self,
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -345,7 +346,7 @@ impl InCluster {
     }
   }
 
-  async fn down<U: UnifiedBounds>(
+  async fn down<U: UnifiedType>(
     &mut self,
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -362,7 +363,7 @@ impl InCluster {
     }
   }
 
-  fn notify<U: UnifiedBounds>(
+  fn notify<U: UnifiedType>(
     &self,
     common: &mut NodeState<U>,
     events: Vec<ClusterEvent>,
@@ -383,7 +384,7 @@ struct Pinging {
   timeout: JoinHandle<()>,
 }
 impl Pinging {
-  async fn ping<U: UnifiedBounds>(
+  async fn ping<U: UnifiedType>(
     &mut self,
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -412,7 +413,7 @@ impl Pinging {
       });
   }
 
-  async fn process<U: UnifiedBounds>(
+  async fn process<U: UnifiedType>(
     &mut self,
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -499,7 +500,7 @@ enum InteractionState {
   Left,
 }
 impl InteractionState {
-  async fn process<U: UnifiedBounds>(
+  async fn process<U: UnifiedType>(
     &mut self,
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
@@ -520,7 +521,7 @@ impl InteractionState {
   }
 }
 
-pub(crate) struct NodeState<U: UnifiedBounds> {
+pub(crate) struct NodeState<U: UnifiedType> {
   pub member: Arc<Member>,
   pub clr_dest: Destination<U, IntraClusterMsg<U>>,
   pub hbr_dest: Destination<U, HeartbeatReceiverMsg>,
@@ -530,7 +531,7 @@ pub(crate) struct NodeState<U: UnifiedBounds> {
   pub clr_config: ClusterConfig,
   pub hbr_config: HBRConfig,
 }
-impl<U: UnifiedBounds> NodeState<U> {
+impl<U: UnifiedType> NodeState<U> {
   fn new_id(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     let old_id = self.member.id;
     self.member = Arc::new(Member {
@@ -585,12 +586,12 @@ impl<U: UnifiedBounds> NodeState<U> {
   }
 }
 
-pub struct Cluster<U: UnifiedBounds> {
+pub struct Cluster<U: UnifiedType> {
   common: NodeState<U>,
   state: InteractionState,
 }
 #[async_trait]
-impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
+impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
     info!(
       LOG_LEVEL,
@@ -679,7 +680,7 @@ impl<U: UnifiedBounds> Actor<U, ClusterMsg<U>> for Cluster<U> {
     }
   }
 }
-impl<U: UnifiedBounds> Cluster<U> {
+impl<U: UnifiedType> Cluster<U> {
   pub async fn new(
     node: &Node<U>,
     name: String,

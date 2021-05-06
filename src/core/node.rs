@@ -1,7 +1,7 @@
 use crate::core::{
   run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor,
   ActorContext, ActorMsg, ActorName, ActorRef, Case, LocalRef, Registry,
-  RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedBounds,
+  RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedType,
 };
 use crate::testkit::{LogLevel, Logger, LoggerMsg};
 use std::io::{Error, ErrorKind};
@@ -12,7 +12,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
-struct NodeImpl<U: UnifiedBounds> {
+struct NodeImpl<U: UnifiedType> {
   socket: Socket,
   registry: LocalRef<RegistryMsg<U>>,
   logger: LocalRef<LoggerMsg>,
@@ -20,10 +20,10 @@ struct NodeImpl<U: UnifiedBounds> {
 }
 
 #[derive(Clone)]
-pub struct Node<U: UnifiedBounds> {
+pub struct Node<U: UnifiedType> {
   node: Arc<NodeImpl<U>>,
 }
-impl<U: UnifiedBounds> Node<U> {
+impl<U: UnifiedType> Node<U> {
   pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()

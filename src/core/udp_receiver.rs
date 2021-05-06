@@ -1,6 +1,6 @@
 use crate as aurum;
 use crate::core::{
-  DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedBounds, LOG_LEVEL,
+  DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedType, LOG_LEVEL,
 };
 use crate::fatal;
 use std::collections::{hash_map::Entry, HashMap};
@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 
 const MSG_TIMEOUT: Duration = Duration::from_millis(1000);
 
-pub(crate) async fn udp_receiver<U: UnifiedBounds>(node: Node<U>) {
+pub(crate) async fn udp_receiver<U: UnifiedType>(node: Node<U>) {
   let mut recvd = HashMap::<u64, (JoinHandle<()>, MessageBuilder)>::new();
   let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, node.socket().udp)).await;
   let udp = match udp {
