@@ -102,7 +102,7 @@ impl<U: UnifiedType> Node<U> {
   ) -> (LocalRef<S>, Sender<Self>)
   where
     A: Actor<U, S> + Send + 'static,
-    S: 'static + Send + SpecificInterface<U>,
+    S: SpecificInterface<U>,
     U: Case<S>,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
@@ -128,7 +128,7 @@ impl<U: UnifiedType> Node<U> {
   ) -> ActorRef<U, S>
   where
     U: Case<S>,
-    S: 'static + Send + SpecificInterface<U>,
+    S: SpecificInterface<U>,
     A: Actor<U, S> + Send + 'static,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
@@ -155,7 +155,7 @@ impl<U: UnifiedType> Node<U> {
   ) -> ActorRef<U, S>
   where
     U: Case<S>,
-    S: 'static + Send + SpecificInterface<U>,
+    S: SpecificInterface<U>,
     A: TimeoutActor<U, S> + Send + 'static,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();

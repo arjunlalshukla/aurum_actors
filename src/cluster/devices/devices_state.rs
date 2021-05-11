@@ -10,23 +10,23 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{max, Ordering};
 use std::time::Duration;
 #[cfg(test)]
-use DeviceMutators::*;
+use DeviceMutator::*;
 
 #[derive(
   Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
-pub(crate) struct Device {
+pub struct Device {
   socket: Socket,
 }
 
-pub(crate) enum DeviceMutators {
+pub enum DeviceMutator {
   Put(Device, DeviceInterval),
   Remove(Device),
 }
-impl DeltaMutator<Devices> for DeviceMutators {
+impl DeltaMutator<Devices> for DeviceMutator {
   fn apply(&self, target: &Devices) -> Devices {
     match self {
-      DeviceMutators::Put(dev, interval) => target
+      DeviceMutator::Put(dev, interval) => target
         .states
         .get(dev)
         .map(|entry| {
@@ -48,7 +48,7 @@ impl DeltaMutator<Devices> for DeviceMutators {
             }
           },
         }),
-      DeviceMutators::Remove(dev) => target
+      DeviceMutator::Remove(dev) => target
         .states
         .get(dev)
         .map(|entry| {
@@ -70,7 +70,7 @@ impl DeltaMutator<Devices> for DeviceMutators {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub(crate) struct DeviceInterval {
+pub struct DeviceInterval {
   clock: u64,
   interval: Duration,
 }
@@ -102,19 +102,19 @@ impl Ord for DeviceInterval {
   Serialize,
   Deserialize,
 )]
-pub(crate) struct DeviceEntry {
+pub struct DeviceEntry {
   removals: u64,
   interval: Option<DeviceInterval>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
-pub(crate) struct Devices {
-  states: im::OrdMap<Device, DeviceEntry>,
+pub struct Devices {
+  pub states: im::OrdMap<Device, DeviceEntry>,
 }
 impl CRDT for Devices {
-  type Delta = DeviceMutators;
+  type Delta = DeviceMutator;
 
-  fn delta(&self, changes: &DeviceMutators) -> Self {
+  fn delta(&self, changes: &DeviceMutator) -> Self {
     changes.apply(self)
   }
 

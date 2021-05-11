@@ -1,4 +1,6 @@
 use crate::cluster::{ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg};
+use crate::cluster::devices::{Devices, DeviceServerMsg, DeviceServerRemoteMsg};
+use crate::cluster::crdt::{CausalIntraMsg, CausalMsg};
 use crate::core::{
   DeserializeError, Interpretations, LocalActorMsg, RegistryMsg,
 };
@@ -12,7 +14,6 @@ pub trait UnifiedType:
   'static
   + Send
   + Sync
-  + Debug
   + Copy
   + Clone
   + PartialEq
@@ -29,6 +30,10 @@ pub trait UnifiedType:
   + Case<ClusterMsg<Self>>
   + Case<IntraClusterMsg<Self>>
   + Case<HeartbeatReceiverMsg>
+  + Case<DeviceServerMsg>
+  + Case<DeviceServerRemoteMsg>
+  + Case<CausalMsg<Devices>>
+  + Case<CausalIntraMsg<Devices>>
 {
   fn has_interface(self, interface: Self) -> bool;
 }
@@ -39,7 +44,7 @@ pub trait Case<S> {
 
 pub trait SpecificInterface<U: UnifiedType + Case<Self>>
 where
-  Self: Sized,
+  Self: Sized + Send + 'static ,
 {
   fn deserialize_as(
     interface: U,

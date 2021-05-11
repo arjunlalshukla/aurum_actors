@@ -32,7 +32,10 @@ impl<U: UnifiedType> ActorName<U> {
 }
 
 #[async_trait]
-pub trait Actor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>> {
+pub trait Actor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>> 
+where
+  Self: Send + 'static
+{
   async fn pre_start(&mut self, _: &ActorContext<U, S>) {}
   async fn recv(&mut self, ctx: &ActorContext<U, S>, msg: S);
   async fn post_stop(&mut self, _: &ActorContext<U, S>) {}

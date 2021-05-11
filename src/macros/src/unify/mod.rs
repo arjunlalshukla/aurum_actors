@@ -22,6 +22,12 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     aurum::cluster::HeartbeatReceiverMsg
   });
   specifics.push(quote! {
+    aurum::cluster::devices::DeviceServerMsg
+  });
+  specifics.push(quote! {
+    aurum::cluster::crdt::CausalMsg<aurum::cluster::devices::Devices>
+  });
+  specifics.push(quote! {
     aurum::testkit::LoggerMsg
   });
   let mut interfaces = interfaces
@@ -30,6 +36,12 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     .collect::<Vec<proc_macro2::TokenStream>>();
   interfaces.push(quote! {
     aurum::cluster::IntraClusterMsg<#unified>
+  });
+  interfaces.push(quote! {
+    aurum::cluster::devices::DeviceServerRemoteMsg
+  });
+  interfaces.push(quote! {
+    aurum::cluster::crdt::CausalIntraMsg<aurum::cluster::devices::Devices>
   });
   let mut all = specifics.clone();
   all.append(&mut interfaces.clone());
