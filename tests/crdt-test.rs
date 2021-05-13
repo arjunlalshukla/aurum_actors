@@ -174,8 +174,7 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           self.fail_map.clone(),
           clr_cfg,
           self.hbr_cfg.clone(),
-        )
-        .await;
+        );
         let counter = CausalDisperse::new(
           &node,
           "test-crdt-causal".to_string(),

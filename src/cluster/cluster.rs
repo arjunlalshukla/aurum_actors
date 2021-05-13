@@ -681,7 +681,7 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
   }
 }
 impl<U: UnifiedType> Cluster<U> {
-  pub async fn new(
+  pub fn new(
     node: &Node<U>,
     name: String,
     vnodes: u32,

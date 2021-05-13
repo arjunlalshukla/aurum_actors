@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_imports)]
 use crate as aurum;
 use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference};
 use crate::cluster::devices::{
@@ -9,15 +8,13 @@ use crate::cluster::{
   ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, FAILURE_MODE,
 };
 use crate::core::{
-  Actor, ActorContext, ActorSignal, Case, Destination, LocalRef, Node, Socket,
-  UnifiedType,
+  Actor, ActorContext, ActorSignal, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{info, trace, udp_select, AurumInterface};
+use crate::{trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use DeviceServerMsg::*;
@@ -77,44 +74,48 @@ impl<U: UnifiedType> InCluster<U> {
       .any(|m| m.id == self.member.id)
   }
 }
-impl<U: UnifiedType> TryFrom<Waiting> for InCluster<U> {
-  type Error = ();
-  fn try_from(value: Waiting) -> Result<Self, Self::Error> {
-    if value.servers.is_some()
-      && value.ring.is_some()
-      && value.devices.is_some()
-      && value.member.is_some()
-    {
-      Ok(Self {
-        member: value.member.unwrap(),
-        nodes: value.servers.unwrap(),
-        ring: value.ring.unwrap(),
-        devices: value.devices.unwrap(),
-        req_senders: HashMap::new(),
-        charges: im::hashset![],
-        x: PhantomData,
-      })
-    } else {
-      Err(())
-    }
-  }
-}
 
+#[derive(Clone)]
 struct Waiting {
   servers: Option<im::HashSet<Arc<Member>>>,
   member: Option<Arc<Member>>,
   ring: Option<NodeRing>,
   devices: Option<Devices>,
 }
+impl Waiting {
+  fn is_ready(&self) -> bool {
+    self.servers.is_some()
+      && self.ring.is_some()
+      && self.devices.is_some()
+      && self.member.is_some()
+  }
+}
 
 enum State<U: UnifiedType> {
   Waiting(Waiting),
   InCluster(InCluster<U>),
 }
+impl<U: UnifiedType> State<U> {
+  fn to_ic(&mut self) {
+    if let State::Waiting(w) = self {
+      if w.is_ready() {
+        let w = w.clone();
+        *self = State::InCluster(InCluster {
+          member: w.member.unwrap(),
+          nodes: w.servers.unwrap(),
+          ring: w.ring.unwrap(),
+          devices: w.devices.unwrap(),
+          req_senders: HashMap::new(),
+          charges: im::hashset![],
+          x: PhantomData,
+        });
+      }
+    }
+  }
+}
 
 struct Common<U: UnifiedType> {
   causal: LocalRef<CausalCmd<Devices>>,
-  cluster: LocalRef<ClusterCmd>,
   subscribers: Vec<LocalRef<Charges>>,
   fail_map: FailureConfigMap,
   dest: Destination<U, DeviceServerRemoteMsg>,
@@ -125,7 +126,7 @@ pub struct DeviceServer<U: UnifiedType> {
   state: State<U>,
 }
 impl<U: UnifiedType> DeviceServer<U> {
-  fn new(
+  pub fn new(
     node: &Node<U>,
     cluster: LocalRef<ClusterCmd>,
     subscribers: Vec<LocalRef<Charges>>,
@@ -142,7 +143,6 @@ impl<U: UnifiedType> DeviceServer<U> {
     );
     let common = Common {
       causal: causal,
-      cluster: cluster,
       fail_map: fail_map,
       subscribers: subscribers,
       dest: Destination::new::<DeviceServerMsg>(name.clone()),
@@ -241,12 +241,14 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
             w.member = member;
             w.ring = Some(update.ring);
             w.servers = Some(update.nodes);
+            self.state.to_ic();
           }
         }
       }
       DeviceData(devices) => match &mut self.state {
         State::Waiting(w) => {
           w.devices = Some(devices);
+          self.state.to_ic();
         }
         State::InCluster(ic) => ic.devices = devices,
       },

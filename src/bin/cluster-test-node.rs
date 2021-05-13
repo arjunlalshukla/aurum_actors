@@ -46,8 +46,7 @@ impl Actor<ClusterNodeTypes, ClusterNodeMsg> for ClusterNode {
             map.clone(),
             clr,
             hbr,
-          )
-          .await;
+          );
           self.state = InCluster(map, cluster);
         }
         _ => unreachable!(),
