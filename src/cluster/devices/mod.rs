@@ -8,6 +8,7 @@ const LOG_LEVEL: LogLevel = LogLevel::Trace;
 
 #[rustfmt::skip]
 pub use {
+  client::DeviceClient,
   client::DeviceClientConfig,
   client::DeviceClientCmd,
   client::DeviceClientMsg,

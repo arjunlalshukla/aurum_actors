@@ -8,7 +8,7 @@ use crate::core::{
   Actor, ActorContext, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, udp_select, AurumInterface};
+use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -124,9 +124,29 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
             .send(DeviceServerMsg::DownedDevice(self.charge.clone()));
         }
       }
-      Interval(interval) => {}
-      Remote(Heartbeat) => {}
-      Remote(MultipleSenders) => {}
+      Interval(interval) => {
+        debug!(
+          LOG_LEVEL,
+          &ctx.node,
+          format!(
+            "Got new interval for {}: {:?}",
+            self.charge.socket.udp, interval
+          )
+        );
+      }
+      Remote(Heartbeat) => {
+        trace!(
+          LOG_LEVEL,
+          &ctx.node,
+          format!("Heartbeat from {}", self.charge.socket.udp)
+        );
+        self.storage.push();
+      }
+      Remote(MultipleSenders) => {
+        self
+          .supervisor
+          .send(DeviceServerMsg::AmISender(self.charge.clone()));
+      }
     }
   }
 }

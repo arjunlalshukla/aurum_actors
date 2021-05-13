@@ -55,10 +55,10 @@ impl<T: Send + 'static> LocalRef<T> {
   }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct ActorRef<U: UnifiedType + Case<I>, I> {
-  pub(in crate::core) socket: Socket,
+  pub socket: Socket,
   pub(in crate::core) dest: Destination<U, I>,
   #[serde(skip, default)]
   pub(in crate::core) local: Option<LocalRef<I>>,
@@ -124,6 +124,15 @@ where
     } else {
       udp_signal(&self.socket, &self.dest, &sig).await;
       None
+    }
+  }
+}
+impl<U: UnifiedType + Case<S>, S: Send> Clone for ActorRef<U, S> {
+  fn clone(&self) -> Self {
+    Self {
+      socket: self.socket.clone(),
+      dest: self.dest.clone(),
+      local: self.local.clone(),
     }
   }
 }
