@@ -16,7 +16,7 @@ use DeviceMutator::*;
   Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 pub struct Device {
-  socket: Socket,
+  pub socket: Socket,
 }
 
 pub enum DeviceMutator {
@@ -71,8 +71,8 @@ impl DeltaMutator<Devices> for DeviceMutator {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct DeviceInterval {
-  clock: u64,
-  interval: Duration,
+  pub clock: u64,
+  pub interval: Duration,
 }
 impl PartialOrd for DeviceInterval {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -103,8 +103,8 @@ impl Ord for DeviceInterval {
   Deserialize,
 )]
 pub struct DeviceEntry {
-  removals: u64,
-  interval: Option<DeviceInterval>,
+  pub removals: u64,
+  pub interval: Option<DeviceInterval>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]

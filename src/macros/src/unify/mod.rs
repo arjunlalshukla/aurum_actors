@@ -25,6 +25,12 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     aurum::cluster::devices::DeviceServerMsg
   });
   specifics.push(quote! {
+    aurum::cluster::devices::DeviceClientMsg<#unified>
+  });
+  specifics.push(quote! {
+    aurum::cluster::devices::HBReqSenderMsg
+  });
+  specifics.push(quote! {
     aurum::cluster::crdt::CausalMsg<aurum::cluster::devices::Devices>
   });
   specifics.push(quote! {
@@ -41,7 +47,13 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     aurum::cluster::devices::DeviceServerRemoteMsg
   });
   interfaces.push(quote! {
+    aurum::cluster::devices::DeviceClientRemoteMsg<#unified>
+  });
+  interfaces.push(quote! {
     aurum::cluster::crdt::CausalIntraMsg<aurum::cluster::devices::Devices>
+  });
+  interfaces.push(quote! {
+    aurum::cluster::devices::HBReqSenderRemoteMsg
   });
   let mut all = specifics.clone();
   all.append(&mut interfaces.clone());

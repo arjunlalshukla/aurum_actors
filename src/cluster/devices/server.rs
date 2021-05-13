@@ -1,17 +1,27 @@
 #![allow(dead_code, unused_imports)]
 use crate as aurum;
-use crate::cluster::{ClusterCmd, ClusterUpdate, Member, NodeRing};
 use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference};
-use crate::cluster::devices::{Device, Devices, DeviceInterval, HBReqSenderMsg};
-use crate::core::{Actor, ActorContext, Case, LocalRef, Node, Socket, UnifiedType};
-use crate::testkit::{FailureConfigMap};
-use crate::AurumInterface;
+use crate::cluster::devices::{
+  Device, DeviceInterval, DeviceMutator, Devices, HBReqSender,
+  HBReqSenderConfig, HBReqSenderMsg, LOG_LEVEL,
+};
+use crate::cluster::{
+  ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, FAILURE_MODE,
+};
+use crate::core::{
+  Actor, ActorContext, ActorSignal, Case, Destination, LocalRef, Node, Socket,
+  UnifiedType,
+};
+use crate::testkit::FailureConfigMap;
+use crate::{info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use DeviceServerMsg::*;
+use DeviceServerRemoteMsg::*;
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -25,6 +35,7 @@ pub enum DeviceServerMsg {
   #[aurum(local)]
   Cmd(DeviceServerCmd),
   AmISender(Device),
+  DownedDevice(Device),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,19 +50,44 @@ pub enum DeviceServerCmd {
 pub struct Charges(pub im::HashSet<Device>);
 
 struct InCluster<U: UnifiedType> {
-  servers: im::HashSet<Arc<Member>>,
+  member: Arc<Member>,
+  nodes: im::HashSet<Arc<Member>>,
   ring: NodeRing,
   devices: Devices,
   req_senders: HashMap<Device, LocalRef<HBReqSenderMsg>>,
   charges: im::HashSet<Device>,
-  x: PhantomData<U>
+  x: PhantomData<U>,
+}
+impl<U: UnifiedType> InCluster<U> {
+  fn remove_device(&mut self, common: &mut Common<U>, device: &Device) {
+    if let Some(r) = self.req_senders.remove(&device) {
+      r.signal(ActorSignal::Term);
+      self.charges.remove(&device);
+      common
+        .subscribers
+        .retain(|s| s.send(Charges(self.charges.clone())));
+    }
+  }
+
+  fn is_manager(&self, device: &Device) -> bool {
+    self
+      .ring
+      .managers(&device, 1)
+      .iter()
+      .any(|m| m.id == self.member.id)
+  }
 }
 impl<U: UnifiedType> TryFrom<Waiting> for InCluster<U> {
   type Error = ();
   fn try_from(value: Waiting) -> Result<Self, Self::Error> {
-    if value.servers.is_some() && value.ring.is_some() && value.devices.is_some() {
+    if value.servers.is_some()
+      && value.ring.is_some()
+      && value.devices.is_some()
+      && value.member.is_some()
+    {
       Ok(Self {
-        servers: value.servers.unwrap(),
+        member: value.member.unwrap(),
+        nodes: value.servers.unwrap(),
         ring: value.ring.unwrap(),
         devices: value.devices.unwrap(),
         req_senders: HashMap::new(),
@@ -64,27 +100,29 @@ impl<U: UnifiedType> TryFrom<Waiting> for InCluster<U> {
   }
 }
 
-
 struct Waiting {
   servers: Option<im::HashSet<Arc<Member>>>,
+  member: Option<Arc<Member>>,
   ring: Option<NodeRing>,
   devices: Option<Devices>,
 }
 
 enum State<U: UnifiedType> {
   Waiting(Waiting),
-  InCluster(InCluster<U>)
+  InCluster(InCluster<U>),
 }
 
-struct Common {
+struct Common<U: UnifiedType> {
   causal: LocalRef<CausalCmd<Devices>>,
   cluster: LocalRef<ClusterCmd>,
   subscribers: Vec<LocalRef<Charges>>,
+  fail_map: FailureConfigMap,
+  dest: Destination<U, DeviceServerRemoteMsg>,
 }
 
 pub struct DeviceServer<U: UnifiedType> {
-  common: Common,
-  state: State<U>
+  common: Common<U>,
+  state: State<U>,
 }
 impl<U: UnifiedType> DeviceServer<U> {
   fn new(
@@ -95,32 +133,162 @@ impl<U: UnifiedType> DeviceServer<U> {
     fail_map: FailureConfigMap,
   ) -> LocalRef<DeviceServerCmd> {
     let causal = CausalDisperse::new(
-      node, 
+      node,
       format!("{}-devices", name),
-      fail_map, 
+      fail_map.clone(),
       vec![],
       DispersalPreference::default(),
-      cluster.clone()
+      cluster.clone(),
     );
     let common = Common {
       causal: causal,
       cluster: cluster,
-      subscribers: subscribers
+      fail_map: fail_map,
+      subscribers: subscribers,
+      dest: Destination::new::<DeviceServerMsg>(name.clone()),
     };
     let actor = Self {
       common: common,
       state: State::Waiting(Waiting {
+        member: None,
         servers: None,
         ring: None,
         devices: None,
-      })
+      }),
     };
-    node.spawn(false, actor, name, true).local().clone().unwrap().transform()
+    node
+      .spawn(false, actor, name, true)
+      .local()
+      .clone()
+      .unwrap()
+      .transform()
   }
 }
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
-  async fn recv(&mut self, ctx: &ActorContext<U, DeviceServerMsg>, msg: DeviceServerMsg) {
-    todo!()
+  async fn recv(
+    &mut self,
+    ctx: &ActorContext<U, DeviceServerMsg>,
+    msg: DeviceServerMsg,
+  ) {
+    match msg {
+      Remote(SetHeartbeatInterval(device, interval)) => {
+        if let State::InCluster(ic) = &mut self.state {
+          let hbr_sender = ic.req_senders.get(&device);
+          let manager =
+            ic.ring.managers(&device, 1).into_iter().next().unwrap();
+          if (hbr_sender.is_some() || manager == ic.member) {
+            self
+              .common
+              .causal
+              .send(CausalCmd::Mutate(DeviceMutator::Put(
+                device.clone(),
+                interval.clone(),
+              )));
+            let msg = HBReqSenderMsg::Interval(interval);
+            if let Some(sender) = hbr_sender {
+              sender.send(msg);
+            } else {
+              let sender = HBReqSender::new(
+                &ctx.node,
+                ctx.local_interface(),
+                HBReqSenderConfig::default(),
+                device.clone(),
+                interval,
+                self.common.dest.name().name.clone(),
+              );
+              sender.send(msg);
+              ic.req_senders.insert(device, sender);
+              self
+                .common
+                .subscribers
+                .retain(|s| s.send(Charges(ic.charges.clone())));
+            }
+          } else {
+            udp_select!(
+              FAILURE_MODE,
+              &ctx.node,
+              &self.common.fail_map,
+              &manager.socket,
+              &self.common.dest,
+              &SetHeartbeatInterval(device, interval)
+            );
+          }
+        } else {
+          unreachable!()
+        }
+      }
+      Update(update) => {
+        let member = update
+          .events
+          .into_iter()
+          .next()
+          .map(|e| match e {
+            ClusterEvent::Joined(m) => Some(m),
+            ClusterEvent::Alone(m) => Some(m),
+            _ => None,
+          })
+          .flatten();
+        match &mut self.state {
+          State::InCluster(ic) => {
+            if let Some(m) = member {
+              ic.member = m;
+            }
+            ic.ring = update.ring;
+            ic.nodes = update.nodes;
+          }
+          State::Waiting(w) => {
+            w.member = member;
+            w.ring = Some(update.ring);
+            w.servers = Some(update.nodes);
+          }
+        }
+      }
+      DeviceData(devices) => match &mut self.state {
+        State::Waiting(w) => {
+          w.devices = Some(devices);
+        }
+        State::InCluster(ic) => ic.devices = devices,
+      },
+      Cmd(cmd) => match cmd {
+        DeviceServerCmd::Subscribe(subr) => {
+          if let State::InCluster(ic) = &mut self.state {
+            subr.send(Charges(ic.charges.clone()));
+          }
+          self.common.subscribers.push(subr);
+        }
+      },
+      AmISender(device) => {
+        if let State::InCluster(ic) = &mut self.state {
+          if ic.is_manager(&device) {
+            trace!(
+              LOG_LEVEL,
+              &ctx.node,
+              format!("Keeping sender for {:?}", device)
+            );
+          } else {
+            trace!(
+              LOG_LEVEL,
+              &ctx.node,
+              format!("Killing not-sender for {:?}", device)
+            );
+            ic.remove_device(&mut self.common, &device);
+          }
+        } else {
+          unreachable!()
+        }
+      }
+      DownedDevice(device) => {
+        if let State::InCluster(ic) = &mut self.state {
+          ic.remove_device(&mut self.common, &device);
+          self
+            .common
+            .causal
+            .send(CausalCmd::Mutate(DeviceMutator::Remove(device)));
+        } else {
+          unreachable!()
+        }
+      }
+    }
   }
 }

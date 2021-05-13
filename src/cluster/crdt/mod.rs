@@ -22,7 +22,7 @@ where
   fn minimum() -> Self;
 }
 
-pub trait DeltaMutator<T> {
+pub trait DeltaMutator<T: CRDT> {
   fn apply(&self, target: &T) -> T;
 }
 
