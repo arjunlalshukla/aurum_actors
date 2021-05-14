@@ -691,6 +691,7 @@ impl<U: UnifiedType> Cluster<U> {
     hbr_config: HBRConfig,
   ) -> LocalRef<ClusterCmd> {
     let id = rand::random();
+    let double = clr_config.double;
     let c = Cluster {
       common: NodeState {
         member: Arc::new(Member {
@@ -711,7 +712,7 @@ impl<U: UnifiedType> Cluster<U> {
       state: InteractionState::Left,
     };
     node
-      .spawn(false, c, name, true)
+      .spawn(double, c, name, true)
       .local()
       .clone()
       .unwrap()

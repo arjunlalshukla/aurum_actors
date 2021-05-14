@@ -11,7 +11,7 @@ use crate::core::{
   Actor, ActorContext, ActorSignal, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{trace, udp_select, AurumInterface};
+use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -116,6 +116,7 @@ impl<U: UnifiedType> State<U> {
 
 struct Common<U: UnifiedType> {
   causal: LocalRef<CausalCmd<Devices>>,
+  cluster: LocalRef<ClusterCmd>,
   subscribers: Vec<LocalRef<Charges>>,
   fail_map: FailureConfigMap,
   dest: Destination<U, DeviceServerRemoteMsg>,
@@ -143,6 +144,7 @@ impl<U: UnifiedType> DeviceServer<U> {
     );
     let common = Common {
       causal: causal,
+      cluster: cluster,
       fail_map: fail_map,
       subscribers: subscribers,
       dest: Destination::new::<DeviceServerMsg>(name.clone()),
@@ -166,6 +168,11 @@ impl<U: UnifiedType> DeviceServer<U> {
 }
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
+  async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceServerMsg>) {
+    self.common.cluster.send(ClusterCmd::Subscribe(ctx.local_interface()));
+    self.common.causal.send(CausalCmd::Subscribe(ctx.local_interface()));
+  }
+
   async fn recv(
     &mut self,
     ctx: &ActorContext<U, DeviceServerMsg>,
@@ -174,6 +181,11 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
     match msg {
       Remote(SetHeartbeatInterval(device, interval)) => {
         if let State::InCluster(ic) = &mut self.state {
+          debug!(
+            LOG_LEVEL,
+            &ctx.node,
+            format!("Got HB interval from {}, {:?}", device.socket.udp, interval)
+          );
           let hbr_sender = ic.req_senders.get(&device);
           let manager =
             ic.ring.managers(&device, 1).into_iter().next().unwrap();
@@ -215,7 +227,11 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
             );
           }
         } else {
-          unreachable!()
+          debug!(
+            LOG_LEVEL,
+            &ctx.node,
+            format!("Waiting, but got HB interval from {}, {:?}", device.socket.udp, interval)
+          );
         }
       }
       Update(update) => {

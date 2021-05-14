@@ -173,7 +173,13 @@ impl<U: UnifiedType> DeviceClient<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
-    ctx.local_interface().send(Tick);
+    println!("My server actor name: {:?}", self.svr_dest.name());
+    self.notify_server(ctx).await;
+    ctx.node.schedule_local_msg(
+      self.interval.interval,
+      ctx.local_interface(),
+      Tick,
+    );
   }
 
   async fn recv(

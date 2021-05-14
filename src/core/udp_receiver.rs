@@ -2,7 +2,7 @@ use crate as aurum;
 use crate::core::{
   DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedType, LOG_LEVEL,
 };
-use crate::fatal;
+use crate::{trace, fatal};
 use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::net::Ipv4Addr;
@@ -72,6 +72,8 @@ pub(crate) async fn udp_receiver<U: UnifiedType>(node: Node<U>) {
         }
       }
       msg_id = rx.recv() => {
+        let id = msg_id.unwrap();
+        trace!(LOG_LEVEL, &node, format!("dropping msg with id: {}", id));
         recvd.remove(&msg_id.unwrap());
       }
     }

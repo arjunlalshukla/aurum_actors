@@ -8,7 +8,7 @@ mod interval_storage;
 mod node_ring;
 mod utils;
 
-pub const FAILURE_MODE: FailureMode = FailureMode::Message;
+pub const FAILURE_MODE: FailureMode = FailureMode::None;
 pub const LOG_LEVEL: LogLevel = LogLevel::Info;
 
 #[rustfmt::skip]

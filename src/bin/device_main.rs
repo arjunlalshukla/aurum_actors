@@ -21,9 +21,9 @@ fn main() {
 
   let name = "my-cool-device-cluster".to_string();
   let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.drop_prob = 0.0;
+  //fail_map.cluster_wide.delay =
+  //  Some((Duration::from_millis(20), Duration::from_millis(50)));
   let clr_cfg = ClusterConfig::default();
   let hbr_cfg = HBRConfig::default();
 
