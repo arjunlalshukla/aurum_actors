@@ -59,7 +59,7 @@ impl<T: Send + 'static> LocalRef<T> {
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct ActorRef<U: UnifiedType + Case<I>, I> {
   pub socket: Socket,
-  pub(in crate::core) dest: Destination<U, I>,
+  pub dest: Destination<U, I>,
   #[serde(skip, default)]
   pub(in crate::core) local: Option<LocalRef<I>>,
 }

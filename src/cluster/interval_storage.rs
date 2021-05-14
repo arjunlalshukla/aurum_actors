@@ -92,6 +92,7 @@ impl Debug for IntervalStorage {
     f.debug_struct("IntervalStorage")
       .field("mean", &self.mean())
       .field("stddev", &self.stdev())
+      .field("phi", &self.phi())
       .finish()
   }
 }
@@ -124,7 +125,6 @@ fn test_interval_storage() {
     test.push_instant(start.clone());
   }
   println!("intervals: {:?}", test.intervals);
-  println!("test: {:?}", test);
   for millis in (4000..=6000).step_by(100) {
     println!(
       "phi({}) = {}",

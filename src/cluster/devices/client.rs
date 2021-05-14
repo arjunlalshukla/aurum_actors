@@ -43,7 +43,7 @@ impl DeviceClientConfig {
   fn new_storage(&self, init: Duration) -> IntervalStorage {
     IntervalStorage::new(
       self.storage_capacity as usize,
-      init,
+      init * 2,
       self.times as usize,
       None,
     )
@@ -189,8 +189,9 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
   ) {
     match msg {
       Tick => {
-        trace!(LOG_LEVEL, &ctx.node, "Received tick");
-        if self.storage.phi() > self.config.phi {
+        let phi = self.storage.phi();
+        trace!(LOG_LEVEL, &ctx.node, format!("Received tick; {:?}", self.storage));
+        if phi > self.config.phi {
           debug!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
           self.server = None;
           self.notify_server(ctx).await;
@@ -216,16 +217,33 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           self.storage = self.config.new_storage(self.interval.interval);
           self.server = Some(sender.socket.clone());
           self.config.seeds.insert(sender.socket.clone());
+        } else {
+          self.storage.push();
         }
-        self.server_log.push(sender.clone());
+        udp_select!(
+          FAILURE_MODE,
+          &ctx.node,
+          &self.fail_map,
+          &sender.socket,
+          &sender.dest,
+          &Heartbeat
+        );
         if self.server_log.changes + 1
           == self.server_log.frequencies.len() as u32
         {
           debug!(LOG_LEVEL, &ctx.node, "Multiple senders detected");
           for svr in self.server_log.frequencies.keys() {
-            svr.remote_send(&MultipleSenders).await;
+            udp_select!(
+              FAILURE_MODE,
+              &ctx.node,
+              &self.fail_map,
+              &svr.socket,
+              &svr.dest,
+              &MultipleSenders
+            );
           }
         }
+        self.server_log.push(sender.clone());
       }
       Remote(IntervalAck(socket, interval)) => {
         trace!(

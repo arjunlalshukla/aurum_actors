@@ -23,6 +23,11 @@ fn main() {
   println!("port: {}", port);
   let port = port.parse().unwrap();
   let interval = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = args.next().unwrap().parse().unwrap();
+  let lower = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let upper = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  fail_map.cluster_wide.delay = Some((lower, upper));
   let host = Host::DNS("127.0.0.1".to_string());
   let seeds = args
     .map(|s| Socket::new(host.clone(), s.parse().unwrap(), 1001))
@@ -31,10 +36,6 @@ fn main() {
   let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
 
   let name = "my-cool-device-cluster".to_string();
-  let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.0;
-  //fail_map.cluster_wide.delay =
-  //  Some((Duration::from_millis(20), Duration::from_millis(50)));
   let clr_cfg = ClusterConfig::default();
   let hbr_cfg = HBRConfig::default();
 

@@ -64,7 +64,7 @@ impl<U: UnifiedType> HBReqSender<U> {
   ) -> LocalRef<HBReqSenderMsg> {
     let storage = IntervalStorage::new(
       config.capacity,
-      interval.interval,
+      interval.interval * 2,
       config.times,
       None,
     );
@@ -103,12 +103,12 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
   ) {
     match msg {
       Tick => {
-        debug!(
-          LOG_LEVEL,
-          &ctx.node,
-          format!("Sending HBR to {:?}", self.charge)
-        );
         if self.storage.phi() < self.config.phi {
+          debug!(
+            LOG_LEVEL,
+            &ctx.node,
+            format!("Sending HBR to {:?}", self.charge)
+          );
           udp_select!(
             FAILURE_MODE,
             &ctx.node,
@@ -123,6 +123,11 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
             Tick,
           );
         } else {
+          debug!(
+            LOG_LEVEL,
+            &ctx.node,
+            format!("Downing device {:?}", self.charge)
+          );
           self
             .supervisor
             .send(DeviceServerMsg::DownedDevice(self.charge.clone()));
