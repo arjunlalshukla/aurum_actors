@@ -14,6 +14,7 @@ linked-hash-map = "*"
 maplit = "*"
 num_enum = "*"
 rand = { version = "*", features = ["alloc", "small_rng"] }
+rpds = { version = "*", features = ["serde"] }
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
 smallvec = "*"

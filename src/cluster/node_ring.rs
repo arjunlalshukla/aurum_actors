@@ -1,9 +1,9 @@
 use crate::cluster::Member;
 #[cfg(test)]
 use crate::core::{Host, Socket};
-use im;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use rpds::RedBlackTreeMapSync;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -11,13 +11,13 @@ use wyhash::{wyrng, WyHash};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeRing {
-  ring: im::OrdMap<u64, (bool, Arc<Member>)>,
+  ring: RedBlackTreeMapSync<u64, (bool, Arc<Member>)>,
   rep_factor: usize,
 }
 impl NodeRing {
   pub fn new(rep_factor: usize) -> NodeRing {
     NodeRing {
-      ring: im::OrdMap::new(),
+      ring: RedBlackTreeMapSync::new_sync(),
       rep_factor: rep_factor,
     }
   }
@@ -114,10 +114,10 @@ impl NodeRing {
 
   pub fn insert(&mut self, item: Arc<Member>) {
     let mut key = hash_code(&item);
-    self.ring.insert(key, (true, item.clone()));
+    self.ring.insert_mut(key, (true, item.clone()));
     for _ in 1..item.vnodes {
       key = wyrng(&mut key);
-      self.ring.insert(key, (false, item.clone()));
+      self.ring.insert_mut(key, (false, item.clone()));
     }
   }
 
@@ -125,7 +125,7 @@ impl NodeRing {
     let mut key = hash_code(&item);
     let mut removed = 0u32;
     for _ in 0..std::cmp::max(1, item.vnodes) {
-      removed += self.ring.remove(&key).is_some() as u32;
+      removed += self.ring.remove_mut(&key) as u32;
       key = wyrng(&mut key);
     }
     if removed == item.vnodes {

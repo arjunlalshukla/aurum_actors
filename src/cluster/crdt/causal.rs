@@ -1,8 +1,7 @@
-#![allow(unused_imports, dead_code)]
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
 use crate::cluster::{
-  ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, FAILURE_MODE,
+  ClusterCmd, ClusterEvent, ClusterUpdate, Member, FAILURE_MODE,
 };
 use crate::core::{
   Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType,
@@ -10,11 +9,9 @@ use crate::core::{
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
-use im;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
-use std::iter::FromIterator;
+use std::collections::{BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
@@ -85,7 +82,7 @@ where
   cluster: im::HashSet<Arc<Member>>,
   deltas: VecDeque<S>,
   acks: im::HashMap<u64, (Arc<Member>, u64)>,
-  ord_acks: im::Vector<(u64, u64)>,
+  ord_acks: BTreeSet<(u64, u64)>,
   min_ord: u64,
   min_delta: u64,
   x: PhantomData<U>,
@@ -162,11 +159,10 @@ where
         self.clock, clock, member.socket.udp
       )
     );
-    let idx = self.ord_acks.binary_search(&(*cnt, id)).unwrap();
-    self.ord_acks.remove(idx);
+    assert!(self.ord_acks.remove(&(*cnt, id)));
     *cnt = clock;
-    self.ord_acks.insert_ord((*cnt, id));
-    self.min_ord = self.ord_acks.front().unwrap().0;
+    self.ord_acks.insert((*cnt, id));
+    self.min_ord = self.ord_acks.iter().next().unwrap().0;
     for _ in self.min_delta..self.min_ord {
       self.deltas.pop_front().unwrap();
     }
@@ -240,14 +236,14 @@ where
         ClusterEvent::Removed(m) => {
           if m.id != self.member.id {
             let cnt = self.acks.remove(&m.id).unwrap().1;
-            let idx = self.ord_acks.binary_search(&(cnt, m.id)).unwrap();
-            self.ord_acks.remove(idx);
-            self.min_ord = self.ord_acks.front().map(|(c, _)| *c).unwrap_or(0);
+            assert!(self.ord_acks.remove(&(cnt, m.id)));
+            self.min_ord =
+              self.ord_acks.iter().next().map(|(c, _)| *c).unwrap_or(0);
             disperse = true;
           }
         }
         ClusterEvent::Added(m) => {
-          self.ord_acks.insert_ord((0, m.id));
+          self.ord_acks.insert((0, m.id));
           self.acks.insert(m.id, (m, 0));
           self.min_ord = 0;
           disperse = true;
@@ -383,9 +379,7 @@ where
     match msg {
       CausalMsg::Cmd(cmd) => match cmd {
         CausalCmd::Mutate(op) => match &mut self.state {
-          State::InCluster(ic) => {
-            ic.op(&mut self.common, ctx, op).await
-          }
+          State::InCluster(ic) => ic.op(&mut self.common, ctx, op).await,
           State::Waiting(w) => w.ops_queue.push(op),
         },
         CausalCmd::Subscribe(subr) => {

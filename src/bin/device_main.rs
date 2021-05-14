@@ -3,7 +3,6 @@ use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{Host, Node, Socket};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
-use itertools::Itertools;
 use std::time::Duration;
 
 unify!(BenchmarkTypes = DataCenterBusinessMsg | IoTBusinessMsg);
