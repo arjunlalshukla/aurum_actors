@@ -26,7 +26,7 @@ pub struct DeviceClientConfig {
   pub storage_capacity: u32,
   pub times: u32,
   pub log_capacity: u32,
-  pub seeds: Vec<Socket>,
+  pub seeds: im::HashSet<Socket>,
 }
 impl Default for DeviceClientConfig {
   fn default() -> Self {
@@ -35,7 +35,7 @@ impl Default for DeviceClientConfig {
       storage_capacity: 10,
       times: 5,
       log_capacity: 10,
-      seeds: vec![],
+      seeds: im::hashset![],
     }
   }
 }
@@ -202,6 +202,11 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         );
       }
       Remote(HeartbeatRequest(sender)) => {
+        trace!(
+          LOG_LEVEL,
+          &ctx.node,
+          format!("Heartbeat request from {} received:", sender.socket.udp)
+        );
         if self
           .server
           .as_ref()
@@ -210,7 +215,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         {
           self.storage = self.config.new_storage(self.interval.interval);
           self.server = Some(sender.socket.clone());
-          self.config.seeds.push(sender.socket.clone());
+          self.config.seeds.insert(sender.socket.clone());
         }
         self.server_log.push(sender.clone());
         if self.server_log.changes + 1

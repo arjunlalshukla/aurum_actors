@@ -27,7 +27,7 @@ fn main() {
   let host = Host::DNS("127.0.0.1".to_string());
   let seeds = args
     .map(|s| Socket::new(host.clone(), s.parse().unwrap(), 1001))
-    .collect_vec();
+    .collect();
   let socket = Socket::new(host, port, 1001);
   let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
 

@@ -187,14 +187,6 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
     match msg {
       Remote(SetHeartbeatInterval(device, interval)) => {
         if let State::InCluster(ic) = &mut self.state {
-          debug!(
-            LOG_LEVEL,
-            &ctx.node,
-            format!(
-              "Got HB interval from {}, {:?}",
-              device.socket.udp, interval
-            )
-          );
           let hbr_sender = ic.req_senders.get(&device);
           let manager =
             ic.ring.managers(&device, 1).into_iter().next().unwrap();

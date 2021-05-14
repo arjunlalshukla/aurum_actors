@@ -88,6 +88,11 @@ impl<U: UnifiedType> HBReqSender<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, HBReqSenderMsg>) {
+    debug!(
+      LOG_LEVEL,
+      &ctx.node,
+      format!("Sending HBR to {:?}", self.charge)
+    );
     ctx.local_interface().send(Tick);
   }
 

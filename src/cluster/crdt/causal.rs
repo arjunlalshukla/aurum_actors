@@ -302,7 +302,7 @@ impl<S: CRDT> Waiting<S> {
   }
 }
 
-enum InteractionState<S, U>
+enum State<S, U>
 where
   U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
@@ -329,7 +329,7 @@ where
   S: CRDT,
 {
   common: Common<S, U>,
-  state: InteractionState<S, U>,
+  state: State<S, U>,
 }
 impl<S, U> CausalDisperse<S, U>
 where
@@ -352,7 +352,7 @@ where
         preference: preference,
         cluster_ref: cluster_ref,
       },
-      state: InteractionState::Waiting(Waiting { ops_queue: vec![] }),
+      state: State::Waiting(Waiting { ops_queue: vec![] }),
     };
     node
       .spawn(false, actor, name, true)
@@ -383,12 +383,15 @@ where
     match msg {
       CausalMsg::Cmd(cmd) => match cmd {
         CausalCmd::Mutate(op) => match &mut self.state {
-          InteractionState::InCluster(ic) => {
+          State::InCluster(ic) => {
             ic.op(&mut self.common, ctx, op).await
           }
-          InteractionState::Waiting(w) => w.ops_queue.push(op),
+          State::Waiting(w) => w.ops_queue.push(op),
         },
         CausalCmd::Subscribe(subr) => {
+          if let State::InCluster(ic) = &self.state {
+            subr.send(ic.data.clone());
+          }
           self.common.subscribers.push(subr);
         }
         CausalCmd::SetDispersalPreference(pref) => {
@@ -396,7 +399,7 @@ where
         }
       },
       CausalMsg::Intra(intra) => {
-        if let InteractionState::InCluster(ic) = &mut self.state {
+        if let State::InCluster(ic) = &mut self.state {
           match intra {
             CausalIntraMsg::Ack { id, clock } => ic.ack(ctx, id, clock),
             CausalIntraMsg::Delta(delta, id, clock) => {
@@ -406,20 +409,20 @@ where
         }
       }
       CausalMsg::Update(update) => match &mut self.state {
-        InteractionState::InCluster(ic) => {
+        State::InCluster(ic) => {
           ic.update(&mut self.common, ctx, update).await;
         }
-        InteractionState::Waiting(w) => {
+        State::Waiting(w) => {
           let ic = match update.events.into_iter().next().unwrap() {
             ClusterEvent::Alone(m) => w.to_ic(m, update.nodes),
             ClusterEvent::Joined(m) => w.to_ic(m, update.nodes),
             _ => unreachable!(),
           };
-          self.state = InteractionState::InCluster(ic);
+          self.state = State::InCluster(ic);
         }
       },
       CausalMsg::DisperseTimeout => {
-        if let InteractionState::InCluster(ic) = &mut self.state {
+        if let State::InCluster(ic) = &mut self.state {
           if ic.min_ord != ic.clock && !ic.acks.is_empty() {
             ic.disperse(&self.common, ctx).await;
           }
