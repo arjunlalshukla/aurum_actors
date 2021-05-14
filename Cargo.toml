@@ -7,19 +7,15 @@ edition = "2018"
 [dependencies]
 aurum_macros = { path = "src/macros" }
 async-trait = "*"
-crdts = "*"
 crossbeam = "*"
 im = { version = "*", features = ["serde"] }
 itertools = "*"
 linked-hash-map = "*"
 maplit = "*"
 num_enum = "*"
-odds = { version = "*", features = ["std-vec"] }
 rand = { version = "*", features = ["alloc", "small_rng"] }
-rusty-fork = "*"
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
-serde_json = "*"
 smallvec = "*"
 statrs = "*"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }

@@ -169,8 +169,14 @@ impl<U: UnifiedType> DeviceServer<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceServerMsg>) {
-    self.common.cluster.send(ClusterCmd::Subscribe(ctx.local_interface()));
-    self.common.causal.send(CausalCmd::Subscribe(ctx.local_interface()));
+    self
+      .common
+      .cluster
+      .send(ClusterCmd::Subscribe(ctx.local_interface()));
+    self
+      .common
+      .causal
+      .send(CausalCmd::Subscribe(ctx.local_interface()));
   }
 
   async fn recv(
@@ -184,7 +190,10 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
           debug!(
             LOG_LEVEL,
             &ctx.node,
-            format!("Got HB interval from {}, {:?}", device.socket.udp, interval)
+            format!(
+              "Got HB interval from {}, {:?}",
+              device.socket.udp, interval
+            )
           );
           let hbr_sender = ic.req_senders.get(&device);
           let manager =
@@ -230,7 +239,10 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
           debug!(
             LOG_LEVEL,
             &ctx.node,
-            format!("Waiting, but got HB interval from {}, {:?}", device.socket.udp, interval)
+            format!(
+              "Waiting, but got HB interval from {}, {:?}",
+              device.socket.udp, interval
+            )
           );
         }
       }

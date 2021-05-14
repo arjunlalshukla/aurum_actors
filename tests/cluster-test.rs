@@ -1,12 +1,14 @@
 use async_trait::async_trait;
-use aurum::{AurumInterface, unify};
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
+use aurum::cluster::{
+  Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
+};
 use aurum::core::{
   Actor, ActorContext, ActorSignal, Host, LocalRef, Node, Socket,
 };
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
-use itertools::Itertools;
+use aurum::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
@@ -31,7 +33,7 @@ enum CoordinatorMsg {
   Kill(u16),
   Spawn(u16, Vec<u16>),
   WaitForConvergence,
-  Done
+  Done,
 }
 
 struct Coordinator {
@@ -52,7 +54,11 @@ impl Coordinator {
 }
 #[async_trait]
 impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
-  async fn recv(&mut self, ctx: &ActorContext<ClusterTestTypes, CoordinatorMsg>, msg: CoordinatorMsg) {
+  async fn recv(
+    &mut self,
+    ctx: &ActorContext<ClusterTestTypes, CoordinatorMsg>,
+    msg: CoordinatorMsg,
+  ) {
     match msg {
       Nodes(NodeSet(port, members)) => {
         if members == self.convergence {
@@ -61,7 +67,11 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
           self.converged.remove(&port);
         }
 
-        println!("From {} - {:?}", port, members.iter().map(|x| x.udp).sorted().collect_vec());
+        println!(
+          "From {} - {:?}",
+          port,
+          members.iter().map(|x| x.udp).sorted().collect_vec()
+        );
 
         if self.waiting && self.convergence_reached() {
           println!("CONVERGENCE reached!");
@@ -92,7 +102,10 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         let socket = Socket::new(HOST.clone(), port, 0);
         let node = Node::<ClusterTestTypes>::new(socket.clone(), 1).unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
-        clr_cfg.seed_nodes = seeds.iter().map(|p| Socket::new(HOST.clone(), *p, 0)).collect();
+        clr_cfg.seed_nodes = seeds
+          .iter()
+          .map(|p| Socket::new(HOST.clone(), *p, 0))
+          .collect();
         let cluster = Cluster::new(
           &node,
           "test-crdt-cluster".to_string(),
@@ -150,12 +163,11 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
   }
 }
 
-
 #[derive(AurumInterface)]
 #[aurum(local)]
 enum ClusterClientMsg {
   #[aurum(local)]
-  Updates(ClusterUpdate)
+  Updates(ClusterUpdate),
 }
 
 struct ClusterClient {
@@ -164,20 +176,35 @@ struct ClusterClient {
 }
 #[async_trait]
 impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
-  async fn pre_start(&mut self, ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>) {
-    self.cluster.send(ClusterCmd::Subscribe(ctx.local_interface()));
+  async fn pre_start(
+    &mut self,
+    ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>,
+  ) {
+    self
+      .cluster
+      .send(ClusterCmd::Subscribe(ctx.local_interface()));
   }
 
-  async fn recv(&mut self, ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>, msg: ClusterClientMsg) {    
+  async fn recv(
+    &mut self,
+    ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>,
+    msg: ClusterClientMsg,
+  ) {
     match msg {
       ClusterClientMsg::Updates(update) => {
-        let sockets = update.nodes.into_iter().map(|m| m.socket.clone()).collect();
-        self.supervisor.send(NodeSet(ctx.node.socket().udp, sockets));
+        let sockets =
+          update.nodes.into_iter().map(|m| m.socket.clone()).collect();
+        self
+          .supervisor
+          .send(NodeSet(ctx.node.socket().udp, sockets));
       }
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<ClusterTestTypes, ClusterClientMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<ClusterTestTypes, ClusterClientMsg>,
+  ) {
     self.cluster.signal(ActorSignal::Term);
   }
 }

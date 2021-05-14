@@ -2,7 +2,7 @@ use crate as aurum;
 use crate::core::{
   DatagramHeader, MessageBuilder, Node, RegistryMsg, UnifiedType, LOG_LEVEL,
 };
-use crate::{trace, fatal};
+use crate::{fatal, trace};
 use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::net::Ipv4Addr;

@@ -76,9 +76,10 @@ impl IntervalStorage {
   }
 
   pub fn duration_phi(&self, phi: f64) -> Duration {
-    let millis = Normal::new(self.mean(), self.stdev())
-      .unwrap()
-      .inverse_cdf(phi);
+    let millis =
+      Normal::new(self.mean(), f64::max(f64::MIN_POSITIVE, self.stdev()))
+        .unwrap()
+        .inverse_cdf(phi);
     if millis.is_finite() {
       Duration::from_secs_f64(millis / 1000.0)
     } else {

@@ -1,10 +1,20 @@
-use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::cluster::devices::{DeviceClient, DeviceClientConfig, DeviceServer};
+use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{Host, Node, Socket};
-use aurum::test_commons::ClusterNodeTypes;
 use aurum::testkit::FailureConfigMap;
+use aurum::{unify, AurumInterface};
 use itertools::Itertools;
 use std::time::Duration;
+
+unify!(BenchmarkTypes = DataCenterBusinessMsg | IoTBusinessMsg);
+
+#[derive(AurumInterface)]
+#[aurum(local)]
+enum DataCenterBusinessMsg {}
+
+#[derive(AurumInterface)]
+#[aurum(local)]
+enum IoTBusinessMsg {}
 
 fn main() {
   // Exclude the command
@@ -15,9 +25,11 @@ fn main() {
   let port = port.parse().unwrap();
   let interval = Duration::from_millis(args.next().unwrap().parse().unwrap());
   let host = Host::DNS("127.0.0.1".to_string());
-  let seeds = args.map(|s| Socket::new(host.clone(), s.parse().unwrap(), 1001)).collect_vec();
+  let seeds = args
+    .map(|s| Socket::new(host.clone(), s.parse().unwrap(), 1001))
+    .collect_vec();
   let socket = Socket::new(host, port, 1001);
-  let node = Node::<ClusterNodeTypes>::new(socket, 1).unwrap();
+  let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
 
   let name = "my-cool-device-cluster".to_string();
   let mut fail_map = FailureConfigMap::default();
