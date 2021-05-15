@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use aurum::cluster::{
-  Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
+  Cluster, ClusterCmd, ClusterConfig, ClusterEvent, ClusterUpdate, HBRConfig,
+  Member,
 };
 use aurum::core::{
   Actor, ActorContext, ActorSignal, Host, LocalRef, Node, Socket,
@@ -11,6 +12,7 @@ use crossbeam::channel::{unbounded, Sender};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
+use std::sync::Arc;
 use std::time::Duration;
 use CoordinatorMsg::*;
 
@@ -18,7 +20,7 @@ unify!(ClusterTestTypes = CoordinatorMsg | ClusterClientMsg);
 
 const HOST: Host = Host::IP(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
 
-struct NodeSet(u16, im::HashSet<Socket>);
+struct NodeSet(u16, im::HashSet<Socket>, Vec<u16>);
 
 struct TestNode {
   recvr: LocalRef<ClusterClientMsg>,
@@ -60,7 +62,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
     msg: CoordinatorMsg,
   ) {
     match msg {
-      Nodes(NodeSet(port, members)) => {
+      Nodes(NodeSet(port, members, charges)) => {
         if members == self.convergence {
           self.converged.insert(port);
         } else {
@@ -68,10 +70,11 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         }
 
         println!(
-          "From {} - {:?}",
+          "{} MEMBERS - {:?}",
           port,
           members.iter().map(|x| x.udp).sorted().collect_vec()
         );
+        println!("{} CHARGES - {:?}", port, charges);
 
         if self.waiting && self.convergence_reached() {
           println!("CONVERGENCE reached!");
@@ -118,6 +121,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         let recvr = ClusterClient {
           supervisor: ctx.local_interface(),
           cluster: cluster.clone(),
+          member: Arc::new(Member::default()),
         };
         let recvr = node
           .spawn(false, recvr, "".to_string(), false)
@@ -173,6 +177,7 @@ enum ClusterClientMsg {
 struct ClusterClient {
   supervisor: LocalRef<NodeSet>,
   cluster: LocalRef<ClusterCmd>,
+  member: Arc<Member>,
 }
 #[async_trait]
 impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
@@ -192,11 +197,24 @@ impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
   ) {
     match msg {
       ClusterClientMsg::Updates(update) => {
+        self.member = match update.events.into_iter().next().unwrap() {
+          ClusterEvent::Alone(m) => m,
+          ClusterEvent::Joined(m) => m,
+          _ => self.member.clone(),
+        };
         let sockets =
           update.nodes.into_iter().map(|m| m.socket.clone()).collect();
+        let charges = update
+          .ring
+          .charges(&self.member)
+          .unwrap()
+          .into_iter()
+          .map(|m| m.socket.udp)
+          .sorted()
+          .collect_vec();
         self
           .supervisor
-          .send(NodeSet(ctx.node.socket().udp, sockets));
+          .send(NodeSet(ctx.node.socket().udp, sockets, charges));
       }
     }
   }

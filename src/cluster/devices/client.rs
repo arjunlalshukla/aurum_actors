@@ -190,7 +190,11 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
     match msg {
       Tick => {
         let phi = self.storage.phi();
-        trace!(LOG_LEVEL, &ctx.node, format!("Received tick; {:?}", self.storage));
+        trace!(
+          LOG_LEVEL,
+          &ctx.node,
+          format!("Received tick; {:?}", self.storage)
+        );
         if phi > self.config.phi {
           debug!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
           self.server = None;
