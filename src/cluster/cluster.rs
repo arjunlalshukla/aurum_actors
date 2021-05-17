@@ -83,7 +83,7 @@ impl InCluster {
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
     msg: IntraClusterMsg<U>,
-  ) -> Option<InteractionState> {
+  ) -> Option<State> {
     match msg {
       Foo(_) => None,
       ReqGossip(member) => {
@@ -418,7 +418,7 @@ impl Pinging {
     common: &mut NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
     msg: IntraClusterMsg<U>,
-  ) -> Option<InteractionState> {
+  ) -> Option<State> {
     match msg {
       // Getting this message means the response to our ping wasn't received.
       ReqHeartbeat(member, id) => {
@@ -487,19 +487,19 @@ impl Pinging {
               .collect_vec()
           )
         );
-        Some(InteractionState::InCluster(ic))
+        Some(State::InCluster(ic))
       }
       _ => None,
     }
   }
 }
 
-enum InteractionState {
+enum State {
   InCluster(InCluster),
   Pinging(Pinging),
   Left,
 }
-impl InteractionState {
+impl State {
   async fn process<U: UnifiedType>(
     &mut self,
     common: &mut NodeState<U>,
@@ -507,13 +507,13 @@ impl InteractionState {
     msg: IntraClusterMsg<U>,
   ) {
     let new_state = match self {
-      InteractionState::InCluster(ref mut state) => {
+      State::InCluster(ref mut state) => {
         state.process(common, ctx, msg).await
       }
-      InteractionState::Pinging(ref mut state) => {
+      State::Pinging(ref mut state) => {
         state.process(common, ctx, msg).await
       }
-      InteractionState::Left => None,
+      State::Left => None,
     };
     if let Some(s) = new_state {
       *self = s;
@@ -588,7 +588,7 @@ impl<U: UnifiedType> NodeState<U> {
 
 pub struct Cluster<U: UnifiedType> {
   common: NodeState<U>,
-  state: InteractionState,
+  state: State,
 }
 #[async_trait]
 impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
@@ -606,7 +606,7 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
         timeout: ctx.node.rt().spawn(async {}),
       };
       png.ping(&self.common, ctx).await;
-      self.state = InteractionState::Pinging(png);
+      self.state = State::Pinging(png);
     }
     ctx.node.schedule_local_msg(
       self.common.clr_config.hb_interval,
@@ -625,7 +625,7 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
         self.state.process(&mut self.common, ctx, msg).await;
       }
       ClusterMsg::LocalCmd(ClusterCmd::Subscribe(subr)) => {
-        if let InteractionState::InCluster(ic) = &self.state {
+        if let State::InCluster(ic) = &self.state {
           let nodes = ic.members.clone();
           let ring = ic.ring.clone();
           let event = if nodes.len() == 1 {
@@ -645,7 +645,7 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
         self.common.fail_map = map;
       }
       ClusterMsg::PingTimeout => {
-        if let InteractionState::Pinging(png) = &mut self.state {
+        if let State::Pinging(png) = &mut self.state {
           if png.count != 0 {
             png.ping(&self.common, ctx).await;
           } else {
@@ -654,19 +654,19 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
         }
       }
       ClusterMsg::GossipTimeout => {
-        if let InteractionState::InCluster(ic) = &self.state {
+        if let State::InCluster(ic) = &self.state {
           ic.gossip_round(&self.common, ctx, hashset!()).await;
           ic.gossip_reqs(&self.common, ctx).await;
           self.common.schedule_gossip_timeout(ctx);
         }
       }
       ClusterMsg::Downed(member) => {
-        if let InteractionState::InCluster(ic) = &mut self.state {
+        if let State::InCluster(ic) = &mut self.state {
           ic.down(&mut self.common, ctx, member).await;
         }
       }
       ClusterMsg::HeartbeatTick => {
-        if let InteractionState::InCluster(ic) = &mut self.state {
+        if let State::InCluster(ic) = &mut self.state {
           for member in ic.managers.iter() {
             self.common.heartbeat(ctx, member).await;
           }
@@ -676,6 +676,14 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
           ctx.local_interface(),
           ClusterMsg::HeartbeatTick,
         );
+      }
+    }
+  }
+
+  async fn post_stop(&mut self, _: &ActorContext<U, ClusterMsg<U>>) {
+    if let State::InCluster(ic) = &self.state {
+      for charge in ic.charges.values() {
+        charge.signal(ActorSignal::Term);
       }
     }
   }
@@ -708,7 +716,7 @@ impl<U: UnifiedType> Cluster<U> {
         clr_config: clr_config,
         hbr_config: hbr_config,
       },
-      state: InteractionState::Left,
+      state: State::Left,
     };
     node
       .spawn(double, c, name, true)
@@ -722,6 +730,6 @@ impl<U: UnifiedType> Cluster<U> {
     let ic = InCluster::alone(&self.common, ctx);
     let mem = self.common.member.clone();
     ic.notify(&mut self.common, vec![ClusterEvent::Alone(mem)]);
-    self.state = InteractionState::InCluster(ic);
+    self.state = State::InCluster(ic);
   }
 }

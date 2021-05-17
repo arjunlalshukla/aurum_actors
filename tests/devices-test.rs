@@ -3,7 +3,9 @@ use aurum::cluster::devices::{
   Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer,
   DeviceServerCmd, Manager,
 };
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
+use aurum::cluster::{
+  Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
+};
 use aurum::core::{
   Actor, ActorContext, ActorSignal, Host, LocalRef, Node, Socket,
 };
@@ -85,10 +87,13 @@ impl Coordinator {
         }
       }
     }
-    self
-      .clients
-      .iter()
-      .all(|(c, test)| clients.contains(c) && test.manager.is_some())
+    self.clients.iter().all(|(c, test)| {
+      clients.contains(c)
+        && test
+          .manager
+          .filter(|p| self.servers.contains_key(p))
+          .is_some()
+    })
   }
 
   fn cluster_convergence_reached(&self) -> bool {
@@ -261,7 +266,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           .local()
           .clone()
           .unwrap();
-        
+
         let entry = TestServer {
           actor: recvr,
           charges: BTreeSet::new(),
@@ -404,6 +409,7 @@ fn run_cluster_test(
   clr_cfg: ClusterConfig,
   hbr_cfg: HBRConfig,
   cli_cfg: DeviceClientConfig,
+  timeout: Duration,
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
@@ -429,7 +435,7 @@ fn run_cluster_test(
   for e in events {
     coor.send(e);
   }
-  rx.recv_timeout(Duration::from_millis(10_000)).unwrap();
+  rx.recv_timeout(timeout).unwrap();
 }
 
 #[test]
@@ -455,11 +461,14 @@ fn devices_test_perfect() {
     KillClient(4003),
     KillClient(4004),
     WaitForConvergence(ConvergenceType::Devices),
+    KillServer(3002),
+    WaitForConvergence(ConvergenceType::Cluster),
+    WaitForConvergence(ConvergenceType::Devices),
     Done,
   ];
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();
-  clr_cfg.vnodes = 20;
+  clr_cfg.vnodes = 100;
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(50);
   let mut hbr_cfg = HBRConfig::default();
@@ -467,5 +476,6 @@ fn devices_test_perfect() {
   hbr_cfg.req_timeout = Duration::from_millis(50);
   let mut cli_cfg = DeviceClientConfig::default();
   cli_cfg.initial_interval = Duration::from_millis(20);
-  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, cli_cfg);
+  let timeout = Duration::from_millis(10_000);
+  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, cli_cfg, timeout);
 }

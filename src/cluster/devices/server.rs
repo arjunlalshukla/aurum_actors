@@ -169,14 +169,10 @@ impl<U: UnifiedType> DeviceServer<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceServerMsg>) {
-    self
-      .common
-      .cluster
-      .send(ClusterCmd::Subscribe(ctx.local_interface()));
-    self
-      .common
-      .causal
-      .send(CausalCmd::Subscribe(ctx.local_interface()));
+    let msg = ClusterCmd::Subscribe(ctx.local_interface());
+    self.common.cluster.send(msg);
+    let msg = CausalCmd::Subscribe(ctx.local_interface());
+    self.common.causal.send(msg);
   }
 
   async fn recv(
@@ -318,6 +314,14 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
         } else {
           unreachable!()
         }
+      }
+    }
+  }
+
+  async fn post_stop(&mut self, _: &ActorContext<U, DeviceServerMsg>) {
+    if let State::InCluster(ic) = &self.state {
+      for sender in ic.req_senders.values() {
+        sender.signal(ActorSignal::Term);
       }
     }
   }
