@@ -133,6 +133,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         };
         self.nodes.insert(port, entry);
         self.convergence.insert(socket);
+        self.converged.clear();
       }
       WaitForConvergence => {
         if self.waiting {

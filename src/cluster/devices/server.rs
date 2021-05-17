@@ -238,7 +238,8 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
               w.ring.is_some(),
               w.servers.is_some(),
               w.devices.is_some(),
-              device.socket.udp, interval
+              device.socket.udp,
+              interval
             )
           );
         }

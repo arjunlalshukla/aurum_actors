@@ -3,7 +3,7 @@ use aurum::cluster::devices::{
   Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer,
   DeviceServerCmd, Manager,
 };
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, HBRConfig};
+use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
 use aurum::core::{
   Actor, ActorContext, ActorSignal, Host, LocalRef, Node, Socket,
 };
@@ -20,8 +20,15 @@ unify!(DeviceTestTypes = CoordinatorMsg | ServerMsg | ClientMsg);
 
 const HOST: Host = Host::IP(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
 
+struct ClusterData(u16, BTreeSet<u16>);
 struct ServerData(u16, Charges);
 struct ClientData(u16, Manager);
+
+#[derive(Clone, Copy)]
+enum ConvergenceType {
+  Cluster,
+  Devices,
+}
 
 struct TestServer {
   actor: LocalRef<ServerMsg>,
@@ -38,16 +45,14 @@ struct TestClient {
 #[derive(AurumInterface)]
 #[aurum(local)]
 enum CoordinatorMsg {
-  #[aurum(local)]
+  Cluster(ClusterData),
   Server(ServerData),
-  #[aurum(local)]
   Client(ClientData),
   KillServer(u16),
   KillClient(u16),
   SpawnServer(u16, Vec<u16>),
   SpawnClient(u16, Vec<u16>),
-  Wait(Duration),
-  WaitForConvergence,
+  WaitForConvergence(ConvergenceType),
   Done,
 }
 
@@ -60,12 +65,15 @@ struct Coordinator {
   servers: BTreeMap<u16, TestServer>,
   clients: BTreeMap<u16, TestClient>,
 
+  convergence: BTreeSet<u16>,
+  converged: BTreeSet<u16>,
+
   queue: Vec<CoordinatorMsg>,
-  waiting: bool,
+  waiting: Option<ConvergenceType>,
   notification: Sender<()>,
 }
 impl Coordinator {
-  fn convergence_reached(&self) -> bool {
+  fn device_convergence_reached(&self) -> bool {
     let mut clients = BTreeSet::new();
     for (port, svr) in &self.servers {
       for c in svr.charges.iter() {
@@ -83,25 +91,48 @@ impl Coordinator {
       .all(|(c, test)| clients.contains(c) && test.manager.is_some())
   }
 
+  fn cluster_convergence_reached(&self) -> bool {
+    self.servers.keys().all(|k| self.converged.contains(k))
+  }
+
   fn check_convergence(
     &mut self,
     ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>,
   ) {
-    if self.waiting && self.convergence_reached() {
-      let mut s = String::new();
-      writeln!(s, "CONVERGENCE reached!").unwrap();
-      for (port, svr) in &self.servers {
-        writeln!(s, "{} CHARGES - {:?}", port, svr.charges).unwrap();
-      }
-      for (port, client) in &self.clients {
-        writeln!(s, "{} MANAGER - {:?}", port, client.manager).unwrap();
-      }
-      writeln!(s, "---").unwrap();
-      println!("{}", s);
-      self.waiting = false;
-      let my_ref = ctx.local_interface();
-      for msg in self.queue.drain(..) {
-        my_ref.send(msg);
+    if let Some(mode) = self.waiting {
+      let converged = match mode {
+        ConvergenceType::Cluster => {
+          if self.cluster_convergence_reached() {
+            println!("DEVICE CONVERGENCE reached!");
+            true
+          } else {
+            false
+          }
+        }
+        ConvergenceType::Devices => {
+          if self.device_convergence_reached() {
+            let mut s = String::new();
+            writeln!(s, "DEVICE CONVERGENCE reached!").unwrap();
+            for (port, svr) in &self.servers {
+              writeln!(s, "{} CHARGES - {:?}", port, svr.charges).unwrap();
+            }
+            for (port, client) in &self.clients {
+              writeln!(s, "{} MANAGER - {:?}", port, client.manager).unwrap();
+            }
+            writeln!(s, "---").unwrap();
+            println!("{}", s);
+            true
+          } else {
+            false
+          }
+        }
+      };
+      if converged {
+        self.waiting = None;
+        let my_ref = ctx.local_interface();
+        for msg in self.queue.drain(..) {
+          my_ref.send(msg);
+        }
       }
     }
   }
@@ -114,6 +145,14 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
     msg: CoordinatorMsg,
   ) {
     match msg {
+      Cluster(ClusterData(port, view)) => {
+        if view == self.convergence {
+          self.converged.insert(port);
+        } else {
+          self.converged.remove(&port);
+        }
+        self.check_convergence(ctx);
+      }
       Server(ServerData(port, charges)) => {
         let charges = charges.0.iter().map(|x| x.socket.udp).collect();
         println!("{} CHARGES - {:?}", port, charges);
@@ -129,7 +168,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         self.check_convergence(ctx);
       }
       KillServer(port) => {
-        if self.waiting {
+        if self.waiting.is_some() {
           self.queue.push(KillServer(port));
           return;
         }
@@ -137,9 +176,11 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         let node = self.servers.remove(&port).unwrap();
         node.node.log(LoggerMsg::SetLevel(LogLevel::Off));
         node.actor.signal(ActorSignal::Term);
+        self.convergence.remove(&port);
+        self.converged.clear();
       }
       KillClient(port) => {
-        if self.waiting {
+        if self.waiting.is_some() {
           self.queue.push(KillClient(port));
           return;
         }
@@ -149,8 +190,8 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         node.actor.signal(ActorSignal::Term);
       }
       SpawnClient(port, seeds) => {
-        if self.waiting {
-          self.queue.push(SpawnServer(port, seeds));
+        if self.waiting.is_some() {
+          self.queue.push(SpawnClient(port, seeds));
           return;
         }
         let socket = Socket::new(HOST.clone(), port, 0);
@@ -184,7 +225,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         self.clients.insert(port, entry);
       }
       SpawnServer(port, seeds) => {
-        if self.waiting {
+        if self.waiting.is_some() {
           self.queue.push(SpawnServer(port, seeds));
           return;
         }
@@ -220,40 +261,48 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           .local()
           .clone()
           .unwrap();
+        
         let entry = TestServer {
           actor: recvr,
           charges: BTreeSet::new(),
           node: node,
         };
         self.servers.insert(port, entry);
+        self.convergence.insert(port);
+        self.converged.clear();
       }
-      Wait(dur) => tokio::time::sleep(dur).await,
-      WaitForConvergence => {
-        if self.waiting {
-          self.queue.push(WaitForConvergence);
+      WaitForConvergence(mode) => {
+        if self.waiting.is_some() {
+          self.queue.push(WaitForConvergence(mode));
           return;
         }
-        if !self.convergence_reached() {
-          println!("Waiting for CONVERGENCE");
-          self.waiting = true;
-          self.queue.clear();
-        } else {
-          println!("CONVERGENCE already reached");
+        match mode {
+          ConvergenceType::Cluster => {
+            if !self.cluster_convergence_reached() {
+              println!("Waiting for CLUSTER CONVERGENCE");
+              self.waiting = Some(ConvergenceType::Cluster);
+              self.queue.clear();
+            } else {
+              println!("CLUSTER CONVERGENCE already reached");
+            }
+          }
+          ConvergenceType::Devices => {
+            if !self.device_convergence_reached() {
+              println!("Waiting for DEVICES CONVERGENCE");
+              self.waiting = Some(ConvergenceType::Devices);
+              self.queue.clear();
+            } else {
+              println!("DEVICES CONVERGENCE already reached");
+            }
+          }
         }
       }
       Done => {
-        if self.waiting {
+        if self.waiting.is_some() {
           self.queue.push(Done);
-          return;
-        }
-        if self.convergence_reached() {
+        } else {
           println!("Done!");
           self.notification.send(()).unwrap();
-        } else {
-          println!("Waiting for CONVERGENCE");
-          self.waiting = true;
-          self.queue.clear();
-          self.queue.push(Done);
         }
       }
     }
@@ -268,7 +317,7 @@ enum ClientMsg {
 }
 
 struct Client {
-  supervisor: LocalRef<ClientData>,
+  supervisor: LocalRef<CoordinatorMsg>,
   client: LocalRef<DeviceClientCmd>,
 }
 #[async_trait]
@@ -277,9 +326,8 @@ impl Actor<DeviceTestTypes, ClientMsg> for Client {
     &mut self,
     ctx: &ActorContext<DeviceTestTypes, ClientMsg>,
   ) {
-    self
-      .client
-      .send(DeviceClientCmd::Subscribe(ctx.local_interface()));
+    let msg = DeviceClientCmd::Subscribe(ctx.local_interface());
+    self.client.send(msg);
   }
 
   async fn recv(
@@ -289,9 +337,8 @@ impl Actor<DeviceTestTypes, ClientMsg> for Client {
   ) {
     match msg {
       ClientMsg::Manager(manager) => {
-        self
-          .supervisor
-          .send(ClientData(ctx.node.socket().udp, manager));
+        let msg = Client(ClientData(ctx.node.socket().udp, manager));
+        self.supervisor.send(msg);
       }
     }
   }
@@ -306,10 +353,12 @@ impl Actor<DeviceTestTypes, ClientMsg> for Client {
 enum ServerMsg {
   #[aurum(local)]
   Devices(Charges),
+  #[aurum(local)]
+  Update(ClusterUpdate),
 }
 
 struct Server {
-  supervisor: LocalRef<ServerData>,
+  supervisor: LocalRef<CoordinatorMsg>,
   cluster: LocalRef<ClusterCmd>,
   devices: LocalRef<DeviceServerCmd>,
 }
@@ -319,9 +368,10 @@ impl Actor<DeviceTestTypes, ServerMsg> for Server {
     &mut self,
     ctx: &ActorContext<DeviceTestTypes, ServerMsg>,
   ) {
-    self
-      .devices
-      .send(DeviceServerCmd::Subscribe(ctx.local_interface()));
+    let msg = DeviceServerCmd::Subscribe(ctx.local_interface());
+    self.devices.send(msg);
+    let msg = ClusterCmd::Subscribe(ctx.local_interface());
+    self.cluster.send(msg);
   }
 
   async fn recv(
@@ -331,9 +381,13 @@ impl Actor<DeviceTestTypes, ServerMsg> for Server {
   ) {
     match msg {
       ServerMsg::Devices(charges) => {
-        self
-          .supervisor
-          .send(ServerData(ctx.node.socket().udp, charges));
+        let msg = Server(ServerData(ctx.node.socket().udp, charges));
+        self.supervisor.send(msg);
+      }
+      ServerMsg::Update(update) => {
+        let view = update.nodes.iter().map(|m| m.socket.udp).collect();
+        let msg = Cluster(ClusterData(ctx.node.socket().udp, view));
+        self.supervisor.send(msg);
       }
     }
   }
@@ -361,8 +415,10 @@ fn run_cluster_test(
     cli_cfg: cli_cfg,
     servers: BTreeMap::new(),
     clients: BTreeMap::new(),
+    convergence: BTreeSet::new(),
+    converged: BTreeSet::new(),
     queue: Vec::new(),
-    waiting: false,
+    waiting: None,
     notification: tx,
   };
   let coor = node
@@ -380,10 +436,9 @@ fn run_cluster_test(
 fn devices_test_perfect() {
   let events = vec![
     SpawnServer(3001, vec![]),
-    Wait(Duration::from_millis(20)),
     SpawnServer(3002, vec![3001]),
     SpawnServer(3003, vec![3001]),
-    Wait(Duration::from_millis(100)),
+    WaitForConvergence(ConvergenceType::Cluster),
     SpawnClient(4001, vec![3001]),
     SpawnClient(4002, vec![3001]),
     SpawnClient(4003, vec![3001]),
@@ -396,16 +451,15 @@ fn devices_test_perfect() {
     SpawnClient(4010, vec![3001]),
     SpawnClient(4011, vec![3001]),
     SpawnClient(4012, vec![3001]),
-
-    WaitForConvergence,
+    WaitForConvergence(ConvergenceType::Devices),
     KillClient(4003),
     KillClient(4004),
-    WaitForConvergence,
+    WaitForConvergence(ConvergenceType::Devices),
     Done,
   ];
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();
-  clr_cfg.vnodes = 3;
+  clr_cfg.vnodes = 20;
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(50);
   let mut hbr_cfg = HBRConfig::default();
