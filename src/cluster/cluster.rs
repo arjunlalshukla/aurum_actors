@@ -684,7 +684,6 @@ impl<U: UnifiedType> Cluster<U> {
   pub fn new(
     node: &Node<U>,
     name: String,
-    vnodes: u32,
     subrs: Vec<LocalRef<ClusterUpdate>>,
     fail_map: FailureConfigMap,
     clr_config: ClusterConfig,
@@ -697,7 +696,7 @@ impl<U: UnifiedType> Cluster<U> {
         member: Arc::new(Member {
           socket: node.socket().clone(),
           id: id,
-          vnodes: vnodes,
+          vnodes: clr_config.vnodes,
         }),
         clr_dest: Destination::new::<ClusterMsg<U>>(name.clone()),
         hbr_dest: Destination::new::<HeartbeatReceiverMsg>(

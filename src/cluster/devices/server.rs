@@ -263,7 +263,9 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
             ic.nodes = update.nodes;
           }
           State::Waiting(w) => {
-            w.member = member;
+            if let Some(member) = member {
+              w.member.replace(member);
+            }
             w.ring = Some(update.ring);
             w.servers = Some(update.nodes);
             self.state.to_ic();

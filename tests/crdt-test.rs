@@ -169,7 +169,6 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
         let cluster = Cluster::new(
           &node,
           "test-crdt-cluster".to_string(),
-          3,
           vec![],
           self.fail_map.clone(),
           clr_cfg,
@@ -265,6 +264,7 @@ fn crdt_test() {
   let mut clr = ClusterConfig::default();
   clr.ping_timeout = Duration::from_millis(200);
   clr.num_pings = 20;
+  clr.vnodes = 3;
   let hbr = HBRConfig::default();
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;

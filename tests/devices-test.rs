@@ -11,6 +11,7 @@ use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 use CoordinatorMsg::*;
@@ -87,7 +88,16 @@ impl Coordinator {
     ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>,
   ) {
     if self.waiting && self.convergence_reached() {
-      println!("CONVERGENCE reached!");
+      let mut s = String::new();
+      writeln!(s, "CONVERGENCE reached!").unwrap();
+      for (port, svr) in &self.servers {
+        writeln!(s, "{} CHARGES - {:?}", port, svr.charges).unwrap();
+      }
+      for (port, client) in &self.clients {
+        writeln!(s, "{} MANAGER - {:?}", port, client.manager).unwrap();
+      }
+      writeln!(s, "---").unwrap();
+      println!("{}", s);
       self.waiting = false;
       let my_ref = ctx.local_interface();
       for msg in self.queue.drain(..) {
@@ -188,7 +198,6 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         let cluster = Cluster::new(
           &node,
           "test-devices".to_string(),
-          1,
           vec![],
           self.fail_map.clone(),
           clr_cfg,
@@ -374,10 +383,20 @@ fn devices_test_perfect() {
     Wait(Duration::from_millis(20)),
     SpawnServer(3002, vec![3001]),
     SpawnServer(3003, vec![3001]),
+    Wait(Duration::from_millis(100)),
     SpawnClient(4001, vec![3001]),
     SpawnClient(4002, vec![3001]),
     SpawnClient(4003, vec![3001]),
     SpawnClient(4004, vec![3001]),
+    SpawnClient(4005, vec![3001]),
+    SpawnClient(4006, vec![3001]),
+    SpawnClient(4007, vec![3001]),
+    SpawnClient(4008, vec![3001]),
+    SpawnClient(4009, vec![3001]),
+    SpawnClient(4010, vec![3001]),
+    SpawnClient(4011, vec![3001]),
+    SpawnClient(4012, vec![3001]),
+
     WaitForConvergence,
     KillClient(4003),
     KillClient(4004),
@@ -386,11 +405,13 @@ fn devices_test_perfect() {
   ];
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.vnodes = 3;
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(50);
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
-  let cli_cfg = DeviceClientConfig::default();
+  let mut cli_cfg = DeviceClientConfig::default();
+  cli_cfg.initial_interval = Duration::from_millis(20);
   run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, cli_cfg);
 }

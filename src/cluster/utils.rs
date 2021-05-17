@@ -17,6 +17,7 @@ pub struct ClusterConfig {
   pub hb_interval: Duration,
   pub seed_nodes: Vec<Socket>,
   pub replication_factor: usize,
+  pub vnodes: u32,
   pub double: bool,
 }
 impl Default for ClusterConfig {
@@ -29,6 +30,7 @@ impl Default for ClusterConfig {
       hb_interval: Duration::from_millis(50),
       seed_nodes: vec![],
       replication_factor: 2,
+      vnodes: 1,
       double: false,
     }
   }

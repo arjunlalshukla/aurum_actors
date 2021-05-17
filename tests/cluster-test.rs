@@ -112,7 +112,6 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         let cluster = Cluster::new(
           &node,
           "test-crdt-cluster".to_string(),
-          3,
           vec![],
           self.fail_map.clone(),
           clr_cfg,
@@ -291,6 +290,7 @@ fn cluster_test_perfect() {
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(50);
+  clr_cfg.vnodes = 3;
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);

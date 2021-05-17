@@ -36,7 +36,8 @@ fn main() {
   let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
 
   let name = "my-cool-device-cluster".to_string();
-  let clr_cfg = ClusterConfig::default();
+  let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.vnodes = 3;
   let hbr_cfg = HBRConfig::default();
 
   match mode.as_str() {
@@ -44,7 +45,6 @@ fn main() {
       let cluster = Cluster::new(
         &node,
         name.clone(),
-        3,
         vec![],
         fail_map.clone(),
         clr_cfg,
