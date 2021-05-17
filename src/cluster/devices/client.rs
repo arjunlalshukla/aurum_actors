@@ -37,7 +37,7 @@ impl Default for DeviceClientConfig {
       times: 5,
       log_capacity: 10,
       seeds: im::hashset![],
-      initial_interval: Duration::from_millis(1000)
+      initial_interval: Duration::from_millis(1000),
     }
   }
 }
@@ -184,7 +184,6 @@ impl<U: UnifiedType> DeviceClient<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
-    println!("My server actor name: {:?}", self.svr_dest.name());
     self.notify_server(ctx).await;
     ctx.node.schedule_local_msg(
       self.interval.interval,

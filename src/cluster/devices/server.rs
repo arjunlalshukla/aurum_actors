@@ -211,7 +211,8 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
                 self.common.dest.name().name.clone(),
               );
               sender.send(msg);
-              ic.req_senders.insert(device, sender);
+              ic.req_senders.insert(device.clone(), sender);
+              ic.charges.insert(device);
               self
                 .common
                 .subscribers
@@ -227,12 +228,16 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
               &SetHeartbeatInterval(device, interval)
             );
           }
-        } else {
+        } else if let State::Waiting(w) = &mut self.state {
           debug!(
             LOG_LEVEL,
             &ctx.node,
             format!(
-              "Waiting, but got HB interval from {}, {:?}",
+              "Waiting for {}, {}, {}, {}, but got HB interval from {}, {:?}",
+              w.member.is_some(),
+              w.ring.is_some(),
+              w.servers.is_some(),
+              w.devices.is_some(),
               device.socket.udp, interval
             )
           );

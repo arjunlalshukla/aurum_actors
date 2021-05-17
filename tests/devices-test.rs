@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use aurum::cluster::devices::{
-  Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer, DeviceServerCmd, Manager,
+  Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer,
+  DeviceServerCmd, Manager,
 };
 use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, HBRConfig};
 use aurum::core::{
@@ -24,13 +25,13 @@ struct ClientData(u16, Manager);
 struct TestServer {
   actor: LocalRef<ServerMsg>,
   charges: BTreeSet<u16>,
-  node: Node<DeviceTestTypes>
+  node: Node<DeviceTestTypes>,
 }
 
 struct TestClient {
   actor: LocalRef<ClientMsg>,
   manager: Option<u16>,
-  node: Node<DeviceTestTypes>
+  node: Node<DeviceTestTypes>,
 }
 
 #[derive(AurumInterface)]
@@ -44,6 +45,7 @@ enum CoordinatorMsg {
   KillClient(u16),
   SpawnServer(u16, Vec<u16>),
   SpawnClient(u16, Vec<u16>),
+  Wait(Duration),
   WaitForConvergence,
   Done,
 }
@@ -65,17 +67,25 @@ impl Coordinator {
   fn convergence_reached(&self) -> bool {
     let mut clients = BTreeSet::new();
     for (port, svr) in &self.servers {
-      if svr.charges.iter().any(|c| {
-        clients.insert(*c)
-          || Some(*port) != self.clients.get(c).map(|x| x.manager).flatten()
-      }) {
-        return false;
+      for c in svr.charges.iter() {
+        let exclusive = clients.insert(*c);
+        let is_manager =
+          Some(*port) == self.clients.get(c).map(|t| t.manager).flatten();
+        if !exclusive || !is_manager {
+          return false;
+        }
       }
     }
-    clients.iter().eq(self.clients.keys())
+    self
+      .clients
+      .iter()
+      .all(|(c, test)| clients.contains(c) && test.manager.is_some())
   }
 
-  fn check_convergence(&mut self, ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>) {
+  fn check_convergence(
+    &mut self,
+    ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>,
+  ) {
     if self.waiting && self.convergence_reached() {
       println!("CONVERGENCE reached!");
       self.waiting = false;
@@ -120,7 +130,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
       }
       KillClient(port) => {
         if self.waiting {
-          self.queue.push(KillServer(port));
+          self.queue.push(KillClient(port));
           return;
         }
         println!("KILLING client on port {}", port);
@@ -136,13 +146,16 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         let socket = Socket::new(HOST.clone(), port, 0);
         let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
         let mut cli_cfg = self.cli_cfg.clone();
-        cli_cfg.seeds = seeds.into_iter().map(|p| Socket::new(HOST.clone(), p, 0)).collect();
+        cli_cfg.seeds = seeds
+          .into_iter()
+          .map(|p| Socket::new(HOST.clone(), p, 0))
+          .collect();
         let client = DeviceClient::new(
           &node,
           cli_cfg,
-          "test-devices-client".to_string(),
+          "test-devices".to_string(),
           self.fail_map.clone(),
-          vec![]
+          vec![],
         );
         let recvr = Client {
           supervisor: ctx.local_interface(),
@@ -155,8 +168,8 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           .unwrap();
         let entry = TestClient {
           actor: recvr,
-          manager: None, 
-          node: node
+          manager: None,
+          node: node,
         };
         self.clients.insert(port, entry);
       }
@@ -174,7 +187,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           .collect();
         let cluster = Cluster::new(
           &node,
-          "test-devices-cluster".to_string(),
+          "test-devices".to_string(),
           1,
           vec![],
           self.fail_map.clone(),
@@ -182,11 +195,11 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           self.hbr_cfg.clone(),
         );
         let devices = DeviceServer::new(
-          &node, 
-          cluster.clone(), 
-          vec![], 
-          "test-devices-server".to_string(),
-          self.fail_map.clone()
+          &node,
+          cluster.clone(),
+          vec![],
+          "test-devices".to_string(),
+          self.fail_map.clone(),
         );
         let recvr = Server {
           supervisor: ctx.local_interface(),
@@ -201,10 +214,11 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         let entry = TestServer {
           actor: recvr,
           charges: BTreeSet::new(),
-          node: node
+          node: node,
         };
         self.servers.insert(port, entry);
       }
+      Wait(dur) => tokio::time::sleep(dur).await,
       WaitForConvergence => {
         if self.waiting {
           self.queue.push(WaitForConvergence);
@@ -246,7 +260,7 @@ enum ClientMsg {
 
 struct Client {
   supervisor: LocalRef<ClientData>,
-  client: LocalRef<DeviceClientCmd>
+  client: LocalRef<DeviceClientCmd>,
 }
 #[async_trait]
 impl Actor<DeviceTestTypes, ClientMsg> for Client {
@@ -254,7 +268,9 @@ impl Actor<DeviceTestTypes, ClientMsg> for Client {
     &mut self,
     ctx: &ActorContext<DeviceTestTypes, ClientMsg>,
   ) {
-    self.client.send(DeviceClientCmd::Subscribe(ctx.local_interface()));
+    self
+      .client
+      .send(DeviceClientCmd::Subscribe(ctx.local_interface()));
   }
 
   async fn recv(
@@ -264,7 +280,9 @@ impl Actor<DeviceTestTypes, ClientMsg> for Client {
   ) {
     match msg {
       ClientMsg::Manager(manager) => {
-        self.supervisor.send(ClientData(ctx.node.socket().udp, manager));
+        self
+          .supervisor
+          .send(ClientData(ctx.node.socket().udp, manager));
       }
     }
   }
@@ -284,7 +302,7 @@ enum ServerMsg {
 struct Server {
   supervisor: LocalRef<ServerData>,
   cluster: LocalRef<ClusterCmd>,
-  devices: LocalRef<DeviceServerCmd>
+  devices: LocalRef<DeviceServerCmd>,
 }
 #[async_trait]
 impl Actor<DeviceTestTypes, ServerMsg> for Server {
@@ -292,7 +310,9 @@ impl Actor<DeviceTestTypes, ServerMsg> for Server {
     &mut self,
     ctx: &ActorContext<DeviceTestTypes, ServerMsg>,
   ) {
-    self.devices.send(DeviceServerCmd::Subscribe(ctx.local_interface()));
+    self
+      .devices
+      .send(DeviceServerCmd::Subscribe(ctx.local_interface()));
   }
 
   async fn recv(
@@ -302,7 +322,9 @@ impl Actor<DeviceTestTypes, ServerMsg> for Server {
   ) {
     match msg {
       ServerMsg::Devices(charges) => {
-        self.supervisor.send(ServerData(ctx.node.socket().udp, charges));
+        self
+          .supervisor
+          .send(ServerData(ctx.node.socket().udp, charges));
       }
     }
   }
@@ -349,9 +371,18 @@ fn run_cluster_test(
 fn devices_test_perfect() {
   let events = vec![
     SpawnServer(3001, vec![]),
-    SpawnServer(4001, vec![3001]),
+    Wait(Duration::from_millis(20)),
+    SpawnServer(3002, vec![3001]),
+    SpawnServer(3003, vec![3001]),
+    SpawnClient(4001, vec![3001]),
+    SpawnClient(4002, vec![3001]),
+    SpawnClient(4003, vec![3001]),
+    SpawnClient(4004, vec![3001]),
     WaitForConvergence,
-    Done
+    KillClient(4003),
+    KillClient(4004),
+    WaitForConvergence,
+    Done,
   ];
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();

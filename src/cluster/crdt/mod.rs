@@ -26,7 +26,7 @@ pub trait DeltaMutator<T: CRDT> {
   fn apply(&self, target: &T) -> T;
 }
 
-pub const LOG_LEVEL: LogLevel = LogLevel::Debug;
+pub const LOG_LEVEL: LogLevel = LogLevel::Info;
 
 mod causal;
 

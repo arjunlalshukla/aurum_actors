@@ -4,7 +4,7 @@ mod heartbeat_request_sender;
 mod server;
 
 use crate::testkit::LogLevel;
-const LOG_LEVEL: LogLevel = LogLevel::Trace;
+const LOG_LEVEL: LogLevel = LogLevel::Debug;
 
 #[rustfmt::skip]
 pub use {

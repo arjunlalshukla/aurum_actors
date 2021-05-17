@@ -8,7 +8,7 @@ use crate::core::{
   Actor, ActorContext, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, trace, udp_select, AurumInterface};
+use crate::{debug, info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use HBReqSenderMsg::*;
@@ -88,11 +88,6 @@ impl<U: UnifiedType> HBReqSender<U> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, HBReqSenderMsg>) {
-    debug!(
-      LOG_LEVEL,
-      &ctx.node,
-      format!("Sending HBR to {:?}", self.charge)
-    );
     ctx.local_interface().send(Tick);
   }
 
@@ -104,7 +99,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
     match msg {
       Tick => {
         if self.storage.phi() < self.config.phi {
-          debug!(
+          trace!(
             LOG_LEVEL,
             &ctx.node,
             format!("Sending HBR to {:?}", self.charge)
@@ -123,7 +118,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
             Tick,
           );
         } else {
-          debug!(
+          info!(
             LOG_LEVEL,
             &ctx.node,
             format!("Downing device {:?}", self.charge)
