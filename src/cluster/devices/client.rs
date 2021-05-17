@@ -27,6 +27,7 @@ pub struct DeviceClientConfig {
   pub times: u32,
   pub log_capacity: u32,
   pub seeds: im::HashSet<Socket>,
+  pub initial_interval: Duration,
 }
 impl Default for DeviceClientConfig {
   fn default() -> Self {
@@ -36,6 +37,7 @@ impl Default for DeviceClientConfig {
       times: 5,
       log_capacity: 10,
       seeds: im::hashset![],
+      initial_interval: Duration::from_millis(1000)
     }
   }
 }
@@ -49,6 +51,8 @@ impl DeviceClientConfig {
     )
   }
 }
+
+pub struct Manager(pub Option<Socket>);
 
 #[derive(AurumInterface)]
 #[aurum(local)]
@@ -69,7 +73,7 @@ pub enum DeviceClientRemoteMsg<U: UnifiedType> {
 
 pub enum DeviceClientCmd {
   SetInterval(Duration),
-  //Subscribe(LocalRef<DeviceClientCmd>)
+  Subscribe(LocalRef<Manager>),
 }
 
 pub struct DeviceClient<U: UnifiedType> {
@@ -82,14 +86,15 @@ pub struct DeviceClient<U: UnifiedType> {
   storage: IntervalStorage,
   server_log: FrequencyBuffer<ActorRef<U, HBReqSenderRemoteMsg>>,
   fail_map: FailureConfigMap,
+  subscribers: Vec<LocalRef<Manager>>,
 }
 impl<U: UnifiedType> DeviceClient<U> {
   pub fn new(
     node: &Node<U>,
-    initial_interval: Duration,
     config: DeviceClientConfig,
     name: String,
     fail_map: FailureConfigMap,
+    subscribers: Vec<LocalRef<Manager>>,
   ) -> LocalRef<DeviceClientCmd> {
     let actor = Self {
       my_info: Device {
@@ -97,18 +102,19 @@ impl<U: UnifiedType> DeviceClient<U> {
       },
       interval: DeviceInterval {
         clock: 1,
-        interval: initial_interval,
+        interval: config.initial_interval,
       },
       server: None,
       server_pov: DeviceInterval {
         clock: 0,
-        interval: initial_interval,
+        interval: config.initial_interval,
       },
       svr_dest: Destination::new::<DeviceServerMsg>(name.clone()),
-      storage: config.new_storage(initial_interval),
+      storage: config.new_storage(config.initial_interval),
       server_log: FrequencyBuffer::new(config.log_capacity),
       config: config,
       fail_map: fail_map,
+      subscribers: subscribers,
     };
     node
       .spawn(false, actor, name, true)
@@ -169,6 +175,11 @@ impl<U: UnifiedType> DeviceClient<U> {
     self.interval.interval = dur;
     self.notify_server(ctx).await;
   }
+
+  fn set_server(&mut self, svr: Option<Socket>) {
+    self.subscribers.retain(|s| s.send(Manager(svr.clone())));
+    self.server = svr;
+  }
 }
 #[async_trait]
 impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
@@ -197,7 +208,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         );
         if phi > self.config.phi {
           debug!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
-          self.server = None;
+          self.set_server(None);
           self.notify_server(ctx).await;
         }
         ctx.node.schedule_local_msg(
@@ -219,7 +230,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           .is_none()
         {
           self.storage = self.config.new_storage(self.interval.interval);
-          self.server = Some(sender.socket.clone());
+          self.set_server(Some(sender.socket.clone()));
           self.config.seeds.insert(sender.socket.clone());
         } else {
           self.storage.push();
@@ -258,7 +269,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
             socket.udp, interval, self.server_pov, self.interval
           )
         );
-        self.server = Some(socket);
+        self.set_server(Some(socket));
         self.server_pov = interval;
         if self.server_pov == self.interval {
           self.storage = self.config.new_storage(self.interval.interval);
@@ -270,6 +281,10 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         }
       }
       Cmd(SetInterval(dur)) => self.new_interval(dur, ctx).await,
+      Cmd(Subscribe(subr)) => {
+        subr.send(Manager(self.server.clone()));
+        self.subscribers.push(subr);
+      }
     }
   }
 }

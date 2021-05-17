@@ -13,6 +13,7 @@ pub use {
   client::DeviceClientCmd,
   client::DeviceClientMsg,
   client::DeviceClientRemoteMsg,
+  client::Manager,
   devices_state::Device,
   devices_state::DeviceEntry,
   devices_state::DeviceInterval,
@@ -24,6 +25,7 @@ pub use {
   heartbeat_request_sender::HBReqSenderRemoteMsg,
   server::Charges,
   server::DeviceServer,
+  server::DeviceServerCmd,
   server::DeviceServerMsg,
   server::DeviceServerRemoteMsg,
 };

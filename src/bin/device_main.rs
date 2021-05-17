@@ -55,7 +55,8 @@ fn main() {
     "client" => {
       let mut cfg = DeviceClientConfig::default();
       cfg.seeds = seeds;
-      DeviceClient::new(&node, interval, cfg, name, fail_map);
+      cfg.initial_interval = interval;
+      DeviceClient::new(&node, cfg, name, fail_map, vec![]);
     }
     _ => panic!("invalid mode {}", mode),
   }
