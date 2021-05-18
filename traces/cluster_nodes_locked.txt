@@ -1,0 +1,204 @@
+running 1 test
+INFO src/cluster/cluster.rs:589:5 - port 4000 - STARTING member with id: 1189805765381240932
+INFO src/cluster/cluster.rs:589:5 - port 4001 - STARTING member with id: 3487166628054837557
+INFO src/cluster/cluster.rs:386:5 - port 4001 - starting ping. 19 attempts left
+INFO src/cluster/cluster.rs:589:5 - port 4002 - STARTING member with id: 16830065576535723894
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 19 attempts left
+Waiting for CONVERGENCE
+4000 MEMBERS - [4000]
+4000 CHARGES - []
+INFO src/cluster/cluster.rs:589:5 - port 4003 - STARTING member with id: 7502351047471461031
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 19 attempts left
+INFO src/cluster/cluster.rs:589:5 - port 4004 - STARTING member with id: 3139129825343309226
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 19 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 4000 - received ping from Member { socket: Socket { host: IP(127.0.0.1), udp: 4001, tcp: 0 }, id: 3487166628054837557, vnodes: 100 }
+4000 MEMBERS - [4000, 4001]
+4000 CHARGES - [4001]
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 18 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 18 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4001 - starting ping. 18 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 18 attempts left
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 17 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 17 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4001 - starting ping. 17 attempts left
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 17 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 4000 - received ping from Member { socket: Socket { host: IP(127.0.0.1), udp: 4001, tcp: 0 }, id: 3487166628054837557, vnodes: 100 }
+INFO src/cluster/cluster.rs:171:11 - port 4000 - pinger already exists
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4000 - DOWNED charge 4001; after timeout: 200 ms
+4000 MEMBERS - [4000]
+4000 CHARGES - []
+4001 MEMBERS - [4000, 4001]
+4001 CHARGES - [4000]
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 16 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 16 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 16 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 15 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 15 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 15 attempts left
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 14 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 14 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 14 attempts left
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 13 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4002 - starting ping. 13 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 13 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 4001 - received ping from Member { socket: Socket { host: IP(127.0.0.1), udp: 4002, tcp: 0 }, id: 16830065576535723894, vnodes: 100 }
+4001 MEMBERS - [4000, 4001, 4002]
+4001 CHARGES - [4000, 4002]
+4000 MEMBERS - [4000, 4002]
+4000 CHARGES - [4002]
+4002 MEMBERS - [4000, 4001, 4002]
+4002 CHARGES - [4000, 4001]
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4001 - DOWNED charge 4000; after timeout: 200 ms
+4001 MEMBERS - [4001, 4002]
+4001 CHARGES - [4002]
+WARN src/core/registry.rs:59:11 - port 4000 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+4002 MEMBERS - [4001, 4002]
+4002 CHARGES - [4001]
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 12 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 12 attempts left
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 11 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 11 attempts left
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 10 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4003 - starting ping. 10 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 4002 - received ping from Member { socket: Socket { host: IP(127.0.0.1), udp: 4003, tcp: 0 }, id: 7502351047471461031, vnodes: 100 }
+4002 MEMBERS - [4001, 4002, 4003]
+4002 CHARGES - [4001, 4003]
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4003 MEMBERS - [4001, 4002, 4003]
+4003 CHARGES - [4001, 4002]
+4001 MEMBERS - [4001, 4002, 4003]
+4001 CHARGES - [4002, 4003]
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 9 attempts left
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 8 attempts left
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+WARN src/core/registry.rs:59:11 - port 4002 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1189805765381240932" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4000 - DOWNED charge 4002; after timeout: 200 ms
+4000 MEMBERS - [4000]
+4000 CHARGES - []
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 7 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 6 attempts left
+INFO src/cluster/cluster.rs:386:5 - port 4004 - starting ping. 5 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 4003 - received ping from Member { socket: Socket { host: IP(127.0.0.1), udp: 4004, tcp: 0 }, id: 3139129825343309226, vnodes: 100 }
+4003 MEMBERS - [4001, 4002, 4003, 4004]
+4003 CHARGES - [4001, 4002, 4004]
+4001 MEMBERS - [4001, 4002, 4003, 4004]
+4001 CHARGES - [4003]
+4004 MEMBERS - [4001, 4002, 4003, 4004]
+4004 CHARGES - [4001, 4002]
+4002 MEMBERS - [4001, 4002, 4003, 4004]
+4002 CHARGES - [4003, 4004]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4004 - DOWNED charge 4002; after timeout: 200 ms
+4004 MEMBERS - [4001, 4003, 4004]
+4004 CHARGES - [4001, 4003]
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4002 - DOWNED charge 4004; after timeout: 200 ms
+4002 MEMBERS - [4001, 4002, 4003]
+4002 CHARGES - [4001, 4003]
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4001 MEMBERS - [4001, 4003]
+4001 CHARGES - [4003]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4003 MEMBERS - [4001, 4002, 4003]
+4003 CHARGES - [4001, 4002]
+4003 MEMBERS - [4001, 4003]
+4003 CHARGES - [4001]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3139129825343309226" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3139129825343309226" }
+INFO src/cluster/cluster.rs:541:5 - port 4004 - I've been downed, changing id from 3139129825343309226 to 3679872369247421237
+4004 MEMBERS - [4001, 4003, 4004]
+4004 CHARGES - [4001, 4003]
+4003 MEMBERS - [4001, 4003, 4004]
+4003 CHARGES - [4001, 4004]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3679872369247421237" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4002 - DOWNED charge 4001; after timeout: 200 ms
+4002 MEMBERS - [4002, 4003]
+4002 CHARGES - [4003]
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+4003 MEMBERS - [4003, 4004]
+4003 CHARGES - [4004]
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-3487166628054837557" }
+INFO src/cluster/cluster.rs:541:5 - port 4001 - I've been downed, changing id from 3487166628054837557 to 16113880564155965507
+4004 MEMBERS - [4003, 4004]
+4004 CHARGES - [4003]
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+4004 MEMBERS - [4001, 4003, 4004]
+4004 CHARGES - [4001, 4003]
+4003 MEMBERS - [4001, 4003, 4004]
+4003 CHARGES - [4001, 4004]
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16830065576535723894" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4002 - DOWNED charge 4003; after timeout: 200 ms
+4002 MEMBERS - [4002]
+4002 CHARGES - []
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4001 - DOWNED charge 4003; after timeout: 200 ms
+4001 MEMBERS - [4001, 4004]
+4001 CHARGES - [4004]
+INFO src/cluster/cluster.rs:541:5 - port 4003 - I've been downed, changing id from 7502351047471461031 to 15725777556089717044
+4003 MEMBERS - [4001, 4003, 4004]
+4003 CHARGES - [4001, 4004]
+WARN src/core/registry.rs:59:11 - port 4001 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-7502351047471461031" }
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-15725777556089717044" }
+4004 MEMBERS - [4001, 4003, 4004]
+4004 CHARGES - [4001, 4003]
+test cluster_test_with_failures ... test cluster_test_with_failures has been running for over 60 seconds
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4003 - DOWNED charge 4001; after timeout: 200 ms
+4003 MEMBERS - [4003, 4004]
+4003 CHARGES - [4004]
+INFO src/cluster/cluster.rs:541:5 - port 4001 - I've been downed, changing id from 16113880564155965507 to 1059601752862978889
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16113880564155965507" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+WARN src/core/registry.rs:59:11 - port 4003 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-1059601752862978889" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 4001 - DOWNED charge 4003; after timeout: 200 ms
+4001 MEMBERS - [4001, 4004]
+4001 CHARGES - [4004]
+INFO src/cluster/cluster.rs:541:5 - port 4003 - I've been downed, changing id from 15725777556089717044 to 12096482891022240127
+4003 MEMBERS - [4001, 4003, 4004]
+4003 CHARGES - [4001, 4004]
+4004 MEMBERS - [4001, 4004]
+4004 CHARGES - [4001]
+WARN src/core/registry.rs:59:11 - port 4004 - Not in register: ActorName { recv_type: cluster_test::ClusterTestTypes<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-15725777556089717044" }
+4001 MEMBERS - [4001, 4003, 4004]
+4001 CHARGES - [4003, 4004]
+4004 MEMBERS - [4001, 4003, 4004]
+4004 CHARGES - [4001, 4003]

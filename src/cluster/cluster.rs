@@ -500,12 +500,8 @@ impl State {
     msg: IntraClusterMsg<U>,
   ) {
     let new_state = match self {
-      State::InCluster(ref mut state) => {
-        state.process(common, ctx, msg).await
-      }
-      State::Pinging(ref mut state) => {
-        state.process(common, ctx, msg).await
-      }
+      State::InCluster(ref mut state) => state.process(common, ctx, msg).await,
+      State::Pinging(ref mut state) => state.process(common, ctx, msg).await,
       State::Left => None,
     };
     if let Some(s) = new_state {

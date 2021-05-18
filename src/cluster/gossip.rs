@@ -24,23 +24,19 @@ impl Gossip {
         (Some((l_mem, l_state)), Some((r_mem, r_state))) => {
           match l_mem.cmp(&r_mem) {
             Equal => {
-              match l_state.cmp(&r_state) {
-                Less => {
-                  let event = match &r_state {
-                    Up => ClusterEvent::Added(r_mem.clone()),
-                    _ => ClusterEvent::Removed(r_mem.clone()),
-                  };
-                  changes.push((r_mem.clone(), r_state));
-                  events.push(event);
-                }
-                Equal => {}
-                Greater => {}
+              if let Less = l_state.cmp(&r_state) {
+                let event = match &r_state {
+                  Up => ClusterEvent::Added(r_mem.clone()),
+                  Down => ClusterEvent::Removed(r_mem.clone()),
+                };
+                changes.push((r_mem.clone(), r_state));
+                events.push(event);
               }
               left = left_iter.next();
               right = right_iter.next();
             }
             Greater => {
-              if let Up =  &r_state {
+              if let Up = &r_state {
                 events.push(ClusterEvent::Added(r_mem.clone()));
               };
               changes.push((r_mem.clone(), r_state));
@@ -54,12 +50,10 @@ impl Gossip {
           }
         }
         (None, Some((r_mem, r_state))) => {
-          let event = match &r_state {
-            Up => ClusterEvent::Added(r_mem.clone()),
-            _ => ClusterEvent::Removed(r_mem.clone()),
+          if let Up = &r_state {
+            events.push(ClusterEvent::Added(r_mem.clone()));
           };
           changes.push((r_mem.clone(), r_state));
-          events.push(event);
           left = None;
           right = right_iter.next()
         }

@@ -240,11 +240,10 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
           );
         }
       }
-      Update(update) => {
+      Update(mut update) => {
         let member = update
           .events
-          .into_iter()
-          .next()
+          .pop()
           .map(|e| match e {
             ClusterEvent::Joined(m) => Some(m),
             ClusterEvent::Alone(m) => Some(m),

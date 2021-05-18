@@ -401,12 +401,12 @@ where
           }
         }
       }
-      CausalMsg::Update(update) => match &mut self.state {
+      CausalMsg::Update(mut update) => match &mut self.state {
         State::InCluster(ic) => {
           ic.update(&mut self.common, ctx, update).await;
         }
         State::Waiting(w) => {
-          let ic = match update.events.into_iter().next().unwrap() {
+          let ic = match update.events.pop().unwrap() {
             ClusterEvent::Alone(m) => w.to_ic(m, update.nodes),
             ClusterEvent::Joined(m) => w.to_ic(m, update.nodes),
             _ => unreachable!(),
