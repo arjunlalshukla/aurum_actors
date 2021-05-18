@@ -1,0 +1,178 @@
+running 1 test
+INFO src/cluster/cluster.rs:589:5 - port 5501 - STARTING member with id: 9114521350177058133
+INFO src/cluster/cluster.rs:589:5 - port 5502 - STARTING member with id: 17542737409749069988
+INFO src/cluster/cluster.rs:386:5 - port 5502 - starting ping. 19 attempts left
+Waiting for CONVERGENCE
+INFO src/cluster/cluster.rs:589:5 - port 5503 - STARTING member with id: 13668180379106582455
+INFO src/cluster/cluster.rs:386:5 - port 5503 - starting ping. 19 attempts left
+Got data, printing views
+Port 5501
+5501 -> 1
+Port 5502 - No Entry
+Port 5503 - No Entry
+Port 5504 - No Entry
+
+Got data, printing views
+Port 5501
+5501 -> 2
+Port 5502 - No Entry
+Port 5503 - No Entry
+Port 5504 - No Entry
+
+INFO src/cluster/cluster.rs:589:5 - port 5504 - STARTING member with id: 16303282902367437506
+INFO src/cluster/cluster.rs:386:5 - port 5504 - starting ping. 19 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 5501 - received ping from Member { socket: Socket { host: DNS("127.0.0.1"), udp: 5504, tcp: 0 }, id: 16303282902367437506, vnodes: 3 }
+INFO src/cluster/cluster.rs:159:9 - port 5501 - received ping from Member { socket: Socket { host: DNS("127.0.0.1"), udp: 5502, tcp: 0 }, id: 17542737409749069988, vnodes: 3 }
+Got data, printing views
+Port 5501
+5501 -> 2
+Port 5502 - No Entry
+Port 5503 - No Entry
+Port 5504
+5501 -> 2
+5504 -> 1
+
+INFO src/cluster/cluster.rs:386:5 - port 5503 - starting ping. 18 attempts left
+Got data, printing views
+Port 5501
+5501 -> 2
+Port 5502
+5501 -> 2
+5502 -> 2
+Port 5503 - No Entry
+Port 5504
+5501 -> 2
+5504 -> 1
+
+Got data, printing views
+Port 5501
+5501 -> 2
+5504 -> 1
+Port 5502
+5501 -> 2
+5502 -> 2
+Port 5503 - No Entry
+Port 5504
+5501 -> 2
+5504 -> 1
+
+INFO src/cluster/cluster.rs:386:5 - port 5503 - starting ping. 17 attempts left
+INFO src/cluster/cluster.rs:159:9 - port 5501 - received ping from Member { socket: Socket { host: DNS("127.0.0.1"), udp: 5503, tcp: 0 }, id: 13668180379106582455, vnodes: 3 }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16303282902367437506" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 5504 - DOWNED charge 5502; after timeout: 100 ms
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+Got data, printing views
+Port 5501
+5501 -> 2
+5504 -> 1
+Port 5502
+5501 -> 2
+5502 -> 2
+5504 -> 1
+Port 5503 - No Entry
+Port 5504
+5501 -> 2
+5504 -> 1
+
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-16303282902367437506" }
+WARN src/core/registry.rs:59:11 - port 5503 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-9114521350177058133" }
+Got data, printing views
+Port 5501
+5501 -> 2
+5504 -> 1
+Port 5502
+5501 -> 2
+5502 -> 2
+5504 -> 1
+Port 5503
+5501 -> 2
+5503 -> 1
+5504 -> 1
+Port 5504
+5501 -> 2
+5504 -> 1
+
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5501 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 5502 - DOWNED charge 5501; after timeout: 100 ms
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+INFO src/cluster/cluster.rs:541:5 - port 5501 - I've been downed, changing id from 9114521350177058133 to 2898533544076743685
+WARN src/core/registry.rs:59:11 - port 5503 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-9114521350177058133" }
+Got data, printing views
+Port 5501
+5501 -> 2
+5504 -> 1
+Port 5502
+5501 -> 2
+5502 -> 2
+5504 -> 1
+Port 5503
+5501 -> 2
+5503 -> 1
+5504 -> 1
+Port 5504
+5501 -> 2
+5503 -> 1
+5504 -> 1
+
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5503 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-2898533544076743685" }
+Got data, printing views
+Port 5501
+5501 -> 2
+5503 -> 1
+5504 -> 1
+Port 5502
+5501 -> 2
+5502 -> 2
+5504 -> 1
+Port 5503
+5501 -> 2
+5503 -> 1
+5504 -> 1
+Port 5504
+5501 -> 2
+5503 -> 1
+5504 -> 1
+
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+INFO src/cluster/heartbeat_receiver.rs:177:9 - port 5502 - DOWNED charge 5504; after timeout: 100 ms
+WARN src/core/registry.rs:59:11 - port 5504 - Not in register: ActorName { recv_type: crdt_test::CRDTTestType<aurum::cluster::heartbeat_receiver::HeartbeatReceiverMsg>, name: "test-crdt-cluster-17542737409749069988" }
+thread 'crdt_test' panicked at 'called `Result::unwrap()` on an `Err` value: Timeout', tests/crdt-test.rs:321:50
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/cb75ad5db02783e8b0222fee363c5f63f7e2cf5b/library/std/src/panicking.rs:493:5
+   1: core::panicking::panic_fmt
+             at /rustc/cb75ad5db02783e8b0222fee363c5f63f7e2cf5b/library/core/src/panicking.rs:92:14
+   2: core::option::expect_none_failed
+             at /rustc/cb75ad5db02783e8b0222fee363c5f63f7e2cf5b/library/core/src/option.rs:1268:5
+   3: core::result::Result<T,E>::unwrap
+             at /Users/arjunshukla/.rustup/toolchains/stable-x86_64-apple-darwin/lib/rustlib/src/rust/library/core/src/result.rs:973:23
+   4: crdt_test::crdt_test
+             at ./tests/crdt-test.rs:321:3
+   5: crdt_test::crdt_test::{{closure}}
+             at ./tests/crdt-test.rs:263:1
+   6: core::ops::function::FnOnce::call_once
+             at /Users/arjunshukla/.rustup/toolchains/stable-x86_64-apple-darwin/lib/rustlib/src/rust/library/core/src/ops/function.rs:227:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/cb75ad5db02783e8b0222fee363c5f63f7e2cf5b/library/core/src/ops/function.rs:227:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test crdt_test ... FAILED
+
+failures:
+
+failures:
+    crdt_test
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.08s
+
+error: test failed, to rerun pass '-p aurum --test crdt-test'
+The terminal process "/bin/zsh '-c', 'cargo test --package aurum --test crdt-test -- crdt_test --exact --nocapture'" terminated with exit code: 101.

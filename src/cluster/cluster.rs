@@ -132,19 +132,12 @@ impl InCluster {
               self.members.insert(member.clone());
             }
             ClusterEvent::Removed(member) => {
-              if self.ring.remove(&*member).is_err()
-                || self.members.remove(member).is_none()
-              {
-                trace!(
-                  LOG_LEVEL,
-                  ctx.node,
-                  format!("failed to remove {:?}", member)
-                );
-              }
+              self.ring.remove(&*member).unwrap();
+              self.members.remove(member).unwrap();
               if *member == common.member {
                 common.new_id(ctx);
                 self.ring.insert(common.member.clone());
-                self.members.insert(member.clone());
+                self.members.insert(common.member.clone());
                 self.gossip.states.insert(common.member.clone(), Up);
                 new_self_member =
                   Some(ClusterEvent::Joined(common.member.clone()));

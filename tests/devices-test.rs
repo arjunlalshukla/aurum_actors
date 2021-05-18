@@ -466,16 +466,19 @@ fn devices_test_perfect() {
     WaitForConvergence(ConvergenceType::Devices),
     Done,
   ];
-  let fail_map = FailureConfigMap::default();
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.vnodes = 100;
   clr_cfg.num_pings = 20;
-  clr_cfg.ping_timeout = Duration::from_millis(50);
+  clr_cfg.ping_timeout = Duration::from_millis(200);
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
-  hbr_cfg.req_timeout = Duration::from_millis(50);
+  hbr_cfg.req_timeout = Duration::from_millis(200);
   let mut cli_cfg = DeviceClientConfig::default();
-  cli_cfg.initial_interval = Duration::from_millis(20);
+  cli_cfg.initial_interval = Duration::from_millis(300);
   let timeout = Duration::from_millis(10_000);
   run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, cli_cfg, timeout);
 }

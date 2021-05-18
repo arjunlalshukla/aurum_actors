@@ -9,7 +9,6 @@ use crate::core::{
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, VecDeque};
 use std::marker::PhantomData;
@@ -289,7 +288,7 @@ impl<S: CRDT> Waiting<S> {
       deltas: deltas,
       member: member,
       acks: nodes.iter().map(|m| (m.id, (m.clone(), 0))).collect(),
-      ord_acks: nodes.iter().map(|m| (0, m.id)).sorted().collect(),
+      ord_acks: nodes.iter().map(|m| (0, m.id)).collect(),
       cluster: nodes,
       min_ord: 0,
       min_delta: 0,

@@ -232,6 +232,7 @@ fn run_cluster_test(
   fail_map: FailureConfigMap,
   clr_cfg: ClusterConfig,
   hbr_cfg: HBRConfig,
+  timeout: Duration,
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<ClusterTestTypes>::new(socket.clone(), 1).unwrap();
@@ -255,7 +256,7 @@ fn run_cluster_test(
   for e in events {
     coor.send(e);
   }
-  rx.recv_timeout(Duration::from_millis(10_000)).unwrap();
+  rx.recv_timeout(timeout).unwrap();
 }
 
 #[test]
@@ -287,13 +288,26 @@ fn cluster_test_perfect() {
     WaitForConvergence,
     Done,
   ];
-  let fail_map = FailureConfigMap::default();
+  // let fail_map = FailureConfigMap::default();
+  // let mut clr_cfg = ClusterConfig::default();
+  // clr_cfg.num_pings = 20;
+  // clr_cfg.ping_timeout = Duration::from_millis(50);
+  // clr_cfg.vnodes = 3;
+  // let mut hbr_cfg = HBRConfig::default();
+  // hbr_cfg.req_tries = 1;
+  // hbr_cfg.req_timeout = Duration::from_millis(50);
+
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.vnodes = 100;
   clr_cfg.num_pings = 20;
-  clr_cfg.ping_timeout = Duration::from_millis(50);
-  clr_cfg.vnodes = 3;
+  clr_cfg.ping_timeout = Duration::from_millis(200);
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
-  hbr_cfg.req_timeout = Duration::from_millis(50);
-  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg);
+  hbr_cfg.req_timeout = Duration::from_millis(200);
+  let timeout = Duration::from_millis(10_000);
+  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, timeout);
 }

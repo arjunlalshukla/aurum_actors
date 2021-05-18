@@ -40,12 +40,10 @@ impl Gossip {
               right = right_iter.next();
             }
             Greater => {
-              let event = match &r_state {
-                Up => ClusterEvent::Added(r_mem.clone()),
-                _ => ClusterEvent::Removed(r_mem.clone()),
+              if let Up =  &r_state {
+                events.push(ClusterEvent::Added(r_mem.clone()));
               };
               changes.push((r_mem.clone(), r_state));
-              events.push(event);
               left = Some((l_mem, l_state));
               right = right_iter.next();
             }
