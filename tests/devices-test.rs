@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use aurum::cluster::crdt::CRDT;
 use aurum::cluster::devices::{
   Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer,
-  DeviceServerCmd, Manager,
+  DeviceServerCmd, Devices, Manager,
 };
 use aurum::cluster::{
   Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
@@ -36,6 +37,7 @@ struct TestServer {
   actor: LocalRef<ServerMsg>,
   charges: BTreeSet<u16>,
   node: Node<DeviceTestTypes>,
+  view: Devices,
 }
 
 struct TestClient {
@@ -87,13 +89,26 @@ impl Coordinator {
         }
       }
     }
-    self.clients.iter().all(|(c, test)| {
+    let clients_valid = self.clients.iter().all(|(c, test)| {
       clients.contains(c)
         && test
           .manager
           .filter(|p| self.servers.contains_key(p))
           .is_some()
-    })
+    });
+    let crdt_converged = self
+      .servers
+      .values()
+      .next()
+      .map(|first| {
+        self
+          .servers
+          .values()
+          .skip(1)
+          .all(|other| other.view == first.view)
+      })
+      .unwrap_or(true);
+    crdt_converged && clients_valid
   }
 
   fn cluster_convergence_reached(&self) -> bool {
@@ -108,7 +123,7 @@ impl Coordinator {
       let converged = match mode {
         ConvergenceType::Cluster => {
           if self.cluster_convergence_reached() {
-            println!("DEVICE CONVERGENCE reached!");
+            println!("CLUSTER CONVERGENCE reached!");
             true
           } else {
             false
@@ -158,11 +173,12 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         }
         self.check_convergence(ctx);
       }
-      Server(ServerData(port, charges)) => {
-        let charges = charges.0.iter().map(|x| x.socket.udp).collect();
+      Server(ServerData(port, data)) => {
+        let charges = data.0.iter().map(|x| x.socket.udp).collect();
         println!("{} CHARGES - {:?}", port, charges);
         let svr = self.servers.get_mut(&port).unwrap();
         svr.charges = charges;
+        svr.view = data.1;
         self.check_convergence(ctx);
       }
       Client(ClientData(port, manager)) => {
@@ -271,6 +287,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           actor: recvr,
           charges: BTreeSet::new(),
           node: node,
+          view: Devices::minimum(),
         };
         self.servers.insert(port, entry);
         self.convergence.insert(port);
@@ -467,7 +484,7 @@ fn devices_test_perfect() {
     Done,
   ];
   let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.drop_prob = 0.25;
   fail_map.cluster_wide.delay =
     Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();

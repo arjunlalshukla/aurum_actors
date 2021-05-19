@@ -44,7 +44,7 @@ pub enum DeviceServerCmd {
   Subscribe(LocalRef<Charges>),
 }
 
-pub struct Charges(pub im::HashSet<Device>);
+pub struct Charges(pub im::HashSet<Device>, pub Devices);
 
 struct InCluster<U: UnifiedType> {
   member: Arc<Member>,
@@ -60,10 +60,14 @@ impl<U: UnifiedType> InCluster<U> {
     if let Some(r) = self.req_senders.remove(&device) {
       r.signal(ActorSignal::Term);
       self.charges.remove(&device);
-      common
-        .subscribers
-        .retain(|s| s.send(Charges(self.charges.clone())));
+      self.publish(common);
     }
+  }
+
+  fn publish(&self, common: &mut Common<U>) {
+    common
+      .subscribers
+      .retain(|s| s.send(Charges(self.charges.clone(), self.devices.clone())));
   }
 
   fn is_manager(&self, device: &Device) -> bool {
@@ -209,10 +213,7 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
               sender.send(msg);
               ic.req_senders.insert(device.clone(), sender);
               ic.charges.insert(device);
-              self
-                .common
-                .subscribers
-                .retain(|s| s.send(Charges(ic.charges.clone())));
+              ic.publish(&mut self.common);
             }
           } else {
             udp_select!(
@@ -268,17 +269,22 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
           }
         }
       }
-      DeviceData(devices) => match &mut self.state {
-        State::Waiting(w) => {
-          w.devices = Some(devices);
-          self.state.to_ic();
+      DeviceData(devices) => {
+        match &mut self.state {
+          State::Waiting(w) => {
+            w.devices = Some(devices);
+            self.state.to_ic();
+          }
+          State::InCluster(ic) => ic.devices = devices,
         }
-        State::InCluster(ic) => ic.devices = devices,
-      },
+        if let State::InCluster(ic) = &self.state {
+          ic.publish(&mut self.common)
+        }
+      }
       Cmd(cmd) => match cmd {
         DeviceServerCmd::Subscribe(subr) => {
           if let State::InCluster(ic) = &mut self.state {
-            subr.send(Charges(ic.charges.clone()));
+            subr.send(Charges(ic.charges.clone(), ic.devices.clone()));
           }
           self.common.subscribers.push(subr);
         }
