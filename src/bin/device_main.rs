@@ -1,13 +1,15 @@
 #![allow(dead_code, unused_imports, unused_variables)]
 use async_trait::async_trait;
+use aurum::cluster::devices::{
+  Charges, Device, DeviceClient, DeviceClientConfig, DeviceServer,
+  DeviceServerCmd,
+};
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef, Node, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef,
+  Node, Socket,
 };
 use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
-use aurum::cluster::devices::{
-  Charges, Device, DeviceClient, DeviceClientConfig, DeviceServer, DeviceServerCmd,
-};
 use aurum::{info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -66,7 +68,7 @@ fn get_seeds(args: &mut impl Iterator<Item = String>) -> Vec<Socket> {
     seeds.push(Socket::new(
       Host::DNS(args.next().unwrap()),
       args.next().unwrap().parse().unwrap(),
-      0
+      0,
     ));
   }
   seeds
@@ -74,6 +76,8 @@ fn get_seeds(args: &mut impl Iterator<Item = String>) -> Vec<Socket> {
 
 fn server(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
   let fail_map = get_fail_map(args);
+
+  let interval = Duration::from_millis(args.next().unwrap().parse().unwrap());
 
   let name = CLUSTER_NAME.to_string();
   let mut clr_cfg = ClusterConfig::default();
@@ -88,7 +92,16 @@ fn server(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
     clr_cfg,
     hbr_cfg,
   );
-  DeviceServer::new(&node, cluster, vec![], name, fail_map);
+  let f = fail_map.clone();
+  let devices = DeviceServer::new(&node, cluster, vec![], name.clone(), f);
+  let business = DataCenterBusiness {
+    report_interval: interval,
+    devices: devices,
+    charges: HashMap::new(),
+    totals: HashMap::new(),
+    fail_map: fail_map,
+  };
+  node.spawn(false, business, name, true);
 }
 
 fn client(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
@@ -98,7 +111,9 @@ fn client(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
   let mut cfg = DeviceClientConfig::default();
   cfg.seeds = get_seeds(args).into_iter().collect();
 
-  DeviceClient::new(&node, cfg, name, fail_map, vec![]);
+  DeviceClient::new(&node, cfg, name.clone(), fail_map.clone(), vec![]);
+  let actor = IoTBusiness { fail_map: fail_map };
+  node.spawn(false, actor, name, true);
 }
 
 #[derive(AurumInterface)]
@@ -141,29 +156,32 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
               r.signal(ActorSignal::Term);
               d
             }
-            None => device.clone()
+            None => device.clone(),
           };
           let recvr = ReportReceiver::new(
             &ctx.node,
             ctx.local_interface(),
             device,
             self.report_interval,
-            self.fail_map.clone()
+            self.fail_map.clone(),
           );
           new_charges.insert(d, recvr);
         }
-        self.charges.values().for_each(|r| {r.signal(ActorSignal::Term);});
+        self.charges.values().for_each(|r| {
+          r.signal(ActorSignal::Term);
+        });
         self.charges = new_charges;
       }
       DataCenterBusinessMsg::Report(device, total, sends, recvs) => {
-        let count = self.totals.get_mut(&device).unwrap();
+        let port = device.socket.udp;
+        let count = self.totals.entry(device).or_insert(0);
         *count += total;
         info!(
           LOG_LEVEL,
           &ctx.node,
           format!(
             "Got {}, bringing total to {} from {} where sends = {}; recvs = {}",
-            total, *count, device.socket.udp, sends, recvs
+            total, *count, port, sends, recvs
           )
         )
       }
@@ -171,8 +189,13 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
     }
   }
 
-  async fn post_stop(&mut self, ctx: &ActorContext<BenchmarkTypes, DataCenterBusinessMsg>) {
-    self.charges.values().for_each(|r| {r.signal(ActorSignal::Term);});
+  async fn post_stop(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, DataCenterBusinessMsg>,
+  ) {
+    self.charges.values().for_each(|r| {
+      r.signal(ActorSignal::Term);
+    });
   }
 }
 
@@ -205,10 +228,14 @@ impl ReportReceiver {
       req_interval: req_interval,
       reqs_sent: 0,
       reqs_recvd: 0,
-      fail_map: fail_map
+      fail_map: fail_map,
     };
     let name = format!("report-recvr-{}", rand::random::<u64>());
-    node.spawn(false, actor, name, true).local().clone().unwrap()
+    node
+      .spawn(false, actor, name, true)
+      .local()
+      .clone()
+      .unwrap()
   }
 }
 #[async_trait]
@@ -254,7 +281,9 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
 enum IoTBusinessMsg {
   ReportReq(ActorRef<BenchmarkTypes, ReportReceiverMsg>),
 }
-struct IoTBusiness {}
+struct IoTBusiness {
+  fail_map: FailureConfigMap,
+}
 #[async_trait]
 impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
   async fn recv(
@@ -263,7 +292,18 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
     msg: IoTBusinessMsg,
   ) {
     match msg {
-      IoTBusinessMsg::ReportReq(_) => {}
+      IoTBusinessMsg::ReportReq(requester) => {
+        let items = (1..1000u64).collect_vec();
+        let msg = ReportReceiverMsg::Report(items);
+        udp_select!(
+          FAILURE_MODE,
+          &ctx.node,
+          &self.fail_map,
+          &requester.socket,
+          &requester.dest,
+          &msg
+        );
+      }
     }
   }
 }

@@ -148,8 +148,8 @@ async fn udp_send<U: UnifiedType + Case<I>, I, T>(
   let addrs = socket.as_udp_addr().await.unwrap();
   let addr = addrs
     .iter()
-    .exactly_one()
-    .expect(format!("multiple addrs: {:?}", addrs).as_str());
+    .next()
+    .expect(format!("No resolution for {:?}", socket).as_str());
   let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
     .await
     .unwrap();
