@@ -481,7 +481,7 @@ fn devices_test_perfect() {
     KillServer(3002),
     WaitForConvergence(ConvergenceType::Cluster),
     WaitForConvergence(ConvergenceType::Devices),
-    Done,
+    Done
   ];
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.25;
@@ -496,6 +496,6 @@ fn devices_test_perfect() {
   hbr_cfg.req_timeout = Duration::from_millis(200);
   let mut cli_cfg = DeviceClientConfig::default();
   cli_cfg.initial_interval = Duration::from_millis(300);
-  let timeout = Duration::from_millis(10_000);
+  let timeout = Duration::from_millis(15_000);
   run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, cli_cfg, timeout);
 }

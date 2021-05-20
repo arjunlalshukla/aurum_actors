@@ -87,11 +87,8 @@ impl InCluster {
     match msg {
       Foo(_) => None,
       ReqGossip(member) => {
-        debug!(
-          LOG_LEVEL,
-          ctx.node,
-          format!("got gossip req from {}", member.socket.udp)
-        );
+        let log = format!("got gossip req from {}", member.socket.udp);
+        debug!(LOG_LEVEL, ctx.node, log);
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
         udp_select!(
           FAILURE_MODE,
@@ -109,14 +106,8 @@ impl InCluster {
         if id == common.member.id {
           common.heartbeat(ctx, &member).await;
         } else {
-          debug!(
-            LOG_LEVEL,
-            ctx.node,
-            format!(
-              "got HB request for id {} when id is {}",
-              common.member.id, id
-            )
-          );
+          let log = format!("HB req for id {}, id is {}", common.member.id, id);
+          debug!(LOG_LEVEL, ctx.node, log);
         }
         None
       }
@@ -156,11 +147,8 @@ impl InCluster {
         None
       }
       Ping(member) => {
-        info!(
-          LOG_LEVEL,
-          ctx.node,
-          format!("received ping from {:?}", member)
-        );
+        let log = format!("received ping from {:?}", member);
+        info!(LOG_LEVEL, ctx.node, log);
         if let Entry::Vacant(v) = self.gossip.states.entry(member.clone()) {
           v.insert(Up);
           self.ring.insert(member.clone());
@@ -383,11 +371,8 @@ impl Pinging {
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
     self.count -= 1;
-    info!(
-      LOG_LEVEL,
-      ctx.node,
-      format!("starting ping. {} attempts left", self.count)
-    );
+    let log = format!("starting ping. {} attempts left", self.count);
+    info!(LOG_LEVEL, ctx.node, log);
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
       udp_select!(
@@ -419,14 +404,8 @@ impl Pinging {
         if id == common.member.id {
           common.heartbeat(ctx, &member).await;
         } else {
-          debug!(
-            LOG_LEVEL,
-            ctx.node,
-            format!(
-              "Got HB request for id {} when id is {}",
-              common.member.id, id
-            )
-          );
+          let log = format!("HB req for id {}, id is {}", common.member.id, id);
+          debug!(LOG_LEVEL, ctx.node, log);
         }
         udp_select!(
           FAILURE_MODE,
@@ -534,14 +513,8 @@ impl<U: UnifiedType> NodeState<U> {
         self.member.id,
       ),
     );
-    info!(
-      LOG_LEVEL,
-      ctx.node,
-      format!(
-        "I've been downed, changing id from {} to {}",
-        old_id, self.member.id
-      )
-    );
+    let log = format!("Was downed, id {} -> {}", old_id, self.member.id);
+    info!(LOG_LEVEL, ctx.node, log);
   }
 
   async fn heartbeat(
@@ -582,11 +555,8 @@ pub struct Cluster<U: UnifiedType> {
 #[async_trait]
 impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, ClusterMsg<U>>) {
-    info!(
-      LOG_LEVEL,
-      ctx.node,
-      format!("STARTING member with id: {}", self.common.member.id)
-    );
+    let log = format!("STARTING member with id: {}", self.common.member.id);
+    info!(LOG_LEVEL, ctx.node, log);
     if self.common.clr_config.seed_nodes.is_empty() {
       self.create_cluster(ctx);
     } else {
