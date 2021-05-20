@@ -44,6 +44,7 @@ pub enum DeviceServerCmd {
   Subscribe(LocalRef<Charges>),
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Charges(pub im::HashSet<Device>, pub Devices);
 
 struct InCluster<U: UnifiedType> {

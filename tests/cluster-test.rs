@@ -8,12 +8,12 @@ use aurum::core::{
 };
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
-use crossbeam::channel::{unbounded, Sender};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
 unify!(ClusterTestTypes = CoordinatorMsg | ClusterClientMsg);
@@ -156,7 +156,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         }
         if self.convergence_reached() {
           println!("Done!");
-          self.notification.send(()).unwrap();
+          self.notification.send(()).await.unwrap();
         } else {
           println!("Waiting for CONVERGENCE");
           self.waiting = true;
@@ -237,7 +237,7 @@ fn run_cluster_test(
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<ClusterTestTypes>::new(socket.clone(), 1).unwrap();
-  let (tx, rx) = unbounded();
+  let (tx, mut rx) = channel(1);
   let actor = Coordinator {
     clr_cfg: clr_cfg,
     hbr_cfg: hbr_cfg,
@@ -257,7 +257,12 @@ fn run_cluster_test(
   for e in events {
     coor.send(e);
   }
-  rx.recv_timeout(timeout).unwrap();
+  node.rt().block_on(async {
+    tokio::time::timeout(timeout, rx.recv())
+      .await
+      .unwrap()
+      .unwrap()
+  });
 }
 
 fn cluster_complete(

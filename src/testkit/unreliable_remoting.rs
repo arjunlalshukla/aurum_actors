@@ -137,16 +137,16 @@ async fn udp_unreliable_packet<U: UnifiedType + Case<I>, I, T>(
 macro_rules! udp_select {
   ($reliable:expr, $node:expr, $fail_map:expr, $socket:expr, $dest:expr, $msg:expr) => {
     match $reliable {
-      crate::testkit::FailureMode::None => {
+      $crate::testkit::FailureMode::None => {
         aurum::core::udp_msg($socket, $dest, $msg).await
       }
-      crate::testkit::FailureMode::Message => {
+      $crate::testkit::FailureMode::Message => {
         aurum::testkit::udp_msg_unreliable_msg(
           $node, $socket, $dest, $msg, $fail_map,
         )
         .await
       }
-      crate::testkit::FailureMode::Packet => {
+      $crate::testkit::FailureMode::Packet => {
         aurum::testkit::udp_msg_unreliable_packet(
           $socket, $dest, $msg, $fail_map,
         )

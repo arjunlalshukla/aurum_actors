@@ -12,11 +12,11 @@ use aurum::core::{
 };
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
-use crossbeam::channel::{unbounded, Sender};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
 unify!(DeviceTestTypes = CoordinatorMsg | ServerMsg | ClientMsg);
@@ -324,7 +324,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           self.queue.push(Done);
         } else {
           println!("Done!");
-          self.notification.send(()).unwrap();
+          self.notification.send(()).await.unwrap();
         }
       }
     }
@@ -430,7 +430,7 @@ fn run_cluster_test(
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
-  let (tx, rx) = unbounded();
+  let (tx, mut rx) = channel(1);
   let actor = Coordinator {
     clr_cfg: clr_cfg,
     hbr_cfg: hbr_cfg,
@@ -452,7 +452,12 @@ fn run_cluster_test(
   for e in events {
     coor.send(e);
   }
-  rx.recv_timeout(timeout).unwrap();
+  node.rt().block_on(async {
+    tokio::time::timeout(timeout, rx.recv())
+      .await
+      .unwrap()
+      .unwrap()
+  });
 }
 
 #[test]
@@ -481,7 +486,7 @@ fn devices_test_perfect() {
     KillServer(3002),
     WaitForConvergence(ConvergenceType::Cluster),
     WaitForConvergence(ConvergenceType::Devices),
-    Done
+    Done,
   ];
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.25;

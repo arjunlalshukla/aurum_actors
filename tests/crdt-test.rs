@@ -7,12 +7,12 @@ use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, Socket};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
-use crossbeam::channel::{unbounded, Sender};
 use im;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
 use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
 unify!(CRDTTestType =
@@ -218,7 +218,7 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
         }
         if self.convergence_reached() {
           println!("Done!");
-          self.notification.send(()).unwrap();
+          self.notification.send(()).await.unwrap();
         } else {
           println!("Waiting for CONVERGENCE");
           self.waiting = true;
@@ -274,7 +274,7 @@ fn crdt_test() {
   preference.timeout = Duration::from_millis(200);
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
-  let (tx, rx) = unbounded();
+  let (tx, mut rx) = channel(1);
   let actor = Coordinator {
     clr_cfg: clr,
     hbr_cfg: hbr,
@@ -317,6 +317,11 @@ fn crdt_test() {
   for e in events {
     coor.send(e);
   }
-  // std::thread::sleep(Duration::from_secs(5000));
-  rx.recv_timeout(Duration::from_millis(10_000)).unwrap();
+  let timeout = Duration::from_millis(10_000);
+  node.rt().block_on(async {
+    tokio::time::timeout(timeout, rx.recv())
+      .await
+      .unwrap()
+      .unwrap()
+  });
 }
