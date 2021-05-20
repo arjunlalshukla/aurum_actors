@@ -3,7 +3,6 @@ use crate::core::{
   Socket, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use itertools::Itertools;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use serde::de::DeserializeOwned;

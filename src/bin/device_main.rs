@@ -240,6 +240,10 @@ impl ReportReceiver {
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
+  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+    ctx.local_interface().send(ReportReceiverMsg::Tick);
+  }
+
   async fn recv(
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,

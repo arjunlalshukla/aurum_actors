@@ -2,7 +2,6 @@ use crate::core::{
   ActorName, ActorSignal, Case, Interpretations, MessagePackets,
   SpecificInterface, UnifiedType,
 };
-use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
