@@ -441,13 +441,17 @@ struct Collector {
   req_int: Duration,
 }
 impl Collector {
-  fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Command {
+  fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
     let bin = std::env::args().next().unwrap();
     let dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
     let mut s = String::new();
     write!(s, "cd {}; ", dir).unwrap();
     if host.as_str() != "localhost" {
       write!(s, "pkill -f {}; ", bin).unwrap();
+      let mut cmd = Command::new("ssh");
+      cmd.arg(host);
+      cmd.arg(s.clone());
+      assert!(cmd.status().unwrap().success());
     }
     write!(s, "{} {} {} killer {} {} ", bin, host, port, host, port + 1).unwrap();
     if is_svr {
@@ -464,7 +468,7 @@ impl Collector {
     let mut cmd = Command::new("ssh");
     cmd.arg(host);
     cmd.arg(s);
-    cmd
+    cmd.spawn().unwrap()
   }
 }
 #[async_trait]
@@ -472,11 +476,11 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
   async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, CollectorMsg>) {
     let mut first = true;
     for (h, p, _) in &self.servers {
-      self.ssh_procs.push(self.ssh_cmds(first, true, h, *p).spawn().unwrap());
+      self.ssh_procs.push(self.ssh_cmds(first, true, h, *p));
       first = false;
     }
     for (h, p, _) in &self.clients {
-      self.ssh_procs.push(self.ssh_cmds(false, false, h, *p).spawn().unwrap());
+      self.ssh_procs.push(self.ssh_cmds(false, false, h, *p));
     }
     ctx.local_interface().send(CollectorMsg::PrintTick);
     ctx.local_interface().send(CollectorMsg::ReqTick);
