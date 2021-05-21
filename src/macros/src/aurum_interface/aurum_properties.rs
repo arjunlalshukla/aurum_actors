@@ -70,5 +70,5 @@ impl Parse for AurumProperties {
 }
 
 fn already_defined(s: &str) {
-  panic!(format!("Do not define Aurum flag {} more than once", s))
+  panic!("Do not define Aurum flag {} more than once", s)
 }

@@ -34,8 +34,7 @@ pub(crate) async fn unit_single<U, S, A>(
         match S::deserialize_as(interface, mb.intp, mb.msg()) {
           Ok(s) => s,
           Err(e) => {
-            let msg = format!("Socket: {:?} - {:?}", &ctx.node.socket(), e);
-            panic!(msg)
+            panic!("Socket: {:?} - {:?}", &ctx.node.socket(), e)
           }
         }
       }

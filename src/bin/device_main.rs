@@ -164,20 +164,20 @@ fn collector(
   for (num, line) in lines.enumerate().map(|(n, l)| (n + 1, l.unwrap())) {
     let toks = line.split_whitespace().collect_vec();
     if toks.len() != 3 {
-      panic!(format!("Err on line {}, must have 3 tokens", num));
+      panic!("Err on line {}, must have 3 tokens", num);
     }
     let socket = (toks[1].to_string(), toks[2].to_string().parse().unwrap());
     if socket.1 %2 != 0 {
-      panic!(format!("Line {} port must be even", num));
+      panic!("Line {} port must be even", num);
     }
     match toks[0] {
       "server" => {
         let svr = servers.get(&socket);
         let cli = clients.get(&socket);
         if let Some(line_num) = svr {
-          panic!(format!("Tried server on line {}, but is server on line {}", num, line_num));
+          panic!("Tried server on line {}, but is server on line {}", num, line_num);
         } else if let Some(line_num) = cli {
-          panic!(format!("Tried server on line {}, but is client on line {}", num, line_num));
+          panic!("Tried server on line {}, but is client on line {}", num, line_num);
         } else {
           servers.insert(socket, num);
         }
@@ -186,14 +186,14 @@ fn collector(
         let svr = servers.get(&socket);
         let cli = clients.get(&socket);
         if let Some(line_num) = svr {
-          panic!(format!("Tried client on line {}, but is server on line {}", num, line_num));
+          panic!("Tried client on line {}, but is server on line {}", num, line_num);
         } else if let Some(line_num) = cli {
-          panic!(format!("Tried client on line {}, but is client on line {}", num, line_num));
+          panic!("Tried client on line {}, but is client on line {}", num, line_num);
         } else {
           clients.insert(socket, num);
         }
       }
-      a => panic!(format!("Invalid node option {}", a)),
+      a => panic!("Invalid node option {}", a),
     }
   }
   let actor = Collector {

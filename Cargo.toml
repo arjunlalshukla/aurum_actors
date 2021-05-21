@@ -19,7 +19,7 @@ rpds = { version = "*", features = ["serde"] }
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"
 smallvec = "*"
-statrs = "*"
+statrs = "0.13.0"
 tokio = { version = "*", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
 tokio-test = "*"
 validator = "*"
