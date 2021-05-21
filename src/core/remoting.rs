@@ -40,7 +40,7 @@ impl Socket {
       Host::IP(ip) => Ok(vec![SocketAddr::new(*ip, self.udp)]),
       Host::DNS(s) => lookup_host((s.as_str(), self.udp))
         .await
-        .map(|x| x.collect()),
+        .map(|x| x.filter(|a| a.is_ipv4()).collect()),
     }
   }
 }
