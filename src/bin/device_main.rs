@@ -139,7 +139,12 @@ fn killer(
   let bin = std::env::args().next().unwrap();
   let mut cmd = Command::new(bin);
   args.for_each(|s| {cmd.arg(s);});
-  
+  let actor = PeriodicKiller {
+    notify: notify,
+    cmd: cmd,
+    proc: None,
+  };
+  node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
 
 fn collector(
@@ -147,7 +152,7 @@ fn collector(
   node: &Node<BenchmarkTypes>,
   args: &mut impl Iterator<Item = String>,
 ) {
-  let bin = std::env::args().next().unwrap();
+  let _bin = std::env::args().next().unwrap();
   let file = File::open(args.next().unwrap()).unwrap();
   let mut lines = BufReader::new(file).lines();
   let mut servers = BTreeMap::new();
@@ -161,7 +166,10 @@ fn collector(
     if toks.len() != 3 {
       panic!(format!("Err on line {}, must have 3 tokens", num));
     }
-    let socket = (toks[1].to_string(), toks[2].to_string());
+    let socket = (toks[1].to_string(), toks[2].to_string().parse().unwrap());
+    if socket.1 %2 != 0 {
+      panic!(format!("Line {} port must be even", num));
+    }
     match toks[0] {
       "server" => {
         let svr = servers.get(&socket);
@@ -193,11 +201,11 @@ fn collector(
     _kill_dest: Destination::new::<PeriodicKillerMsg>(CLUSTER_NAME.to_string()),
     svr_dest: Destination::new::<DataCenterBusinessMsg>(CLUSTER_NAME.to_string()),
     servers: servers.into_iter().map(|((host, port), _)| {
-      let socket = Socket::new(Host::DNS(host.clone()), port.parse().unwrap(), 0);
+      let socket = Socket::new(Host::DNS(host.clone()), port + 1, 0);
       (host, port, socket)
     }).collect_vec(),
     clients: clients.into_iter().map(|((host, port), _)| {
-      let socket = Socket::new(Host::DNS(host.clone()), port.parse().unwrap(), 0);
+      let socket = Socket::new(Host::DNS(host.clone()), port + 1, 0);
       (host, port, socket)
     }).collect_vec(),
     ssh_procs: Vec::new(),
@@ -420,16 +428,44 @@ struct Collector {
   notify: Sender<()>,
   _kill_dest: Destination<BenchmarkTypes, PeriodicKillerMsg>, 
   svr_dest: Destination<BenchmarkTypes, DataCenterBusinessMsg>,
-  servers: Vec<(String, String, Socket)>,
-  clients: Vec<(String, String, Socket)>,
+  servers: Vec<(String, u16, Socket)>,
+  clients: Vec<(String, u16, Socket)>,
   ssh_procs: Vec<Child>,
   collection: BTreeMap<Socket, RedBlackTreeMapSync<Device, u64>>,
   print_int: Duration,
   req_int: Duration,
 }
+impl Collector {
+  fn ssh_cmds(&self, is_svr: bool, host: &String, port: u16) -> Command {
+    let bin = std::env::args().next().unwrap();
+    let dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+    let mut s = String::new();
+    write!(s, "cd {}; ", dir).unwrap();
+    write!(s, "{} {} {} killer {} {} ", bin, host, port, host, port + 1).unwrap();
+    if is_svr {
+      write!(s, " server 0.0 0 0 1000 ").unwrap();
+    } else {
+      write!(s, " client 0.0 0 0 ").unwrap();
+    }
+    for (h, p, _) in self.servers.iter().filter(|(h, p, _)| h != host || *p != port) {
+      write!(s, " {} {} ", h, p + 1).unwrap();
+    }
+    println!("Running command ssh {} \"{}\"", host, s);
+    let mut cmd = Command::new("ssh");
+    cmd.arg(host);
+    cmd.arg(s);
+    cmd
+  }
+}
 #[async_trait]
 impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
   async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+    for (h, p, _) in &self.servers {
+      self.ssh_procs.push(self.ssh_cmds(true, h, *p).spawn().unwrap());
+    }
+    for (h, p, _) in &self.clients {
+      self.ssh_procs.push(self.ssh_cmds(false, h, *p).spawn().unwrap());
+    }
     ctx.local_interface().send(CollectorMsg::PrintTick);
     ctx.local_interface().send(CollectorMsg::ReqTick);
   }
@@ -445,6 +481,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
       }
       CollectorMsg::PrintTick => {
         let mut s = String::new();
+        let mut total = 0;
         for (socket, map) in &self.collection {
           for (device, count) in map {
             writeln!(s, "{:?}::{} | {:?}::{} -> {}", 
@@ -455,9 +492,10 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
               count
             )
             .unwrap();
+            total += *count;
           }
         }
-        println!("{}", s);
+        println!("Total: {}\n {}", total, s);
         ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
       }
       CollectorMsg::ReqTick => {
@@ -478,6 +516,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
   }
 }
 
+#[allow(dead_code)]
 #[derive(AurumInterface)]
 #[aurum(local)]
 enum PeriodicKillerMsg {
@@ -492,9 +531,13 @@ struct PeriodicKiller {
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
+  async fn pre_start(&mut self, _: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>) {
+    self.proc = Some(self.cmd.spawn().unwrap());
+  }
+
   async fn recv(
     &mut self,
-    ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
+    _ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
     msg: PeriodicKillerMsg,
   ) {
     match msg {

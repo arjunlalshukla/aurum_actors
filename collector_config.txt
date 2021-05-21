@@ -1,0 +1,3 @@
+1000 300
+server localhost 3000
+client localhost 3002
