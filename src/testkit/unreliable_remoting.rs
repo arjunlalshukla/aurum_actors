@@ -60,7 +60,8 @@ async fn udp_unreliable_msg<U: UnifiedType + Case<I>, I, T>(
 {
   let fail_cfg = fail_map.get(socket);
   let addrs = socket.as_udp_addr().await.unwrap();
-  let addr = addrs.into_iter()
+  let addr = addrs
+    .into_iter()
     .next()
     .expect(format!("No resolution for {:?}", socket).as_str());
   let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))

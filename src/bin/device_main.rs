@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables)]
 use async_trait::async_trait;
 use aurum::cluster::devices::{
   Charges, Device, DeviceClient, DeviceClientConfig, DeviceServer,
@@ -6,15 +5,21 @@ use aurum::cluster::devices::{
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef,
+  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef,
   Node, Socket,
 };
 use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
 use aurum::{info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
+use rpds::RedBlackTreeMapSync;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::fmt::Write;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::process::{Child, Command};
 use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 
 unify!(
   BenchmarkTypes = DataCenterBusinessMsg
@@ -36,16 +41,17 @@ fn main() {
   let mode = args.next().unwrap();
   let socket = Socket::new(Host::DNS(host), port, 1001);
   let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
+  let (tx, mut rx) = channel(1);
 
   match mode.as_str() {
-    "server" => server(node, &mut args),
-    "client" => client(node, &mut args),
-    "collector" => {}
-    "killer" => {}
+    "server" => server(tx, &node, &mut args),
+    "client" => client(tx, &node, &mut args),
+    "killer" => killer(tx, &node, &mut args),
+    "collector" => collector(tx, &node, &mut args),
     _ => panic!("invalid mode {}", mode),
   }
 
-  std::thread::sleep(Duration::from_secs(500));
+  node.rt().block_on(rx.recv());
 }
 
 fn get_fail_map(args: &mut impl Iterator<Item = String>) -> FailureConfigMap {
@@ -61,10 +67,10 @@ fn get_fail_map(args: &mut impl Iterator<Item = String>) -> FailureConfigMap {
   fail_map
 }
 
-fn get_seeds(args: &mut impl Iterator<Item = String>) -> Vec<Socket> {
+fn get_seeds(args: &mut impl Iterator<Item = String>, delim: Option<&str>) -> Vec<Socket> {
   let mut args = args.peekable();
   let mut seeds = Vec::new();
-  while args.peek().is_some() {
+  while args.peek().map(|x| x.as_str()) != delim {
     seeds.push(Socket::new(
       Host::DNS(args.next().unwrap()),
       args.next().unwrap().parse().unwrap(),
@@ -74,14 +80,18 @@ fn get_seeds(args: &mut impl Iterator<Item = String>) -> Vec<Socket> {
   seeds
 }
 
-fn server(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
+fn server(
+  notify: Sender<()>,
+  node: &Node<BenchmarkTypes>,
+  args: &mut impl Iterator<Item = String>,
+) {
   let fail_map = get_fail_map(args);
 
   let interval = Duration::from_millis(args.next().unwrap().parse().unwrap());
 
   let name = CLUSTER_NAME.to_string();
   let mut clr_cfg = ClusterConfig::default();
-  clr_cfg.seed_nodes = get_seeds(args);
+  clr_cfg.seed_nodes = get_seeds(args, None);
   let hbr_cfg = HBRConfig::default();
 
   let cluster = Cluster::new(
@@ -95,40 +105,122 @@ fn server(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
   let f = fail_map.clone();
   let devices = DeviceServer::new(&node, cluster, vec![], name.clone(), f);
   let business = DataCenterBusiness {
+    notify: notify,
     report_interval: interval,
     devices: devices,
-    charges: HashMap::new(),
-    totals: HashMap::new(),
+    charges: BTreeMap::new(),
+    totals: RedBlackTreeMapSync::new_sync(),
     fail_map: fail_map,
   };
   node.spawn(false, business, name, true);
 }
 
-fn client(node: Node<BenchmarkTypes>, args: &mut impl Iterator<Item = String>) {
+fn client(
+  notify: Sender<()>,
+  node: &Node<BenchmarkTypes>,
+  args: &mut impl Iterator<Item = String>,
+) {
   let fail_map = get_fail_map(args);
 
   let name = CLUSTER_NAME.to_string();
   let mut cfg = DeviceClientConfig::default();
-  cfg.seeds = get_seeds(args).into_iter().collect();
+  cfg.seeds = get_seeds(args, None).into_iter().collect();
 
   DeviceClient::new(&node, cfg, name.clone(), fail_map.clone(), vec![]);
-  let actor = IoTBusiness { fail_map: fail_map };
+  let actor = IoTBusiness { notify: notify, fail_map: fail_map };
   node.spawn(false, actor, name, true);
 }
 
-#[derive(AurumInterface)]
-#[aurum(local)]
+fn killer(
+  notify: Sender<()>,
+  node: &Node<BenchmarkTypes>,
+  args: &mut impl Iterator<Item = String>,
+) {
+  let bin = std::env::args().next().unwrap();
+  let mut cmd = Command::new(bin);
+  args.for_each(|s| {cmd.arg(s);});
+  
+}
+
+fn collector(
+  notify: Sender<()>,
+  node: &Node<BenchmarkTypes>,
+  args: &mut impl Iterator<Item = String>,
+) {
+  let bin = std::env::args().next().unwrap();
+  let file = File::open(args.next().unwrap()).unwrap();
+  let mut lines = BufReader::new(file).lines();
+  let mut servers = BTreeMap::new();
+  let mut clients = BTreeMap::new();
+  let first = lines.next().unwrap().unwrap();
+  let first = first.split_whitespace().collect_vec();
+  let print_int = Duration::from_millis(first[0].parse().unwrap());
+  let req_int = Duration::from_millis(first[1].parse().unwrap());
+  for (num, line) in lines.enumerate().map(|(n, l)| (n + 1, l.unwrap())) {
+    let toks = line.split_whitespace().collect_vec();
+    if toks.len() != 3 {
+      panic!(format!("Err on line {}, must have 3 tokens", num));
+    }
+    let socket = (toks[1].to_string(), toks[2].to_string());
+    match toks[0] {
+      "server" => {
+        let svr = servers.get(&socket);
+        let cli = clients.get(&socket);
+        if let Some(line_num) = svr {
+          panic!(format!("Tried server on line {}, but is server on line {}", num, line_num));
+        } else if let Some(line_num) = cli {
+          panic!(format!("Tried server on line {}, but is client on line {}", num, line_num));
+        } else {
+          servers.insert(socket, num);
+        }
+      }
+      "client" => {
+        let svr = servers.get(&socket);
+        let cli = clients.get(&socket);
+        if let Some(line_num) = svr {
+          panic!(format!("Tried client on line {}, but is server on line {}", num, line_num));
+        } else if let Some(line_num) = cli {
+          panic!(format!("Tried client on line {}, but is client on line {}", num, line_num));
+        } else {
+          clients.insert(socket, num);
+        }
+      }
+      a => panic!(format!("Invalid node option {}", a)),
+    }
+  }
+  let actor = Collector {
+    notify: notify,
+    _kill_dest: Destination::new::<PeriodicKillerMsg>(CLUSTER_NAME.to_string()),
+    svr_dest: Destination::new::<DataCenterBusinessMsg>(CLUSTER_NAME.to_string()),
+    servers: servers.into_iter().map(|((host, port), _)| {
+      let socket = Socket::new(Host::DNS(host.clone()), port.parse().unwrap(), 0);
+      (host, port, socket)
+    }).collect_vec(),
+    clients: clients.into_iter().map(|((host, port), _)| {
+      let socket = Socket::new(Host::DNS(host.clone()), port.parse().unwrap(), 0);
+      (host, port, socket)
+    }).collect_vec(),
+    ssh_procs: Vec::new(),
+    collection: BTreeMap::new(),
+    print_int: print_int,
+    req_int: req_int,
+  };
+  node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
+}
+
+#[derive(AurumInterface, Serialize, Deserialize)]
 enum DataCenterBusinessMsg {
   #[aurum(local)]
   Devices(Charges),
   Report(Device, u128, u64, u64),
-  ReportReq(Socket),
+  ReportReq(ActorRef<BenchmarkTypes, CollectorMsg>),
 }
 struct DataCenterBusiness {
+  notify: Sender<()>,
   report_interval: Duration,
   devices: LocalRef<DeviceServerCmd>,
-  charges: HashMap<Device, LocalRef<ReportReceiverMsg>>,
-  totals: HashMap<Device, u128>,
+  charges: BTreeMap<Device, LocalRef<ReportReceiverMsg>>,
+  totals: RedBlackTreeMapSync<Device, u64>,
   fail_map: FailureConfigMap,
 }
 #[async_trait]
@@ -149,7 +241,7 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
   ) {
     match msg {
       DataCenterBusinessMsg::Devices(Charges(devices, _)) => {
-        let mut new_charges = HashMap::new();
+        let mut new_charges = BTreeMap::new();
         for device in devices.into_iter() {
           let d = match self.charges.remove_entry(&device) {
             Some((d, r)) => {
@@ -172,30 +264,27 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
         });
         self.charges = new_charges;
       }
-      DataCenterBusinessMsg::Report(device, total, sends, recvs) => {
+      DataCenterBusinessMsg::Report(device, _, _, recvs) => {
         let port = device.socket.udp;
-        let count = self.totals.entry(device).or_insert(0);
-        *count += total;
-        info!(
-          LOG_LEVEL,
-          &ctx.node,
-          format!(
-            "Got {}, bringing total to {} from {} where sends = {}; recvs = {}",
-            total, *count, port, sends, recvs
-          )
-        )
+        self.totals.insert_mut(device, recvs);
+        let log = format!("Received {} reports from {}", recvs, port);
+        info!(LOG_LEVEL, &ctx.node, log);
       }
-      DataCenterBusinessMsg::ReportReq(_) => {}
+      DataCenterBusinessMsg::ReportReq(r) => {
+        let msg = CollectorMsg::Report(ctx.node.socket().clone(), self.totals.clone());
+        r.remote_send(&msg).await;
+      }
     }
   }
 
   async fn post_stop(
     &mut self,
-    ctx: &ActorContext<BenchmarkTypes, DataCenterBusinessMsg>,
+    _: &ActorContext<BenchmarkTypes, DataCenterBusinessMsg>,
   ) {
     self.charges.values().for_each(|r| {
       r.signal(ActorSignal::Term);
     });
+    self.notify.send(()).await.unwrap();
   }
 }
 
@@ -240,7 +329,10 @@ impl ReportReceiver {
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
-  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+  async fn pre_start(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
+  ) {
     ctx.local_interface().send(ReportReceiverMsg::Tick);
   }
 
@@ -286,6 +378,7 @@ enum IoTBusinessMsg {
   ReportReq(ActorRef<BenchmarkTypes, ReportReceiverMsg>),
 }
 struct IoTBusiness {
+  notify: Sender<()>,
   fail_map: FailureConfigMap,
 }
 #[async_trait]
@@ -310,27 +403,93 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
       }
     }
   }
+
+  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>) {
+    self.notify.send(()).await.unwrap();
+  }
 }
 
-#[derive(AurumInterface)]
+#[derive(AurumInterface, Serialize, Deserialize)]
 #[aurum(local)]
-enum CollectorMsg {}
-struct Collector {}
+enum CollectorMsg {
+  Report(Socket, RedBlackTreeMapSync<Device, u64>),
+  PrintTick,
+  ReqTick
+}
+struct Collector {
+  notify: Sender<()>,
+  _kill_dest: Destination<BenchmarkTypes, PeriodicKillerMsg>, 
+  svr_dest: Destination<BenchmarkTypes, DataCenterBusinessMsg>,
+  servers: Vec<(String, String, Socket)>,
+  clients: Vec<(String, String, Socket)>,
+  ssh_procs: Vec<Child>,
+  collection: BTreeMap<Socket, RedBlackTreeMapSync<Device, u64>>,
+  print_int: Duration,
+  req_int: Duration,
+}
 #[async_trait]
 impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
+  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+    ctx.local_interface().send(CollectorMsg::PrintTick);
+    ctx.local_interface().send(CollectorMsg::ReqTick);
+  }
+
   async fn recv(
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, CollectorMsg>,
     msg: CollectorMsg,
   ) {
-    match msg {}
+    match msg {
+      CollectorMsg::Report(from, report) => {
+        self.collection.insert(from, report);
+      }
+      CollectorMsg::PrintTick => {
+        let mut s = String::new();
+        for (socket, map) in &self.collection {
+          for (device, count) in map {
+            writeln!(s, "{:?}::{} | {:?}::{} -> {}", 
+              socket.host, 
+              socket.udp, 
+              device.socket.host, 
+              device.socket.udp, 
+              count
+            )
+            .unwrap();
+          }
+        }
+        println!("{}", s);
+        ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
+      }
+      CollectorMsg::ReqTick => {
+        let msg = DataCenterBusinessMsg::ReportReq(ctx.interface());
+        for socket in &self.servers {
+          udp_msg(&socket.2, &self.svr_dest, &msg).await;
+        }
+        ctx.node.schedule_local_msg(self.req_int, ctx.local_interface(), CollectorMsg::ReqTick);
+      }
+    }
+  }
+
+  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+    for proc in &mut self.ssh_procs {
+      proc.kill().unwrap();
+    }
+    self.notify.send(()).await.unwrap();
   }
 }
 
 #[derive(AurumInterface)]
 #[aurum(local)]
-enum PeriodicKillerMsg {}
-struct PeriodicKiller {}
+enum PeriodicKillerMsg {
+  Spawn,
+  Kill,
+  Done
+}
+struct PeriodicKiller {
+  notify: Sender<()>,
+  cmd: Command,
+  proc: Option<Child>,
+}
 #[async_trait]
 impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
   async fn recv(
@@ -338,6 +497,20 @@ impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
     ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
     msg: PeriodicKillerMsg,
   ) {
-    match msg {}
+    match msg {
+      PeriodicKillerMsg::Kill => {
+        if let Some(mut p) = self.proc.take() {
+          p.kill().unwrap();
+        }
+      }
+      PeriodicKillerMsg::Spawn => {
+        if self.proc.is_none() {
+          self.proc.replace(self.cmd.spawn().unwrap());
+        }
+      }
+      PeriodicKillerMsg::Done => {
+        self.notify.send(()).await.unwrap();
+      }
+    }
   }
 }
