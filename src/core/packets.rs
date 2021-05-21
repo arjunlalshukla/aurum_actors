@@ -11,7 +11,9 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
-const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
+// const MAX_SAFE_PAYLOAD: usize = 508;
+const MAX_UDP_PAYLOAD: usize = 65507;
+const MAX_PACKET_SIZE: usize = MAX_UDP_PAYLOAD;
 
 #[derive(Debug)]
 pub enum DeserializeError<U: Debug> {

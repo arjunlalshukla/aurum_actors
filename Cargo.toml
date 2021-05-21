@@ -12,6 +12,7 @@ im = { version = "*", features = ["serde"] }
 itertools = "*"
 linked-hash-map = "*"
 maplit = "*"
+num_cpus = "*"
 num_enum = "*"
 rand = { version = "*", features = ["alloc", "small_rng"] }
 rpds = { version = "*", features = ["serde"] }

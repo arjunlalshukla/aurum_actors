@@ -40,7 +40,7 @@ fn main() {
   let port = args.next().unwrap().parse().unwrap();
   let mode = args.next().unwrap();
   let socket = Socket::new(Host::DNS(host), port, 1001);
-  let node = Node::<BenchmarkTypes>::new(socket, 1).unwrap();
+  let node = Node::<BenchmarkTypes>::new(socket, num_cpus::get()).unwrap();
   let (tx, mut rx) = channel(1);
 
   match mode.as_str() {
@@ -251,21 +251,17 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
       DataCenterBusinessMsg::Devices(Charges(devices, _)) => {
         let mut new_charges = BTreeMap::new();
         for device in devices.into_iter() {
-          let d = match self.charges.remove_entry(&device) {
-            Some((d, r)) => {
-              r.signal(ActorSignal::Term);
-              d
-            }
-            None => device.clone(),
-          };
-          let recvr = ReportReceiver::new(
-            &ctx.node,
-            ctx.local_interface(),
-            device,
-            self.report_interval,
-            self.fail_map.clone(),
-          );
-          new_charges.insert(d, recvr);
+          let (d, r) = self.charges.remove_entry(&device).unwrap_or_else(|| {
+            let recvr = ReportReceiver::new(
+              &ctx.node,
+              ctx.local_interface(),
+              device.clone(),
+              self.report_interval,
+              self.fail_map.clone(),
+            );
+            (device, recvr)
+          });
+          new_charges.insert(d, r);
         }
         self.charges.values().for_each(|r| {
           r.signal(ActorSignal::Term);
@@ -298,14 +294,14 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum ReportReceiverMsg {
-  Tick,
+  Tick(u64),
   Report(Vec<u64>),
 }
 struct ReportReceiver {
   supervisor: LocalRef<DataCenterBusinessMsg>,
   charge: Device,
   charge_dest: Destination<BenchmarkTypes, IoTBusinessMsg>,
-  req_interval: Duration,
+  req_timeout: Duration,
   reqs_sent: u64,
   reqs_recvd: u64,
   fail_map: FailureConfigMap,
@@ -322,17 +318,35 @@ impl ReportReceiver {
       supervisor: supervisor,
       charge: charge,
       charge_dest: Destination::new::<IoTBusinessMsg>(CLUSTER_NAME.to_string()),
-      req_interval: req_interval,
+      req_timeout: req_interval,
       reqs_sent: 0,
       reqs_recvd: 0,
       fail_map: fail_map,
     };
     let name = format!("report-recvr-{}", rand::random::<u64>());
+    println!("Starting ReportReceiver with name: {}", name);
     node
       .spawn(false, actor, name, true)
       .local()
       .clone()
       .unwrap()
+  }
+
+  async fn req(&self, num: u64, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+    let msg = IoTBusinessMsg::ReportReq(ctx.interface());
+    udp_select!(
+      FAILURE_MODE,
+      &ctx.node,
+      &self.fail_map,
+      &self.charge.socket,
+      &self.charge_dest,
+      &msg
+    );
+    ctx.node.schedule_local_msg(
+      self.req_timeout,
+      ctx.local_interface(),
+      ReportReceiverMsg::Tick(num),
+    ); 
   }
 }
 #[async_trait]
@@ -341,7 +355,9 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    ctx.local_interface().send(ReportReceiverMsg::Tick);
+    self.reqs_sent = 1;
+    self.reqs_recvd = 0;
+    self.req(self.reqs_sent, ctx).await;
   }
 
   async fn recv(
@@ -350,22 +366,10 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     msg: ReportReceiverMsg,
   ) {
     match msg {
-      ReportReceiverMsg::Tick => {
-        self.reqs_sent += 1;
-        let msg = IoTBusinessMsg::ReportReq(ctx.interface());
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &self.fail_map,
-          &self.charge.socket,
-          &self.charge_dest,
-          &msg
-        );
-        ctx.node.schedule_local_msg(
-          self.req_interval,
-          ctx.local_interface(),
-          ReportReceiverMsg::Tick,
-        );
+      ReportReceiverMsg::Tick(num) => {
+        if self.reqs_recvd < num {
+          self.req(num, ctx).await;
+        } 
       }
       ReportReceiverMsg::Report(contents) => {
         self.reqs_recvd += 1;
@@ -376,6 +380,8 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
           self.reqs_recvd,
         );
         self.supervisor.send(msg);
+        self.reqs_sent += 1;
+        self.req(self.reqs_sent, ctx).await;
       }
     }
   }

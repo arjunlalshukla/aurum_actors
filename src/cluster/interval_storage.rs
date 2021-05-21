@@ -65,21 +65,21 @@ impl IntervalStorage {
     (self.sum_squares as f64 / self.intervals.len() as f64 - mean * mean).sqrt()
   }
 
+  pub fn normal(&self) -> Normal {
+    Normal::new(self.mean(), f64::max(f64::MIN_POSITIVE, self.stdev()))
+        .unwrap()
+  }
+
   pub fn phi(&self) -> f64 {
     self.phi_duration(self.latest.elapsed())
   }
 
   pub fn phi_duration(&self, dur: Duration) -> f64 {
-    Normal::new(self.mean(), self.stdev())
-      .unwrap()
-      .cdf(dur.as_secs_f64() * 1000.0)
+    self.normal().cdf(dur.as_secs_f64() * 1000.0)
   }
 
   pub fn duration_phi(&self, phi: f64) -> Duration {
-    let millis =
-      Normal::new(self.mean(), f64::max(f64::MIN_POSITIVE, self.stdev()))
-        .unwrap()
-        .inverse_cdf(phi);
+    let millis = self.normal().inverse_cdf(phi);
     if millis.is_finite() {
       Duration::from_secs_f64(millis / 1000.0)
     } else {
