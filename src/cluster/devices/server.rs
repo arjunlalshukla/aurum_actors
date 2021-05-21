@@ -267,6 +267,9 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
             w.ring = Some(update.ring);
             w.servers = Some(update.nodes);
             self.state.to_ic();
+            if let State::InCluster(ic) = &self.state {
+              ic.publish(&mut self.common)
+            }
           }
         }
       }

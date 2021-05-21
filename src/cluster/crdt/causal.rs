@@ -411,6 +411,7 @@ where
             ClusterEvent::Joined(m) => w.to_ic(m, update.nodes),
             _ => unreachable!(),
           };
+          ic.publish(&mut self.common);
           self.state = State::InCluster(ic);
         }
       },

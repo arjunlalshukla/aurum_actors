@@ -15,7 +15,7 @@ const MAX_PACKET_SIZE: usize = DatagramHeader::SIZE * 2;
 
 #[derive(Debug)]
 pub enum DeserializeError<U: Debug> {
-  IncompatibleInterface(U),
+  IncompatibleInterface(U, U),
   Other(U),
 }
 

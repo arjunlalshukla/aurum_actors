@@ -31,7 +31,13 @@ pub(crate) async fn unit_single<U, S, A>(
     let msg = match rx.recv().await.unwrap() {
       ActorMsg::Msg(x) => x,
       ActorMsg::Serial(interface, mb) => {
-        S::deserialize_as(interface, mb.intp, mb.msg()).unwrap()
+        match S::deserialize_as(interface, mb.intp, mb.msg()) {
+          Ok(s) => s,
+          Err(e) => {
+            let msg = format!("Socket: {:?} - {:?}", &ctx.node.socket(), e);
+            panic!(msg)
+          }
+        }
       }
       _ => unreachable!(),
     };

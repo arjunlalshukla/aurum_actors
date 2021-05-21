@@ -95,7 +95,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
           }
         )*
         return std::result::Result::Err(
-          aurum::core::DeserializeError::IncompatibleInterface(interface)
+          aurum::core::DeserializeError::IncompatibleInterface(interface, <__Unified as aurum::core::Case<#type_id_with_generics>>::VARIANT )
         );
       }
 

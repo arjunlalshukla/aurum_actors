@@ -30,7 +30,7 @@ unify!(
 );
 
 const FAILURE_MODE: FailureMode = FailureMode::None;
-const LOG_LEVEL: LogLevel = LogLevel::Trace;
+const LOG_LEVEL: LogLevel = LogLevel::Warn;
 const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 
 fn main() {
@@ -418,7 +418,6 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
 }
 
 #[derive(AurumInterface, Serialize, Deserialize)]
-#[aurum(local)]
 enum CollectorMsg {
   Report(Socket, RedBlackTreeMapSync<Device, u64>),
   PrintTick,
@@ -436,19 +435,24 @@ struct Collector {
   req_int: Duration,
 }
 impl Collector {
-  fn ssh_cmds(&self, is_svr: bool, host: &String, port: u16) -> Command {
+  fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Command {
     let bin = std::env::args().next().unwrap();
     let dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
     let mut s = String::new();
     write!(s, "cd {}; ", dir).unwrap();
+    if host.as_str() != "localhost" {
+      write!(s, "pkill -f {}; ", bin).unwrap();
+    }
     write!(s, "{} {} {} killer {} {} ", bin, host, port, host, port + 1).unwrap();
     if is_svr {
-      write!(s, " server 0.0 0 0 1000 ").unwrap();
+      write!(s, " server 0.0 0 0 200 ").unwrap();
     } else {
       write!(s, " client 0.0 0 0 ").unwrap();
     }
-    for (h, p, _) in self.servers.iter().filter(|(h, p, _)| h != host || *p != port) {
-      write!(s, " {} {} ", h, p + 1).unwrap();
+    if !first {
+      for (h, p, _) in self.servers.iter().filter(|(h, p, _)| h != host || *p != port) {
+        write!(s, " {} {} ", h, p + 1).unwrap();
+      }  
     }
     println!("Running command ssh {} \"{}\"", host, s);
     let mut cmd = Command::new("ssh");
@@ -460,11 +464,13 @@ impl Collector {
 #[async_trait]
 impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
   async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+    let mut first = true;
     for (h, p, _) in &self.servers {
-      self.ssh_procs.push(self.ssh_cmds(true, h, *p).spawn().unwrap());
+      self.ssh_procs.push(self.ssh_cmds(first, true, h, *p).spawn().unwrap());
+      first = false;
     }
     for (h, p, _) in &self.clients {
-      self.ssh_procs.push(self.ssh_cmds(false, h, *p).spawn().unwrap());
+      self.ssh_procs.push(self.ssh_cmds(false, false, h, *p).spawn().unwrap());
     }
     ctx.local_interface().send(CollectorMsg::PrintTick);
     ctx.local_interface().send(CollectorMsg::ReqTick);
@@ -484,7 +490,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
         let mut total = 0;
         for (socket, map) in &self.collection {
           for (device, count) in map {
-            writeln!(s, "{:?}::{} | {:?}::{} -> {}", 
+            writeln!(s, "  {:?}::{} | {:?}::{} -> {}", 
               socket.host, 
               socket.udp, 
               device.socket.host, 
@@ -495,7 +501,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
             total += *count;
           }
         }
-        println!("Total: {}\n {}", total, s);
+        println!("Total: {}\n{}", total, s);
         ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
       }
       CollectorMsg::ReqTick => {
