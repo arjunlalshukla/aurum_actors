@@ -91,6 +91,7 @@ fn server(
 
   let name = CLUSTER_NAME.to_string();
   let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.vnodes = 20;
   clr_cfg.seed_nodes = get_seeds(args, None);
   let hbr_cfg = HBRConfig::default();
 
@@ -213,6 +214,7 @@ fn collector(
     print_int: print_int,
     req_int: req_int,
     start: Instant::now(),
+    prev_total: 0,
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -441,6 +443,7 @@ struct Collector {
   print_int: Duration,
   req_int: Duration,
   start: Instant,
+  prev_total: u64,
 }
 impl Collector {
   fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
@@ -509,7 +512,12 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
         }
         let elapsed = self.start.elapsed();
         let rate = total as f64 / elapsed.as_secs_f64();
-        println!("Elapsed: {:#?}; Total: {}; Rate: {}\n{}", elapsed, total, rate, s);
+        let since_last = total - self.prev_total;
+        let current_rate = since_last as f64 / self.print_int.as_secs_f64();
+        println!("Elapsed: {:#?}; Total: {}; Rate: {}; Since last print: {}; Current Rate: {}\n{}",
+          elapsed, total, rate, since_last, current_rate, s
+        );
+        self.prev_total = total;
         ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
       }
       CollectorMsg::ReqTick => {
