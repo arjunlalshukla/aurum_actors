@@ -314,6 +314,7 @@ impl ReportReceiver {
     req_interval: Duration,
     fail_map: FailureConfigMap,
   ) -> LocalRef<ReportReceiverMsg> {
+    let name = format!("report-recvr-{}", charge.socket);
     let actor = Self {
       supervisor: supervisor,
       charge: charge,
@@ -323,7 +324,6 @@ impl ReportReceiver {
       reqs_recvd: 0,
       fail_map: fail_map,
     };
-    let name = format!("report-recvr-{}", rand::random::<u64>());
     println!("Starting ReportReceiver with name: {}", name);
     node
       .spawn(false, actor, name, true)
@@ -501,14 +501,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
         let mut total = 0;
         for (socket, map) in &self.collection {
           for (device, count) in map {
-            writeln!(s, "  {:?}::{} | {:?}::{} -> {}", 
-              socket.host, 
-              socket.udp, 
-              device.socket.host, 
-              device.socket.udp, 
-              count
-            )
-            .unwrap();
+            writeln!(s, "  {} | {} -> {}", socket, device.socket, count).unwrap();
             total += *count;
           }
         }

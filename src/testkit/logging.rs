@@ -78,13 +78,12 @@ impl<U: Case<LoggerMsg> + UnifiedType> Actor<U, LoggerMsg> for Logger {
       } => {
         if level >= self.level {
           println!(
-            "{} {}:{}:{} - {:?}::{} - {}",
+            "{} {}:{}:{} - {} - {}",
             level.caps(),
             file,
             line,
             column,
-            ctx.node.socket().host,
-            ctx.node.socket().udp,
+            ctx.node.socket(),
             log
           );
         }
