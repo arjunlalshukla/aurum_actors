@@ -18,7 +18,7 @@ use std::fmt::Write;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Sender};
 
 unify!(
@@ -212,6 +212,7 @@ fn collector(
     collection: BTreeMap::new(),
     print_int: print_int,
     req_int: req_int,
+    start: Instant::now(),
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -439,6 +440,7 @@ struct Collector {
   collection: BTreeMap<Socket, RedBlackTreeMapSync<Device, u64>>,
   print_int: Duration,
   req_int: Duration,
+  start: Instant,
 }
 impl Collector {
   fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
@@ -505,7 +507,9 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
             total += *count;
           }
         }
-        println!("Total: {}\n{}", total, s);
+        let elapsed = self.start.elapsed();
+        let rate = total as f64 / elapsed.as_secs_f64();
+        println!("Elapsed: {:#?}; Total: {}; Rate: {}\n{}", elapsed, total, rate, s);
         ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
       }
       CollectorMsg::ReqTick => {

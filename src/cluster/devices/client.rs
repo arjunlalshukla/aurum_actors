@@ -8,7 +8,7 @@ use crate::core::{
 };
 use crate::testkit::FailureConfigMap;
 use crate::{self as aurum, core::Destination};
-use crate::{debug, trace, udp_select, AurumInterface};
+use crate::{info, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -207,7 +207,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           format!("Received tick; {:?}", self.storage)
         );
         if phi > self.config.phi {
-          debug!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
+          info!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
           self.set_server(None);
           self.notify_server(ctx).await;
         }
@@ -251,7 +251,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
             "Multiple senders detected: {:?}", 
             self.server_log.frequencies.keys().map(|x| x.socket.to_string()).collect_vec()
           );
-          debug!(LOG_LEVEL, &ctx.node, log);
+          info!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {
             udp_select!(
               FAILURE_MODE,

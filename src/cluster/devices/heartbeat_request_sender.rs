@@ -129,14 +129,10 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
         }
       }
       Interval(interval) => {
-        debug!(
-          LOG_LEVEL,
-          &ctx.node,
-          format!(
-            "Got new interval for {}: {:?}",
-            self.charge.socket.udp, interval
-          )
-        );
+        let log = 
+          format!("New interval for {} {:?}", self.charge.socket, interval);
+        debug!(LOG_LEVEL, &ctx.node, log);
+        self.interval = interval;
       }
       Remote(Heartbeat) => {
         trace!(

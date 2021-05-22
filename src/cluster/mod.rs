@@ -9,7 +9,7 @@ mod node_ring;
 mod utils;
 
 pub const FAILURE_MODE: FailureMode = FailureMode::Message;
-pub const LOG_LEVEL: LogLevel = LogLevel::Info;
+pub const LOG_LEVEL: LogLevel = LogLevel::Error;
 
 #[rustfmt::skip]
 pub(crate) use {
