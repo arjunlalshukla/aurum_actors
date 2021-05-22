@@ -447,11 +447,12 @@ impl Collector {
     let mut s = String::new();
     write!(s, "cd {}; ", dir).unwrap();
     if host.as_str() != "localhost" {
+      let mut s = s.clone();
       write!(s, "pkill -f {}; ", bin).unwrap();
       let mut cmd = Command::new("ssh");
       cmd.arg(host);
-      cmd.arg(s.clone());
-      assert!(cmd.status().unwrap().success());
+      cmd.arg(s);
+      cmd.status().unwrap().success();
     }
     write!(s, "{} {} {} killer {} {} ", bin, host, port, host, port + 1).unwrap();
     if is_svr {
