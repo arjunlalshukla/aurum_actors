@@ -317,6 +317,8 @@ impl ReportReceiver {
     req_interval: Duration,
     fail_map: FailureConfigMap,
   ) -> LocalRef<ReportReceiverMsg> {
+    let log = format!("ReportReceiver for {}", charge.socket);
+    info!(LOG_LEVEL, node, log);
     let name = format!("report-recvr-{}", charge.socket);
     let actor = Self {
       supervisor: supervisor,
@@ -327,7 +329,6 @@ impl ReportReceiver {
       reqs_recvd: 0,
       fail_map: fail_map,
     };
-    println!("Starting ReportReceiver with name: {}", name);
     node
       .spawn(false, actor, name, true)
       .local()
@@ -451,14 +452,6 @@ impl Collector {
     let dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
     let mut s = String::new();
     write!(s, "cd {}; ", dir).unwrap();
-    if host.as_str() != "localhost" {
-      let mut s = s.clone();
-      write!(s, "pkill -f {}; ", bin).unwrap();
-      let mut cmd = Command::new("ssh");
-      cmd.arg(host);
-      cmd.arg(s);
-      cmd.status().unwrap().success();
-    }
     write!(s, "{} {} {} killer {} {} ", bin, host, port, host, port + 1).unwrap();
     if is_svr {
       write!(s, " server 0.0 0 0 200 ").unwrap();

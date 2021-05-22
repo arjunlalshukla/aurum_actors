@@ -299,13 +299,13 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
             trace!(
               LOG_LEVEL,
               &ctx.node,
-              format!("Keeping sender for {:?}", device)
+              format!("Keeping sender for {}", device.socket)
             );
           } else {
             trace!(
               LOG_LEVEL,
               &ctx.node,
-              format!("Killing not-sender for {:?}", device)
+              format!("Killing not-sender for {}", device.socket)
             );
             ic.remove_device(&mut self.common, &device);
           }

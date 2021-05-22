@@ -102,7 +102,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
           trace!(
             LOG_LEVEL,
             &ctx.node,
-            format!("Sending HBR to {:?}", self.charge)
+            format!("Sending HBR to {}", self.charge.socket)
           );
           udp_select!(
             FAILURE_MODE,
@@ -121,7 +121,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
           info!(
             LOG_LEVEL,
             &ctx.node,
-            format!("Downing device {:?}", self.charge)
+            format!("Downing device {}", self.charge.socket)
           );
           self
             .supervisor
@@ -138,7 +138,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
         trace!(
           LOG_LEVEL,
           &ctx.node,
-          format!("Heartbeat from {}", self.charge.socket.udp)
+          format!("Heartbeat from {}", self.charge.socket)
         );
         self.storage.push();
       }
