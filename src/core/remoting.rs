@@ -4,6 +4,7 @@ use crate::core::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
@@ -42,6 +43,11 @@ impl Socket {
         .await
         .map(|x| x.filter(|a| a.is_ipv4()).collect()),
     }
+  }
+}
+impl fmt::Display for Socket {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "{:?}:{}", self.host, self.udp)
   }
 }
 

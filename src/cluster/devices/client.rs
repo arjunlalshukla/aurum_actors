@@ -10,6 +10,7 @@ use crate::testkit::FailureConfigMap;
 use crate::{self as aurum, core::Destination};
 use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{hash_map::Entry::*, HashMap, VecDeque};
 use std::hash::Hash;
@@ -242,10 +243,15 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           &sender.dest,
           &Heartbeat
         );
+        self.server_log.push(sender);
         if self.server_log.changes + 1
-          == self.server_log.frequencies.len() as u32
+          != self.server_log.frequencies.len() as u32
         {
-          debug!(LOG_LEVEL, &ctx.node, "Multiple senders detected");
+          let log = format!(
+            "Multiple senders detected: {:?}", 
+            self.server_log.frequencies.keys().map(|x| x.socket.to_string()).collect_vec()
+          );
+          debug!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {
             udp_select!(
               FAILURE_MODE,
@@ -257,7 +263,6 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
             );
           }
         }
-        self.server_log.push(sender.clone());
       }
       Remote(IntervalAck(socket, interval)) => {
         trace!(
@@ -306,7 +311,7 @@ impl<T: Eq + PartialEq + Clone + Hash> FrequencyBuffer<T> {
 
   fn pop(&mut self) {
     if let Some(removed) = self.buffer.pop_back() {
-      if self.buffer.back().filter(|x| *x == &removed).is_none() {
+      if self.buffer.back().filter(|x| *x != &removed).is_some() {
         self.changes -= 1;
       }
       if let Occupied(mut o) = self.frequencies.entry(removed) {
@@ -324,18 +329,11 @@ impl<T: Eq + PartialEq + Clone + Hash> FrequencyBuffer<T> {
     while self.buffer.len() >= self.capacity as usize {
       self.pop();
     }
-    if self.buffer.front().filter(|x| *x == &item).is_none() {
+    if self.buffer.front().filter(|x| *x != &item).is_some() {
       self.changes += 1;
     }
-    match self.frequencies.entry(item.clone()) {
-      Occupied(mut o) => {
-        let m = o.get_mut();
-        *m += 1
-      }
-      Vacant(v) => {
-        v.insert(1);
-      }
-    }
+    let count = self.frequencies.entry(item.clone()).or_insert(0);
+    *count += 1;
     self.buffer.push_front(item);
   }
 }
