@@ -5,7 +5,7 @@ use crate::core::{
 };
 use crate::{error, info, trace, warn, AurumInterface};
 use async_trait::async_trait;
-use std::collections::{hash_map::Entry, HashMap};
+use hashbrown::{hash_map::Entry, HashMap};
 use tokio::sync::oneshot::Sender;
 
 pub type SerializedRecvr<U> = Box<dyn Fn(U, MessageBuilder) -> bool + Send>;
@@ -43,17 +43,11 @@ impl<U: UnifiedType> Actor<U, RegistryMsg<U>> for Registry<U> {
         if let Some(recvr) = self.register.get(&name) {
           if !recvr(interface, msg_builder) {
             self.register.remove(&name);
-            warn!(
-              LOG_LEVEL,
-              ctx.node,
-              format!("Message forward failed, removing actor {:?}", name)
-            );
+            let log = format!("Forward failed, removing actor {:?}", name);
+            warn!(LOG_LEVEL, ctx.node, log);
           } else {
-            trace!(
-              LOG_LEVEL,
-              ctx.node,
-              format!("Forwarded {} packets to {:?}", packets, name)
-            );
+            let log = format!("Forwarded {} packets to {:?}", packets, name);
+            trace!(LOG_LEVEL, ctx.node, log);
           }
         } else {
           warn!(LOG_LEVEL, ctx.node, format!("Not in register: {:?}", name));
@@ -62,36 +56,24 @@ impl<U: UnifiedType> Actor<U, RegistryMsg<U>> for Registry<U> {
       RegistryMsg::Register(name, channel, confirmation) => {
         match self.register.entry(name) {
           Entry::Occupied(o) => {
-            error!(
-              LOG_LEVEL,
-              ctx.node,
-              format!("Already registered: {:?}", o.key())
-            );
+            let log = format!("Already registered: {:?}", o.key());
+            error!(LOG_LEVEL, ctx.node, log);
           }
           Entry::Vacant(v) => {
             if let Err(_) = confirmation.send(()) {
-              error!(
-                LOG_LEVEL,
-                ctx.node,
-                format!("Register confirmation failed: {:?}", v.key())
-              );
+              let log = format!("Register confirmation failed: {:?}", v.key());
+              error!(LOG_LEVEL, ctx.node, log);
             } else {
-              info!(
-                LOG_LEVEL,
-                ctx.node,
-                format!("Adding actor to registry: {:?}", v.key())
-              );
+              let log = format!("Adding actor to registry: {:?}", v.key());
+              info!(LOG_LEVEL, ctx.node, log);
               v.insert(channel);
             }
           }
         }
       }
       RegistryMsg::Deregister(name) => {
-        info!(
-          LOG_LEVEL,
-          ctx.node,
-          format!("Removing actor from registry: {:?}", name)
-        );
+        let log = format!("Removing actor from registry: {:?}", name);
+        info!(LOG_LEVEL, ctx.node, log);
         self.register.remove(&name);
       }
     }

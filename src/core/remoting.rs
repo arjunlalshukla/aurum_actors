@@ -4,7 +4,7 @@ use crate::core::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, str::FromStr};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
@@ -17,6 +17,14 @@ use tokio::net::lookup_host;
 pub enum Host {
   DNS(String),
   IP(IpAddr),
+}
+impl From<String> for Host {
+  fn from(s: String) -> Self {
+    match IpAddr::from_str(s.as_str()) {
+      Ok(ip) => Host::IP(ip),
+      Err(_) => Host::DNS(s),
+    }
+  }
 }
 
 #[derive(

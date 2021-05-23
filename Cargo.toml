@@ -8,6 +8,7 @@ edition = "2018"
 aurum_macros = { path = "src/macros" }
 async-trait = "*"
 crossbeam = "*"
+hashbrown = "*"
 im = { version = "*", features = ["serde"] }
 itertools = "*"
 linked-hash-map = "*"
