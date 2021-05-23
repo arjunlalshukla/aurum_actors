@@ -1,3 +1,13 @@
 cargo build --release
+cp $1 $1.ip
+for f in $(awk '{print $2}' $1 | uniq)
+do 
+  ip=$(ssh $f "hostname -I | awk '{print \$1}'")
+  if [ "$ip" = "" ]; then
+    ip=$f
+  fi
+  echo "$f -> $ip"
+  sed -i "s/$f/$ip/" $1.ip
+done
 ./kill $1
-./target/release/device_main onyx 3000 collector $1
+./target/release/device_main onyx 3000 collector $1.ip
