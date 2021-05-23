@@ -1,0 +1,3 @@
+cargo build --release
+./kill $1
+./target/release/device_main onyx 3000 collector $1
