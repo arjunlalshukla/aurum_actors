@@ -215,6 +215,7 @@ fn collector(
     req_int: req_int,
     start: Instant::now(),
     prev_total: 0,
+    req_since_display: 0
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -445,6 +446,7 @@ struct Collector {
   req_int: Duration,
   start: Instant,
   prev_total: u64,
+  req_since_display: u64,
 }
 impl Collector {
   fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
@@ -493,6 +495,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
     match msg {
       CollectorMsg::Report(from, report) => {
         self.collection.insert(from, report);
+        self.req_since_display += 1;
       }
       CollectorMsg::PrintTick => {
         let mut s = String::new();
@@ -507,10 +510,11 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
         let rate = total as f64 / elapsed.as_secs_f64();
         let since_last = total - self.prev_total;
         let current_rate = since_last as f64 / self.print_int.as_secs_f64();
-        println!("Elapsed: {:#?}; Total: {}; Rate: {}; Since last print: {}; Current Rate: {}\n{}",
-          elapsed, total, rate, since_last, current_rate, s
+        println!("Elapsed: {:#?}; Total: {}; Rate: {}; Since last print: {}; Current Rate: {}; Since Display: {}\n{}",
+          elapsed, total, rate, since_last, current_rate, s, self.req_since_display
         );
         self.prev_total = total;
+        self.req_since_display = 0;
         ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
       }
       CollectorMsg::ReqTick => {
