@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, Destination, Host,
+  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef,
   Node, Socket,
 };
 use aurum::{unify, AurumInterface};
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Sender};
 
-unify!(BenchmarkTypes = ReportReceiverMsg | IoTBusinessMsg);
+unify!(BenchmarkTypes = ReportReceiverMsg | IoTBusinessMsg | LocalReportReceiverMsg | LocalIoTBusinessMsg);
 
 const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 
@@ -27,10 +27,31 @@ fn main() {
   match mode.as_str() {
     "server" => server(tx, &node, &mut args),
     "client" => client(tx, &node, &mut args),
+    "system" => system(tx, &node, &mut args),
     _ => panic!("invalid mode {}", mode),
   }
 
   node.rt().block_on(rx.recv());
+}
+
+fn system(
+  notify: Sender<()>,
+  node: &Node<BenchmarkTypes>,
+  _: &mut impl Iterator<Item = String>,
+) {
+  let reporter = LocalIoTBusiness { notify: notify.clone() };
+  let reporter = node.spawn(false, reporter, "".to_string(), false)
+    .local().clone().unwrap();
+  let recvr = LocalReportReceiver {
+    notify: notify,
+    client: reporter,
+    reqs_sent: 0,
+    reqs_recvd: 0,
+    total: 0,
+    start: Instant::now(),
+    prev_print: 0,
+  };
+  node.spawn(false, recvr, "".to_string(), false);
 }
 
 fn server(
@@ -66,6 +87,103 @@ fn client(
   let actor = IoTBusiness { notify: notify };
   node.spawn(false, actor, name, true);
 }
+
+
+#[derive(AurumInterface, Serialize, Deserialize)]
+enum LocalReportReceiverMsg {
+  Report(bool),
+  Print,
+}
+struct LocalReportReceiver {
+  notify: Sender<()>,
+  client: LocalRef<LocalIoTBusinessMsg>,
+  reqs_sent: u64,
+  reqs_recvd: u64,
+  total: u128,
+  start: Instant,
+  prev_print: u64,
+}
+#[async_trait]
+impl Actor<BenchmarkTypes, LocalReportReceiverMsg> for LocalReportReceiver {
+  async fn pre_start(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, LocalReportReceiverMsg>,
+  ) {
+    self.reqs_sent = 1;
+    self.reqs_recvd = 0;
+    ctx.node.schedule_local_msg(
+      Duration::from_millis(1000),
+      ctx.local_interface(), 
+      LocalReportReceiverMsg::Print
+    );
+    self.client.send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
+  }
+
+  async fn recv(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, LocalReportReceiverMsg>,
+    msg: LocalReportReceiverMsg,
+  ) {
+    match msg {
+      LocalReportReceiverMsg::Report(contents) => {
+        self.reqs_recvd += 1;
+        self.total += contents as u128;
+        self.reqs_sent += 1;
+        self.client.send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
+      }
+      LocalReportReceiverMsg::Print => {
+        let e = self.start.elapsed().as_secs_f64();
+        println!("Recvs: {}; Elapsed: {}; Rate; {}; Since Last: {}; Total: {}",
+          self.reqs_recvd,
+          e,
+          self.reqs_recvd as f64 / e,
+          self.reqs_recvd - self.prev_print,
+          self.total
+        );
+        self.prev_print = self.reqs_recvd;
+        ctx.node.schedule_local_msg(
+          Duration::from_millis(1000),
+          ctx.local_interface(), 
+          LocalReportReceiverMsg::Print
+        );
+      }
+    }
+  }
+
+  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, LocalReportReceiverMsg>) {
+    self.notify.send(()).await.unwrap();
+  }
+}
+
+#[derive(AurumInterface)]
+#[aurum(local)]
+enum LocalIoTBusinessMsg {
+  ReportReq(LocalRef<LocalReportReceiverMsg>),
+}
+struct LocalIoTBusiness {
+  notify: Sender<()>,
+}
+#[async_trait]
+impl Actor<BenchmarkTypes, LocalIoTBusinessMsg> for LocalIoTBusiness {
+  async fn recv(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, LocalIoTBusinessMsg>,
+    msg: LocalIoTBusinessMsg,
+  ) {
+    match msg {
+      LocalIoTBusinessMsg::ReportReq(requester) => {
+        //let items = (1..1000u64).collect_vec();
+        let msg = LocalReportReceiverMsg::Report(true);
+        requester.send(msg);
+      }
+    }
+  }
+
+  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, LocalIoTBusinessMsg>) {
+    self.notify.send(()).await.unwrap();
+  }
+}
+
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum ReportReceiverMsg {

@@ -19,11 +19,8 @@ pub(crate) async fn udp_receiver<U: UnifiedType>(node: Node<U>) {
   let udp = match udp {
     Ok(u) => u,
     Err(error) => {
-      fatal!(
-        LOG_LEVEL,
-        &node,
-        format!("Could not bind to UDP port. Error: {}", error)
-      );
+      let log = format!("Could not bind to UDP port. Error: {}", error);
+      fatal!(LOG_LEVEL, &node, log);
       return;
     }
   };
