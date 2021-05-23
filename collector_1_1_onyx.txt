@@ -1,0 +1,3 @@
+1000 300
+server onyxnode01 3000
+client onyxnode78 3010
