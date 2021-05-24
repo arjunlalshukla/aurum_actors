@@ -500,18 +500,19 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
       CollectorMsg::PrintTick => {
         let mut s = String::new();
         let mut total = 0;
-        for (socket, map) in &self.collection {
-          for (device, count) in map {
-            writeln!(s, "  {} | {} -> {}", socket, device.socket, count).unwrap();
+        for (_, map) in &self.collection {
+          for (_, count) in map {
+            //writeln!(s, "  {} | {} -> {}", socket, device.socket, count).unwrap();
             total += *count;
           }
         }
+        write!(s, "").unwrap();
         let elapsed = self.start.elapsed();
         let rate = total as f64 / elapsed.as_secs_f64();
         let since_last = total - self.prev_total;
         let current_rate = since_last as f64 / self.print_int.as_secs_f64();
         println!("Elapsed: {:#?}; Total: {}; Rate: {}; Since last print: {}; Current Rate: {}; Since Display: {}\n{}",
-          elapsed, total, rate, since_last, current_rate, s, self.req_since_display
+          elapsed, total, rate, since_last, current_rate, self.req_since_display, s
         );
         self.prev_total = total;
         self.req_since_display = 0;
