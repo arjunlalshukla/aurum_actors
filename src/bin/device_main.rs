@@ -146,7 +146,7 @@ fn killer(
   args.next().unwrap();
   let num_procs: u16 = args.next().unwrap().parse().unwrap();
   let args = args.collect_vec();
-  let cmds = Vec::new();
+  let mut cmds = Vec::new();
   for i in 0..num_procs {
     let mut cmd = Command::new(&bin);
     cmd.arg(&host);
@@ -154,6 +154,7 @@ fn killer(
     for s in &args {
       cmd.arg(s);
     }
+    cmds.push(cmd);
   }
   let actor = PeriodicKiller {
     notify: notify,
