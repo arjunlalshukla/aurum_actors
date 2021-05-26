@@ -123,6 +123,7 @@ fn server(
     charges: BTreeMap::new(),
     totals: RedBlackTreeMapSync::new_sync(),
     fail_map: fail_map,
+    id: rand::random(),
   };
   node.spawn(false, business, name, true);
 }
@@ -261,6 +262,7 @@ fn collector(
     clients_per_node: num_clients,
     ssh_procs: Vec::new(),
     collection: BTreeMap::new(),
+    dead_totals: 0,
     print_int: print_int,
     req_int: req_int,
     start: Instant::now(),
@@ -286,6 +288,7 @@ struct DataCenterBusiness {
   charges: BTreeMap<Device, LocalRef<ReportReceiverMsg>>,
   totals: RedBlackTreeMapSync<Device, u64>,
   fail_map: FailureConfigMap,
+  id: u64,
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
@@ -333,7 +336,7 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
         debug!(LOG_LEVEL, &ctx.node, log);
       }
       DataCenterBusinessMsg::ReportReq(r) => {
-        let msg = CollectorMsg::Report(ctx.node.socket().clone(), self.totals.clone());
+        let msg = CollectorMsg::Report(self.id, ctx.node.socket().clone(), self.totals.clone());
         r.remote_send(&msg).await;
       }
     }
@@ -484,7 +487,7 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum CollectorMsg {
-  Report(Socket, RedBlackTreeMapSync<Device, u64>),
+  Report(u64, Socket, RedBlackTreeMapSync<Device, u64>),
   PrintTick,
   ReqTick
 }
@@ -496,7 +499,8 @@ struct Collector {
   clients: Vec<(String, u16)>,
   clients_per_node: u16,
   ssh_procs: Vec<Child>,
-  collection: BTreeMap<Socket, RedBlackTreeMapSync<Device, u64>>,
+  collection: BTreeMap<Socket, (u64, RedBlackTreeMapSync<Device, u64>)>,
+  dead_totals: u64,
   print_int: Duration,
   req_int: Duration,
   start: Instant,
@@ -561,14 +565,21 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
     msg: CollectorMsg,
   ) {
     match msg {
-      CollectorMsg::Report(from, report) => {
-        self.collection.insert(from, report);
+      CollectorMsg::Report(id, from, report) => {
+        let old = self.collection.insert(from, (id, report));
+        if let Some((old_id, old_totals)) = old {
+          if old_id != id {
+            for (_, num) in old_totals.iter() {
+              self.dead_totals += *num;
+            }
+          }
+        }
         self.req_since_display += 1;
       }
       CollectorMsg::PrintTick => {
         let mut s = String::new();
         let mut total = 0;
-        for (_, map) in &self.collection {
+        for (_, (_, map)) in &self.collection {
           for (_, count) in map {
             //writeln!(s, "  {} | {} -> {}", socket, device.socket, count).unwrap();
             total += *count;
