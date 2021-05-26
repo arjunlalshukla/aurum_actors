@@ -4,11 +4,11 @@ use crate::core::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
 use std::{cmp::PartialEq, marker::PhantomData};
+use std::{fmt, str::FromStr};
 use tokio::net::lookup_host;
 
 #[derive(

@@ -9,6 +9,7 @@ use crate::core::{
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, udp_select, AurumInterface};
 use async_trait::async_trait;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, VecDeque};
 use std::marker::PhantomData;
@@ -67,7 +68,7 @@ impl Default for DispersalPreference {
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum DispersalSelector {
   OutOfDate,
-  //Random
+  All, //Random
 }
 
 struct InCluster<S, U>
@@ -101,13 +102,13 @@ where
       &ctx.node,
       format!("CLOCK: {} ORD_ACKS: {:?}", self.clock, self.ord_acks)
     );
+    let to_send = self.ord_acks.iter().map(|(_, i)| self.acks.get(i).unwrap());
     let to_send = match common.preference.selector {
-      DispersalSelector::OutOfDate => self
-        .ord_acks
-        .iter()
-        .map(|(_, id)| self.acks.get(id).unwrap())
+      DispersalSelector::OutOfDate => to_send
         .filter(|(member, _)| !common.preference.priority.contains(member))
-        .take(common.preference.amount as usize),
+        .take(common.preference.amount as usize)
+        .collect_vec(),
+      DispersalSelector::All => to_send.collect_vec(),
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let delta_msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);

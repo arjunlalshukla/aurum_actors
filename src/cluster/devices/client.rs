@@ -248,8 +248,13 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           != self.server_log.frequencies.len() as u32
         {
           let log = format!(
-            "Multiple senders detected: {:?}", 
-            self.server_log.frequencies.keys().map(|x| x.socket.to_string()).collect_vec()
+            "Multiple senders detected: {:?}",
+            self
+              .server_log
+              .frequencies
+              .keys()
+              .map(|x| x.socket.to_string())
+              .collect_vec()
           );
           info!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {

@@ -129,7 +129,7 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
         }
       }
       Interval(interval) => {
-        let log = 
+        let log =
           format!("New interval for {} {:?}", self.charge.socket, interval);
         debug!(LOG_LEVEL, &ctx.node, log);
         self.interval = interval;

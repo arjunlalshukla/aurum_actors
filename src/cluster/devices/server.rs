@@ -1,5 +1,5 @@
 use crate as aurum;
-use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference};
+use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference, DispersalSelector};
 use crate::cluster::devices::{
   Device, DeviceInterval, DeviceMutator, Devices, HBReqSender,
   HBReqSenderConfig, HBReqSenderMsg, LOG_LEVEL,
@@ -139,12 +139,14 @@ impl<U: UnifiedType> DeviceServer<U> {
     name: String,
     fail_map: FailureConfigMap,
   ) -> LocalRef<DeviceServerCmd> {
+    let mut preference = DispersalPreference::default();
+    preference.selector = DispersalSelector::All;
     let causal = CausalDisperse::new(
       node,
       format!("{}-devices", name),
       fail_map.clone(),
       vec![],
-      DispersalPreference::default(),
+      preference,
       cluster.clone(),
     );
     let common = Common {

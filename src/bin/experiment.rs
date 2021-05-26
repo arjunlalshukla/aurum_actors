@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef,
-  Node, Socket,
+  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node,
+  Socket,
 };
 use aurum::{unify, AurumInterface};
 use itertools::Itertools;
@@ -9,7 +9,12 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Sender};
 
-unify!(BenchmarkTypes = ReportReceiverMsg | IoTBusinessMsg | LocalReportReceiverMsg | LocalIoTBusinessMsg);
+unify!(
+  BenchmarkTypes = ReportReceiverMsg
+    | IoTBusinessMsg
+    | LocalReportReceiverMsg
+    | LocalIoTBusinessMsg
+);
 
 const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 
@@ -39,9 +44,14 @@ fn system(
   node: &Node<BenchmarkTypes>,
   _: &mut impl Iterator<Item = String>,
 ) {
-  let reporter = LocalIoTBusiness { notify: notify.clone() };
-  let reporter = node.spawn(false, reporter, "".to_string(), false)
-    .local().clone().unwrap();
+  let reporter = LocalIoTBusiness {
+    notify: notify.clone(),
+  };
+  let reporter = node
+    .spawn(false, reporter, "".to_string(), false)
+    .local()
+    .clone()
+    .unwrap();
   let recvr = LocalReportReceiver {
     notify: notify,
     client: reporter,
@@ -73,7 +83,7 @@ fn server(
     reqs_recvd: 0,
     total: 0,
     start: Instant::now(),
-    prev_print: 0
+    prev_print: 0,
   };
   node.spawn(false, recvr, name, true);
 }
@@ -87,7 +97,6 @@ fn client(
   let actor = IoTBusiness { notify: notify };
   node.spawn(false, actor, name, true);
 }
-
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum LocalReportReceiverMsg {
@@ -113,10 +122,12 @@ impl Actor<BenchmarkTypes, LocalReportReceiverMsg> for LocalReportReceiver {
     self.reqs_recvd = 0;
     ctx.node.schedule_local_msg(
       Duration::from_millis(1000),
-      ctx.local_interface(), 
-      LocalReportReceiverMsg::Print
+      ctx.local_interface(),
+      LocalReportReceiverMsg::Print,
     );
-    self.client.send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
+    self
+      .client
+      .send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
   }
 
   async fn recv(
@@ -129,11 +140,14 @@ impl Actor<BenchmarkTypes, LocalReportReceiverMsg> for LocalReportReceiver {
         self.reqs_recvd += 1;
         self.total += contents as u128;
         self.reqs_sent += 1;
-        self.client.send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
+        self
+          .client
+          .send(LocalIoTBusinessMsg::ReportReq(ctx.local_interface()));
       }
       LocalReportReceiverMsg::Print => {
         let e = self.start.elapsed().as_secs_f64();
-        println!("Recvs: {}; Elapsed: {}; Rate; {}; Since Last: {}; Total: {}",
+        println!(
+          "Recvs: {}; Elapsed: {}; Rate; {}; Since Last: {}; Total: {}",
           self.reqs_recvd,
           e,
           self.reqs_recvd as f64 / e,
@@ -143,14 +157,17 @@ impl Actor<BenchmarkTypes, LocalReportReceiverMsg> for LocalReportReceiver {
         self.prev_print = self.reqs_recvd;
         ctx.node.schedule_local_msg(
           Duration::from_millis(1000),
-          ctx.local_interface(), 
-          LocalReportReceiverMsg::Print
+          ctx.local_interface(),
+          LocalReportReceiverMsg::Print,
         );
       }
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, LocalReportReceiverMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, LocalReportReceiverMsg>,
+  ) {
     self.notify.send(()).await.unwrap();
   }
 }
@@ -179,11 +196,13 @@ impl Actor<BenchmarkTypes, LocalIoTBusinessMsg> for LocalIoTBusiness {
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, LocalIoTBusinessMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, LocalIoTBusinessMsg>,
+  ) {
     self.notify.send(()).await.unwrap();
   }
 }
-
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum ReportReceiverMsg {
@@ -203,14 +222,18 @@ struct ReportReceiver {
   prev_print: u64,
 }
 impl ReportReceiver {
-  async fn req(&self, num: u64, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+  async fn req(
+    &self,
+    num: u64,
+    ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
+  ) {
     let msg = IoTBusinessMsg::ReportReq(ctx.interface());
     udp_msg(&self.client, &self.dest, &msg).await;
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
       ReportReceiverMsg::Tick(num),
-    ); 
+    );
   }
 }
 #[async_trait]
@@ -224,8 +247,8 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     self.req(self.reqs_sent, ctx).await;
     ctx.node.schedule_local_msg(
       Duration::from_millis(1000),
-      ctx.local_interface(), 
-      ReportReceiverMsg::Print
+      ctx.local_interface(),
+      ReportReceiverMsg::Print,
     );
   }
 
@@ -238,7 +261,7 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
       ReportReceiverMsg::Tick(num) => {
         if self.reqs_recvd < num {
           self.req(num, ctx).await;
-        } 
+        }
       }
       ReportReceiverMsg::Report(contents) => {
         self.reqs_recvd += 1;
@@ -250,7 +273,8 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
       }
       ReportReceiverMsg::Print => {
         let e = self.start.elapsed().as_secs_f64();
-        println!("Recvs: {}; Elapsed: {}; Rate; {}; Since Last: {}; Total: {}",
+        println!(
+          "Recvs: {}; Elapsed: {}; Rate; {}; Since Last: {}; Total: {}",
           self.reqs_recvd,
           e,
           self.reqs_recvd as f64 / e,
@@ -260,14 +284,17 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
         self.prev_print = self.reqs_recvd;
         ctx.node.schedule_local_msg(
           Duration::from_millis(1000),
-          ctx.local_interface(), 
-          ReportReceiverMsg::Print
+          ctx.local_interface(),
+          ReportReceiverMsg::Print,
         );
       }
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
+  ) {
     self.notify.send(()).await.unwrap();
   }
 }
@@ -295,7 +322,10 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>,
+  ) {
     self.notify.send(()).await.unwrap();
   }
 }

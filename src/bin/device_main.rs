@@ -5,14 +5,14 @@ use aurum::cluster::devices::{
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef,
-  Node, Socket,
+  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host,
+  LocalRef, Node, Socket,
 };
 use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
 use aurum::{debug, info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
-use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use rpds::RedBlackTreeMapSync;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ struct KillerDelays {
   min_kill: u64,
   max_kill: u64,
   min_restart: u64,
-  max_restart: u64
+  max_restart: u64,
 }
 
 const FAILURE_MODE: FailureMode = FailureMode::None;
@@ -78,7 +78,10 @@ fn get_fail_map(args: &mut impl Iterator<Item = String>) -> FailureConfigMap {
   fail_map
 }
 
-fn get_seeds(args: &mut impl Iterator<Item = String>, delim: Option<&str>) -> Vec<Socket> {
+fn get_seeds(
+  args: &mut impl Iterator<Item = String>,
+  delim: Option<&str>,
+) -> Vec<Socket> {
   let mut args = args.peekable();
   let mut seeds = Vec::new();
   while args.peek().map(|x| x.as_str()) != delim {
@@ -140,7 +143,10 @@ fn client(
   cfg.seeds = get_seeds(args, None).into_iter().collect();
 
   DeviceClient::new(&node, cfg, name.clone(), fail_map.clone(), vec![]);
-  let actor = IoTBusiness { notify: notify, fail_map: fail_map };
+  let actor = IoTBusiness {
+    notify: notify,
+    fail_map: fail_map,
+  };
   node.spawn(false, actor, name, true);
 }
 
@@ -149,7 +155,7 @@ fn killer(
   node: &Node<BenchmarkTypes>,
   _: &mut impl Iterator<Item = String>,
 ) {
-  let mut args = std::env::args(); 
+  let mut args = std::env::args();
   let bin = args.next().unwrap();
   let host = args.next().unwrap();
   let port: u16 = args.next().unwrap().parse().unwrap();
@@ -157,8 +163,10 @@ fn killer(
   args.next().unwrap();
   let min_kill = Duration::from_millis(args.next().unwrap().parse().unwrap());
   let max_kill = Duration::from_millis(args.next().unwrap().parse().unwrap());
-  let min_restart = Duration::from_millis(args.next().unwrap().parse().unwrap());
-  let max_restart = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let min_restart =
+    Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let max_restart =
+    Duration::from_millis(args.next().unwrap().parse().unwrap());
   let num_procs: u16 = args.next().unwrap().parse().unwrap();
   let args = args.collect_vec();
   let mut cmds = BTreeMap::new();
@@ -221,7 +229,7 @@ fn collector(
       panic!("Err on line {}, must have 3 tokens", num);
     }
     let socket = (toks[1].to_string(), toks[2].to_string().parse().unwrap());
-    if socket.1 %2 != 0 {
+    if socket.1 % 2 != 0 {
       panic!("Line {} port must be even", num);
     }
     match toks[0] {
@@ -229,9 +237,15 @@ fn collector(
         let svr = servers.get(&socket);
         let cli = clients.get(&socket);
         if let Some(line_num) = svr {
-          panic!("Tried server on line {}, but is server on line {}", num, line_num);
+          panic!(
+            "Tried server on line {}, but is server on line {}",
+            num, line_num
+          );
         } else if let Some(line_num) = cli {
-          panic!("Tried server on line {}, but is client on line {}", num, line_num);
+          panic!(
+            "Tried server on line {}, but is client on line {}",
+            num, line_num
+          );
         } else {
           servers.insert(socket, num);
         }
@@ -240,9 +254,15 @@ fn collector(
         let svr = servers.get(&socket);
         let cli = clients.get(&socket);
         if let Some(line_num) = svr {
-          panic!("Tried client on line {}, but is server on line {}", num, line_num);
+          panic!(
+            "Tried client on line {}, but is server on line {}",
+            num, line_num
+          );
         } else if let Some(line_num) = cli {
-          panic!("Tried client on line {}, but is client on line {}", num, line_num);
+          panic!(
+            "Tried client on line {}, but is client on line {}",
+            num, line_num
+          );
         } else {
           clients.insert(socket, num);
         }
@@ -253,12 +273,20 @@ fn collector(
   let actor = Collector {
     notify: notify,
     _kill_dest: Destination::new::<PeriodicKillerMsg>(CLUSTER_NAME.to_string()),
-    svr_dest: Destination::new::<DataCenterBusinessMsg>(CLUSTER_NAME.to_string()),
-    servers: servers.into_iter().map(|((host, port), _)| {
-      let socket = Socket::new(Host::DNS(host.clone()), port + 1, 0);
-      (host, port, socket)
-    }).collect_vec(),
-    clients: clients.into_iter().map(|((host, port), _)| (host, port)).collect_vec(),
+    svr_dest: Destination::new::<DataCenterBusinessMsg>(
+      CLUSTER_NAME.to_string(),
+    ),
+    servers: servers
+      .into_iter()
+      .map(|((host, port), _)| {
+        let socket = Socket::new(Host::DNS(host.clone()), port + 1, 0);
+        (host, port, socket)
+      })
+      .collect_vec(),
+    clients: clients
+      .into_iter()
+      .map(|((host, port), _)| (host, port))
+      .collect_vec(),
     clients_per_node: num_clients,
     ssh_procs: Vec::new(),
     collection: BTreeMap::new(),
@@ -310,18 +338,19 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
       DataCenterBusinessMsg::Devices(Charges(devices, _)) => {
         let mut new_charges = BTreeMap::new();
         for device in devices.into_iter() {
-          let (d, r) = self.charges.remove_entry(&device).unwrap_or_else(|| {
-            let init = self.totals.get(&device).cloned().unwrap_or(0);
-            let recvr = ReportReceiver::new(
-              &ctx.node,
-              ctx.local_interface(),
-              device.clone(),
-              self.report_interval,
-              self.fail_map.clone(),
-              init,
-            );
-            (device, recvr)
-          });
+          let (d, r) =
+            self.charges.remove_entry(&device).unwrap_or_else(|| {
+              let init = self.totals.get(&device).cloned().unwrap_or(0);
+              let recvr = ReportReceiver::new(
+                &ctx.node,
+                ctx.local_interface(),
+                device.clone(),
+                self.report_interval,
+                self.fail_map.clone(),
+                init,
+              );
+              (device, recvr)
+            });
           new_charges.insert(d, r);
         }
         self.charges.values().for_each(|r| {
@@ -336,7 +365,11 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
         debug!(LOG_LEVEL, &ctx.node, log);
       }
       DataCenterBusinessMsg::ReportReq(r) => {
-        let msg = CollectorMsg::Report(self.id, ctx.node.socket().clone(), self.totals.clone());
+        let msg = CollectorMsg::Report(
+          self.id,
+          ctx.node.socket().clone(),
+          self.totals.clone(),
+        );
         r.remote_send(&msg).await;
       }
     }
@@ -395,7 +428,11 @@ impl ReportReceiver {
       .unwrap()
   }
 
-  async fn req(&self, num: u64, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
+  async fn req(
+    &self,
+    num: u64,
+    ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
+  ) {
     let msg = IoTBusinessMsg::ReportReq(ctx.interface());
     udp_select!(
       FAILURE_MODE,
@@ -409,7 +446,7 @@ impl ReportReceiver {
       self.req_timeout,
       ctx.local_interface(),
       ReportReceiverMsg::Tick(num),
-    ); 
+    );
   }
 }
 #[async_trait]
@@ -431,7 +468,7 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
       ReportReceiverMsg::Tick(num) => {
         if self.reqs_recvd < num {
           self.req(num, ctx).await;
-        } 
+        }
       }
       ReportReceiverMsg::Report(contents) => {
         self.reqs_recvd += 1;
@@ -480,7 +517,10 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>,
+  ) {
     self.notify.send(()).await.unwrap();
   }
 }
@@ -489,11 +529,11 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
 enum CollectorMsg {
   Report(u64, Socket, RedBlackTreeMapSync<Device, u64>),
   PrintTick,
-  ReqTick
+  ReqTick,
 }
 struct Collector {
   notify: Sender<()>,
-  _kill_dest: Destination<BenchmarkTypes, PeriodicKillerMsg>, 
+  _kill_dest: Destination<BenchmarkTypes, PeriodicKillerMsg>,
   svr_dest: Destination<BenchmarkTypes, DataCenterBusinessMsg>,
   servers: Vec<(String, u16, Socket)>,
   clients: Vec<(String, u16)>,
@@ -510,32 +550,52 @@ struct Collector {
   client_delays: KillerDelays,
 }
 impl Collector {
-  fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
+  fn ssh_cmds(
+    &self,
+    first: bool,
+    is_svr: bool,
+    host: &String,
+    port: u16,
+  ) -> Child {
     let bin = std::env::args().next().unwrap();
-    let dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+    let dir = std::env::current_dir()
+      .unwrap()
+      .to_str()
+      .unwrap()
+      .to_string();
     let mut s = String::new();
     write!(s, "cd {}; ", dir).unwrap();
     write!(s, "{} {} {} killer ", bin, host, port).unwrap();
     if is_svr {
-      write!(s, " {} {} {} {} 1 server 0.0 0 0 200 ",
+      write!(
+        s,
+        " {} {} {} {} 1 server 0.0 0 0 200 ",
         self.server_delays.min_kill,
         self.server_delays.max_kill,
         self.server_delays.min_restart,
         self.server_delays.max_restart,
-      ).unwrap();
+      )
+      .unwrap();
     } else {
-      write!(s, " {} {} {} {} {} client 0.0 0 0 ",
+      write!(
+        s,
+        " {} {} {} {} {} client 0.0 0 0 ",
         self.client_delays.min_kill,
         self.client_delays.max_kill,
         self.client_delays.min_restart,
         self.client_delays.max_restart,
         self.clients_per_node,
-      ).unwrap();
+      )
+      .unwrap();
     }
     if !first {
-      for (h, p, _) in self.servers.iter().filter(|(h, p, _)| h != host || *p != port) {
+      for (h, p, _) in self
+        .servers
+        .iter()
+        .filter(|(h, p, _)| h != host || *p != port)
+      {
         write!(s, " {} {} ", h, p + 1).unwrap();
-      }  
+      }
     }
     println!("Running command ssh {} \"{}\"", host, s);
     let mut cmd = Command::new("ssh");
@@ -546,7 +606,10 @@ impl Collector {
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
-  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+  async fn pre_start(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, CollectorMsg>,
+  ) {
     let mut first = true;
     for (h, p, _) in &self.servers {
       self.ssh_procs.push(self.ssh_cmds(first, true, h, *p));
@@ -595,19 +658,30 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
         );
         self.prev_total = total;
         self.req_since_display = 0;
-        ctx.node.schedule_local_msg(self.print_int, ctx.local_interface(), CollectorMsg::PrintTick);
+        ctx.node.schedule_local_msg(
+          self.print_int,
+          ctx.local_interface(),
+          CollectorMsg::PrintTick,
+        );
       }
       CollectorMsg::ReqTick => {
         let msg = DataCenterBusinessMsg::ReportReq(ctx.interface());
         for socket in &self.servers {
           udp_msg(&socket.2, &self.svr_dest, &msg).await;
         }
-        ctx.node.schedule_local_msg(self.req_int, ctx.local_interface(), CollectorMsg::ReqTick);
+        ctx.node.schedule_local_msg(
+          self.req_int,
+          ctx.local_interface(),
+          CollectorMsg::ReqTick,
+        );
       }
     }
   }
 
-  async fn post_stop(&mut self, _: &ActorContext<BenchmarkTypes, CollectorMsg>) {
+  async fn post_stop(
+    &mut self,
+    _: &ActorContext<BenchmarkTypes, CollectorMsg>,
+  ) {
     for proc in &mut self.ssh_procs {
       proc.kill().unwrap();
     }
@@ -621,7 +695,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
 enum PeriodicKillerMsg {
   Kill(u16),
   Spawn(u16),
-  Done
+  Done,
 }
 struct PeriodicKiller {
   notify: Sender<()>,
@@ -634,13 +708,16 @@ struct PeriodicKiller {
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
-  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>) {
+  async fn pre_start(
+    &mut self,
+    ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
+  ) {
     for (port, cmd) in self.cmds.iter_mut() {
       self.procs.insert(*port, cmd.spawn().unwrap());
       ctx.node.schedule_local_msg(
-        random_duration(self.min_kill, self.max_kill), 
+        random_duration(self.min_kill, self.max_kill),
         ctx.local_interface(),
-        PeriodicKillerMsg::Kill(*port) 
+        PeriodicKillerMsg::Kill(*port),
       );
       info!(LOG_LEVEL, &ctx.node, format!("Spawning port {}", port));
     }
@@ -656,9 +733,9 @@ impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
         let mut proc = self.procs.remove(&port).unwrap();
         proc.kill().unwrap();
         ctx.node.schedule_local_msg(
-          random_duration(self.min_restart, self.max_restart), 
+          random_duration(self.min_restart, self.max_restart),
           ctx.local_interface(),
-          PeriodicKillerMsg::Spawn(port) 
+          PeriodicKillerMsg::Spawn(port),
         );
         info!(LOG_LEVEL, &ctx.node, format!("Killing port {}", port));
       }
@@ -666,9 +743,9 @@ impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
         let proc = self.cmds.get_mut(&port).unwrap().spawn().unwrap();
         self.procs.insert(port, proc);
         ctx.node.schedule_local_msg(
-          random_duration(self.min_kill, self.max_kill), 
+          random_duration(self.min_kill, self.max_kill),
           ctx.local_interface(),
-          PeriodicKillerMsg::Kill(port) 
+          PeriodicKillerMsg::Kill(port),
         );
         info!(LOG_LEVEL, &ctx.node, format!("Spawning port {}", port));
       }

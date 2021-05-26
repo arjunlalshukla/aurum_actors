@@ -66,8 +66,7 @@ impl IntervalStorage {
   }
 
   pub fn normal(&self) -> Normal {
-    Normal::new(self.mean(), f64::max(f64::MIN_POSITIVE, self.stdev()))
-        .unwrap()
+    Normal::new(self.mean(), f64::max(f64::MIN_POSITIVE, self.stdev())).unwrap()
   }
 
   pub fn phi(&self) -> f64 {

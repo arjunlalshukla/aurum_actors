@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use aurum::cluster::crdt::{
   CausalCmd, CausalDisperse, CausalIntraMsg, CausalMsg, DeltaMutator,
-  DispersalPreference, CRDT,
+  DispersalPreference, DispersalSelector, CRDT,
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, Socket};
@@ -258,26 +258,18 @@ impl Actor<CRDTTestType, DataReceiverMsg> for DataReceiver {
   }
 }
 
-#[test]
-// #[allow(dead_code)]
-fn crdt_test() {
-  let mut clr = ClusterConfig::default();
-  clr.ping_timeout = Duration::from_millis(200);
-  clr.num_pings = 20;
-  clr.vnodes = 3;
-  let hbr = HBRConfig::default();
-  let mut fail_map = FailureConfigMap::default();
-  fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
-  let mut preference = DispersalPreference::default();
-  preference.timeout = Duration::from_millis(200);
+fn run_test(
+  clr_cfg: ClusterConfig,
+  hbr_cfg: HBRConfig,
+  fail_map: FailureConfigMap,
+  preference: DispersalPreference,
+) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
   let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
   let (tx, mut rx) = channel(1);
   let actor = Coordinator {
-    clr_cfg: clr,
-    hbr_cfg: hbr,
+    clr_cfg: clr_cfg,
+    hbr_cfg: hbr_cfg,
     fail_map: fail_map,
     preference: preference,
     nodes: BTreeMap::new(),
@@ -324,4 +316,38 @@ fn crdt_test() {
       .unwrap()
       .unwrap()
   });
+}
+
+#[test]
+// #[allow(dead_code)]
+fn crdt_test_out_of_date() {
+  let mut clr = ClusterConfig::default();
+  clr.ping_timeout = Duration::from_millis(200);
+  clr.num_pings = 20;
+  clr.vnodes = 3;
+  let hbr = HBRConfig::default();
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  let mut preference = DispersalPreference::default();
+  preference.timeout = Duration::from_millis(200);
+  run_test(clr, hbr, fail_map, preference);
+}
+
+#[test]
+fn crdt_test_all() {
+  let mut clr = ClusterConfig::default();
+  clr.ping_timeout = Duration::from_millis(200);
+  clr.num_pings = 20;
+  clr.vnodes = 3;
+  let hbr = HBRConfig::default();
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  let mut preference = DispersalPreference::default();
+  preference.selector = DispersalSelector::All;
+  preference.timeout = Duration::from_millis(200);
+  run_test(clr, hbr, fail_map, preference);
 }
