@@ -11,6 +11,8 @@ use aurum::core::{
 use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
 use aurum::{info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
+use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
 use rpds::RedBlackTreeMapSync;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -29,8 +31,16 @@ unify!(
     | PeriodicKillerMsg
 );
 
+// in milliseconds
+struct KillerDelays {
+  min_kill: u64,
+  max_kill: u64,
+  min_restart: u64,
+  max_restart: u64
+}
+
 const FAILURE_MODE: FailureMode = FailureMode::None;
-const LOG_LEVEL: LogLevel = LogLevel::Warn;
+const LOG_LEVEL: LogLevel = LogLevel::Info;
 const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 
 fn main() {
@@ -144,22 +154,31 @@ fn killer(
   let port: u16 = args.next().unwrap().parse().unwrap();
   // the mode
   args.next().unwrap();
+  let min_kill = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let max_kill = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let min_restart = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let max_restart = Duration::from_millis(args.next().unwrap().parse().unwrap());
   let num_procs: u16 = args.next().unwrap().parse().unwrap();
   let args = args.collect_vec();
-  let mut cmds = Vec::new();
+  let mut cmds = BTreeMap::new();
   for i in 0..num_procs {
+    let p = port + i + 1;
     let mut cmd = Command::new(&bin);
     cmd.arg(&host);
-    cmd.arg((port + i + 1).to_string());
+    cmd.arg(p.to_string());
     for s in &args {
       cmd.arg(s);
     }
-    cmds.push(cmd);
+    cmds.insert(p, cmd);
   }
   let actor = PeriodicKiller {
     notify: notify,
-    cmd: cmds,
-    proc: vec![],
+    cmds,
+    procs: BTreeMap::new(),
+    min_kill: min_kill,
+    max_kill: max_kill,
+    min_restart: min_restart,
+    max_restart: max_restart,
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -179,6 +198,22 @@ fn collector(
   let num_clients = first[0].parse().unwrap();
   let print_int = Duration::from_millis(first[1].parse().unwrap());
   let req_int = Duration::from_millis(first[2].parse().unwrap());
+  let server_line = lines.next().unwrap().unwrap();
+  let server_line = server_line.split_whitespace().collect_vec();
+  let server_delays = KillerDelays {
+    min_kill: server_line[0].parse().unwrap(),
+    max_kill: server_line[1].parse().unwrap(),
+    min_restart: server_line[2].parse().unwrap(),
+    max_restart: server_line[3].parse().unwrap(),
+  };
+  let client_line = lines.next().unwrap().unwrap();
+  let client_line = client_line.split_whitespace().collect_vec();
+  let client_delays = KillerDelays {
+    min_kill: client_line[0].parse().unwrap(),
+    max_kill: client_line[1].parse().unwrap(),
+    min_restart: client_line[2].parse().unwrap(),
+    max_restart: client_line[3].parse().unwrap(),
+  };
   for (num, line) in lines.enumerate().map(|(n, l)| (n + 1, l.unwrap())) {
     let toks = line.split_whitespace().collect_vec();
     if toks.len() != 3 {
@@ -230,7 +265,9 @@ fn collector(
     req_int: req_int,
     start: Instant::now(),
     prev_total: 0,
-    req_since_display: 0
+    req_since_display: 0,
+    server_delays: server_delays,
+    client_delays: client_delays,
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -463,6 +500,8 @@ struct Collector {
   start: Instant,
   prev_total: u64,
   req_since_display: u64,
+  server_delays: KillerDelays,
+  client_delays: KillerDelays,
 }
 impl Collector {
   fn ssh_cmds(&self, first: bool, is_svr: bool, host: &String, port: u16) -> Child {
@@ -472,9 +511,20 @@ impl Collector {
     write!(s, "cd {}; ", dir).unwrap();
     write!(s, "{} {} {} killer ", bin, host, port).unwrap();
     if is_svr {
-      write!(s, " 1 server 0.0 0 0 200 ").unwrap();
+      write!(s, " {} {} {} {} 1 server 0.0 0 0 200 ",
+        self.server_delays.min_kill,
+        self.server_delays.max_kill,
+        self.server_delays.min_restart,
+        self.server_delays.max_restart,
+      ).unwrap();
     } else {
-      write!(s, " {} client 0.0 0 0 ", self.clients_per_node).unwrap();
+      write!(s, " {} {} {} {} {} client 0.0 0 0 ",
+        self.client_delays.min_kill,
+        self.client_delays.max_kill,
+        self.client_delays.min_restart,
+        self.client_delays.max_restart,
+        self.clients_per_node,
+      ).unwrap();
     }
     if !first {
       for (h, p, _) in self.servers.iter().filter(|(h, p, _)| h != host || *p != port) {
@@ -556,33 +606,70 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
 #[derive(AurumInterface)]
 #[aurum(local)]
 enum PeriodicKillerMsg {
+  Kill(u16),
+  Spawn(u16),
   Done
 }
 struct PeriodicKiller {
   notify: Sender<()>,
-  cmd: Vec<Command>,
-  proc: Vec<Option<Child>>,
+  cmds: BTreeMap<u16, Command>,
+  procs: BTreeMap<u16, Child>,
+  min_kill: Duration,
+  max_kill: Duration,
+  min_restart: Duration,
+  max_restart: Duration,
 }
 #[async_trait]
 impl Actor<BenchmarkTypes, PeriodicKillerMsg> for PeriodicKiller {
-  async fn pre_start(&mut self, _: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>) {
-    self.proc = self.cmd.iter_mut().map(|c| Some(c.spawn().unwrap())).collect();
+  async fn pre_start(&mut self, ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>) {
+    for (port, cmd) in self.cmds.iter_mut() {
+      self.procs.insert(*port, cmd.spawn().unwrap());
+      ctx.node.schedule_local_msg(
+        random_duration(self.min_kill, self.max_kill), 
+        ctx.local_interface(),
+        PeriodicKillerMsg::Kill(*port) 
+      );
+      info!(LOG_LEVEL, &ctx.node, format!("Spawning port {}", port));
+    }
   }
 
   async fn recv(
     &mut self,
-    _ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
+    ctx: &ActorContext<BenchmarkTypes, PeriodicKillerMsg>,
     msg: PeriodicKillerMsg,
   ) {
     match msg {
+      PeriodicKillerMsg::Kill(port) => {
+        let mut proc = self.procs.remove(&port).unwrap();
+        proc.kill().unwrap();
+        ctx.node.schedule_local_msg(
+          random_duration(self.min_restart, self.max_restart), 
+          ctx.local_interface(),
+          PeriodicKillerMsg::Spawn(port) 
+        );
+        info!(LOG_LEVEL, &ctx.node, format!("Killing port {}", port));
+      }
+      PeriodicKillerMsg::Spawn(port) => {
+        let proc = self.cmds.get_mut(&port).unwrap().spawn().unwrap();
+        self.procs.insert(port, proc);
+        ctx.node.schedule_local_msg(
+          random_duration(self.min_kill, self.max_kill), 
+          ctx.local_interface(),
+          PeriodicKillerMsg::Kill(port) 
+        );
+        info!(LOG_LEVEL, &ctx.node, format!("Spawning port {}", port));
+      }
       PeriodicKillerMsg::Done => {
-        for p in &mut self.proc {
-          for x in p {
-            x.kill().unwrap();
-          }
+        for (_, p) in &mut self.procs {
+          p.kill().unwrap();
         }
         self.notify.send(()).await.unwrap();
       }
     }
   }
+}
+
+fn random_duration(min: Duration, max: Duration) -> Duration {
+  let range = min.as_millis()..=max.as_millis();
+  Duration::from_millis(SmallRng::from_entropy().gen_range(range) as u64)
 }
