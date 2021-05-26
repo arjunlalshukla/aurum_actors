@@ -9,7 +9,7 @@ use aurum::core::{
   Node, Socket,
 };
 use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
-use aurum::{info, udp_select, unify, AurumInterface};
+use aurum::{debug, info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
@@ -308,12 +308,14 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
         let mut new_charges = BTreeMap::new();
         for device in devices.into_iter() {
           let (d, r) = self.charges.remove_entry(&device).unwrap_or_else(|| {
+            let init = self.totals.get(&device).cloned().unwrap_or(0);
             let recvr = ReportReceiver::new(
               &ctx.node,
               ctx.local_interface(),
               device.clone(),
               self.report_interval,
               self.fail_map.clone(),
+              init,
             );
             (device, recvr)
           });
@@ -328,7 +330,7 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
         let port = device.socket.udp;
         self.totals.insert_mut(device, recvs);
         let log = format!("Received {} reports from {}", recvs, port);
-        info!(LOG_LEVEL, &ctx.node, log);
+        debug!(LOG_LEVEL, &ctx.node, log);
       }
       DataCenterBusinessMsg::ReportReq(r) => {
         let msg = CollectorMsg::Report(ctx.node.socket().clone(), self.totals.clone());
@@ -369,9 +371,10 @@ impl ReportReceiver {
     charge: Device,
     req_interval: Duration,
     fail_map: FailureConfigMap,
+    init_recvs: u64,
   ) -> LocalRef<ReportReceiverMsg> {
     let log = format!("ReportReceiver for {}", charge.socket);
-    info!(LOG_LEVEL, node, log);
+    debug!(LOG_LEVEL, node, log);
     let name = format!("report-recvr-{}", charge.socket);
     let actor = Self {
       supervisor: supervisor,
@@ -379,7 +382,7 @@ impl ReportReceiver {
       charge_dest: Destination::new::<IoTBusinessMsg>(CLUSTER_NAME.to_string()),
       req_timeout: req_interval,
       reqs_sent: 0,
-      reqs_recvd: 0,
+      reqs_recvd: init_recvs,
       fail_map: fail_map,
     };
     node
@@ -412,8 +415,7 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    self.reqs_sent = 1;
-    self.reqs_recvd = 0;
+    self.reqs_sent = self.reqs_recvd + 1;
     self.req(self.reqs_sent, ctx).await;
   }
 
