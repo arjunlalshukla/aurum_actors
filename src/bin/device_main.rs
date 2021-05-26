@@ -578,7 +578,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
       }
       CollectorMsg::PrintTick => {
         let mut s = String::new();
-        let mut total = 0;
+        let mut total = self.dead_totals;
         for (_, (_, map)) in &self.collection {
           for (_, count) in map {
             //writeln!(s, "  {} | {} -> {}", socket, device.socket, count).unwrap();
