@@ -401,15 +401,15 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum ReportReceiverMsg {
   Tick(u64),
-  Report(Vec<u64>),
+  Report(u64, Vec<u64>),
 }
 struct ReportReceiver {
   supervisor: LocalRef<DataCenterBusinessMsg>,
   charge: Device,
   charge_dest: Destination<BenchmarkTypes, IoTBusinessMsg>,
   req_timeout: Duration,
-  reqs_sent: u64,
-  reqs_recvd: u64,
+  clock: u64,
+  recvd: u64,
   fail_map: FailureConfigMap,
 }
 impl ReportReceiver {
@@ -429,8 +429,8 @@ impl ReportReceiver {
       charge: charge,
       charge_dest: Destination::new::<IoTBusinessMsg>(CLUSTER_NAME.to_string()),
       req_timeout: req_timeout,
-      reqs_sent: 0,
-      reqs_recvd: init_recvs,
+      clock: 0,
+      recvd: init_recvs,
       fail_map: fail_map,
     };
     node
@@ -445,7 +445,7 @@ impl ReportReceiver {
     num: u64,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    let msg = IoTBusinessMsg::ReportReq(ctx.interface());
+    let msg = IoTBusinessMsg::ReportReq(num, ctx.interface());
     udp_select!(
       FAILURE_MODE,
       &ctx.node,
@@ -454,7 +454,6 @@ impl ReportReceiver {
       &self.charge_dest,
       &msg
     );
-    println!("Scheduling tick for {}", num);
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
@@ -468,8 +467,8 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    self.reqs_sent = self.reqs_recvd + 1;
-    self.req(self.reqs_sent, ctx).await;
+    self.clock = self.recvd + 1;
+    self.req(self.clock, ctx).await;
   }
 
   async fn recv(
@@ -479,22 +478,23 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
   ) {
     match msg {
       ReportReceiverMsg::Tick(num) => {
-        println!("Received tick for {} when sent = {}", num, self.reqs_sent);
-        if self.reqs_sent == num {
+        if self.clock == num {
           self.req(num, ctx).await;
         }
       }
-      ReportReceiverMsg::Report(contents) => {
-        self.reqs_recvd += 1;
+      ReportReceiverMsg::Report(clock, contents) => {
+        self.recvd += 1;
         let msg = DataCenterBusinessMsg::Report(
           self.charge.clone(),
           contents.into_iter().map(|x| x as u128).sum(),
-          self.reqs_sent,
-          self.reqs_recvd,
+          self.clock,
+          self.recvd,
         );
         self.supervisor.send(msg);
-        self.reqs_sent += 1;
-        self.req(self.reqs_sent, ctx).await;
+        if clock == self.clock {
+          self.clock += 1;
+          self.req(self.clock, ctx).await;
+        }
       }
     }
   }
@@ -502,7 +502,7 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum IoTBusinessMsg {
-  ReportReq(ActorRef<BenchmarkTypes, ReportReceiverMsg>),
+  ReportReq(u64, ActorRef<BenchmarkTypes, ReportReceiverMsg>),
 }
 struct IoTBusiness {
   notify: Sender<()>,
@@ -516,9 +516,9 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
     msg: IoTBusinessMsg,
   ) {
     match msg {
-      IoTBusinessMsg::ReportReq(requester) => {
+      IoTBusinessMsg::ReportReq(clock, requester) => {
         let items = (1..1000u64).collect_vec();
-        let msg = ReportReceiverMsg::Report(items);
+        let msg = ReportReceiverMsg::Report(clock, items);
         udp_select!(
           FAILURE_MODE,
           &ctx.node,
