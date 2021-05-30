@@ -8,7 +8,7 @@ use aurum::core::{
   udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host,
   LocalRef, Node, Socket,
 };
-use aurum::testkit::{FailureConfigMap, FailureMode, LogLevel};
+use aurum::testkit::{FailureConfig, FailureConfigMap, FailureMode, LogLevel};
 use aurum::{debug, info, udp_select, unify, AurumInterface};
 use itertools::Itertools;
 use rand::rngs::SmallRng;
@@ -39,7 +39,7 @@ struct KillerDelays {
   max_restart: u64,
 }
 
-const FAILURE_MODE: FailureMode = FailureMode::None;
+const FAILURE_MODE: FailureMode = FailureMode::Message;
 const LOG_LEVEL: LogLevel = LogLevel::Info;
 const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 
@@ -99,14 +99,18 @@ fn server(
   node: &Node<BenchmarkTypes>,
   args: &mut impl Iterator<Item = String>,
 ) {
-  let fail_map = get_fail_map(args);
+  let mut fail_map = get_fail_map(args);
 
-  let interval = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let req_timeout = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  println!("Using request timeout of {:#?}", req_timeout);
 
   let name = CLUSTER_NAME.to_string();
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.vnodes = 20;
   clr_cfg.seed_nodes = get_seeds(args, None);
+  for seed in &clr_cfg.seed_nodes {
+    fail_map.node_wide.insert(seed.clone(), FailureConfig::default());
+  }
   let hbr_cfg = HBRConfig::default();
 
   let cluster = Cluster::new(
@@ -121,7 +125,7 @@ fn server(
   let devices = DeviceServer::new(&node, cluster, vec![], name.clone(), f);
   let business = DataCenterBusiness {
     notify: notify,
-    report_interval: interval,
+    req_timeout: req_timeout,
     devices: devices,
     charges: BTreeMap::new(),
     totals: RedBlackTreeMapSync::new_sync(),
@@ -207,6 +211,10 @@ fn collector(
   let num_clients = first[0].parse().unwrap();
   let print_int = Duration::from_millis(first[1].parse().unwrap());
   let req_int = Duration::from_millis(first[2].parse().unwrap());
+  let fail_prob = first[3].parse().unwrap();
+  let msg_min = first[4].parse().unwrap();
+  let msg_max = first[5].parse().unwrap();
+  let business_req_timeout = first[6].parse().unwrap();
   let server_line = lines.next().unwrap().unwrap();
   let server_line = server_line.split_whitespace().collect_vec();
   let server_delays = KillerDelays {
@@ -298,6 +306,10 @@ fn collector(
     req_since_display: 0,
     server_delays: server_delays,
     client_delays: client_delays,
+    fail_prob: fail_prob,
+    msg_min: msg_min,
+    msg_max: msg_max,
+    business_req_timeout: business_req_timeout
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -311,7 +323,7 @@ enum DataCenterBusinessMsg {
 }
 struct DataCenterBusiness {
   notify: Sender<()>,
-  report_interval: Duration,
+  req_timeout: Duration,
   devices: LocalRef<DeviceServerCmd>,
   charges: BTreeMap<Device, LocalRef<ReportReceiverMsg>>,
   totals: RedBlackTreeMapSync<Device, u64>,
@@ -345,7 +357,7 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
                 &ctx.node,
                 ctx.local_interface(),
                 device.clone(),
-                self.report_interval,
+                self.req_timeout,
                 self.fail_map.clone(),
                 init,
               );
@@ -389,15 +401,15 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum ReportReceiverMsg {
   Tick(u64),
-  Report(Vec<u64>),
+  Report(u64, Vec<u64>),
 }
 struct ReportReceiver {
   supervisor: LocalRef<DataCenterBusinessMsg>,
   charge: Device,
   charge_dest: Destination<BenchmarkTypes, IoTBusinessMsg>,
   req_timeout: Duration,
-  reqs_sent: u64,
-  reqs_recvd: u64,
+  clock: u64,
+  recvd: u64,
   fail_map: FailureConfigMap,
 }
 impl ReportReceiver {
@@ -405,7 +417,7 @@ impl ReportReceiver {
     node: &Node<BenchmarkTypes>,
     supervisor: LocalRef<DataCenterBusinessMsg>,
     charge: Device,
-    req_interval: Duration,
+    req_timeout: Duration,
     fail_map: FailureConfigMap,
     init_recvs: u64,
   ) -> LocalRef<ReportReceiverMsg> {
@@ -416,9 +428,9 @@ impl ReportReceiver {
       supervisor: supervisor,
       charge: charge,
       charge_dest: Destination::new::<IoTBusinessMsg>(CLUSTER_NAME.to_string()),
-      req_timeout: req_interval,
-      reqs_sent: 0,
-      reqs_recvd: init_recvs,
+      req_timeout: req_timeout,
+      clock: 0,
+      recvd: init_recvs,
       fail_map: fail_map,
     };
     node
@@ -433,7 +445,7 @@ impl ReportReceiver {
     num: u64,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    let msg = IoTBusinessMsg::ReportReq(ctx.interface());
+    let msg = IoTBusinessMsg::ReportReq(num, ctx.interface());
     udp_select!(
       FAILURE_MODE,
       &ctx.node,
@@ -455,8 +467,8 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
-    self.reqs_sent = self.reqs_recvd + 1;
-    self.req(self.reqs_sent, ctx).await;
+    self.clock = self.recvd + 1;
+    self.req(self.clock, ctx).await;
   }
 
   async fn recv(
@@ -466,21 +478,23 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
   ) {
     match msg {
       ReportReceiverMsg::Tick(num) => {
-        if self.reqs_recvd < num {
+        if self.clock == num {
           self.req(num, ctx).await;
         }
       }
-      ReportReceiverMsg::Report(contents) => {
-        self.reqs_recvd += 1;
+      ReportReceiverMsg::Report(clock, contents) => {
+        self.recvd += 1;
         let msg = DataCenterBusinessMsg::Report(
           self.charge.clone(),
           contents.into_iter().map(|x| x as u128).sum(),
-          self.reqs_sent,
-          self.reqs_recvd,
+          self.clock,
+          self.recvd,
         );
         self.supervisor.send(msg);
-        self.reqs_sent += 1;
-        self.req(self.reqs_sent, ctx).await;
+        if clock == self.clock {
+          self.clock += 1;
+          self.req(self.clock, ctx).await;
+        }
       }
     }
   }
@@ -488,7 +502,7 @@ impl Actor<BenchmarkTypes, ReportReceiverMsg> for ReportReceiver {
 
 #[derive(AurumInterface, Serialize, Deserialize)]
 enum IoTBusinessMsg {
-  ReportReq(ActorRef<BenchmarkTypes, ReportReceiverMsg>),
+  ReportReq(u64, ActorRef<BenchmarkTypes, ReportReceiverMsg>),
 }
 struct IoTBusiness {
   notify: Sender<()>,
@@ -502,9 +516,9 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
     msg: IoTBusinessMsg,
   ) {
     match msg {
-      IoTBusinessMsg::ReportReq(requester) => {
+      IoTBusinessMsg::ReportReq(clock, requester) => {
         let items = (1..1000u64).collect_vec();
-        let msg = ReportReceiverMsg::Report(items);
+        let msg = ReportReceiverMsg::Report(clock, items);
         udp_select!(
           FAILURE_MODE,
           &ctx.node,
@@ -548,6 +562,10 @@ struct Collector {
   req_since_display: u64,
   server_delays: KillerDelays,
   client_delays: KillerDelays,
+  fail_prob: f64,
+  msg_min: u64,
+  msg_max: u64,
+  business_req_timeout: u64,
 }
 impl Collector {
   fn ssh_cmds(
@@ -569,22 +587,29 @@ impl Collector {
     if is_svr {
       write!(
         s,
-        " {} {} {} {} 1 server 0.0 0 0 200 ",
+        " {} {} {} {} 1 server {} {} {} {} ",
         self.server_delays.min_kill,
         self.server_delays.max_kill,
         self.server_delays.min_restart,
         self.server_delays.max_restart,
+        self.fail_prob,
+        self.msg_min,
+        self.msg_max,
+        self.business_req_timeout,
       )
       .unwrap();
     } else {
       write!(
         s,
-        " {} {} {} {} {} client 0.0 0 0 ",
+        " {} {} {} {} {} client {} {} {} ",
         self.client_delays.min_kill,
         self.client_delays.max_kill,
         self.client_delays.min_restart,
         self.client_delays.max_restart,
         self.clients_per_node,
+        self.fail_prob,
+        self.msg_min,
+        self.msg_max,
       )
       .unwrap();
     }
