@@ -234,8 +234,9 @@ fn run_cluster_test(
   clr_cfg: ClusterConfig,
   hbr_cfg: HBRConfig,
   timeout: Duration,
+  port: u16,
 ) {
-  let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
+  let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
   let node = Node::<ClusterTestTypes>::new(socket.clone(), 1).unwrap();
   let (tx, mut rx) = channel(1);
   let actor = Coordinator {
@@ -270,6 +271,7 @@ fn cluster_complete(
   clr_cfg: ClusterConfig,
   hbr_cfg: HBRConfig,
   timeout: Duration,
+  port: u16,
 ) {
   let events = vec![
     Spawn(4000, vec![]),
@@ -298,7 +300,7 @@ fn cluster_complete(
     WaitForConvergence,
     Done,
   ];
-  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, timeout);
+  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, timeout, port);
 }
 
 #[test]
@@ -312,7 +314,7 @@ fn cluster_test_perfect() {
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
   let timeout = Duration::from_millis(2000);
-  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout);
+  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 5500);
 }
 
 //#[test]
@@ -329,6 +331,77 @@ fn cluster_test_with_failures() {
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(200);
-  let timeout = Duration::from_millis(1_000_000);
-  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout);
+  let timeout = Duration::from_millis(10_000);
+  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 5501);
+}
+
+
+#[allow(dead_code)]
+fn cluster_cyclic(
+  fail_map: FailureConfigMap,
+  clr_cfg: ClusterConfig,
+  hbr_cfg: HBRConfig,
+  timeout: Duration,
+  port: u16,
+) {
+  let events = vec![
+    Spawn(4000, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4001, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4002, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4003, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4004, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    WaitForConvergence,
+    Spawn(4005, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4006, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4007, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4008, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(4009, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    WaitForConvergence,
+    Kill(4000),
+    WaitForConvergence,
+    Kill(4001),
+    Kill(4002),
+    Kill(4003),
+    WaitForConvergence,
+    Kill(4004),
+    Kill(4005),
+    Kill(4006),
+    Kill(4007),
+    Kill(4008),
+    WaitForConvergence,
+    Done,
+  ];
+  run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, timeout, port);
+}
+
+//#[test]
+#[allow(dead_code)]
+fn cluster_test_cyclic_perfect() {
+  let fail_map = FailureConfigMap::default();
+  let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.ping_timeout = Duration::from_millis(50);
+  clr_cfg.vnodes = 3;
+  let mut hbr_cfg = HBRConfig::default();
+  hbr_cfg.req_tries = 1;
+  hbr_cfg.req_timeout = Duration::from_millis(50);
+  let timeout = Duration::from_millis(2000);
+  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 5502);
+}
+
+//#[test]
+#[allow(dead_code)]
+fn cluster_test_cyclic_failures() {
+  let mut fail_map = FailureConfigMap::default();
+  fail_map.cluster_wide.drop_prob = 0.5;
+  fail_map.cluster_wide.delay =
+    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  let mut clr_cfg = ClusterConfig::default();
+  clr_cfg.vnodes = 100;
+  clr_cfg.num_pings = 20;
+  clr_cfg.ping_timeout = Duration::from_millis(200);
+  let mut hbr_cfg = HBRConfig::default();
+  hbr_cfg.req_tries = 1;
+  hbr_cfg.req_timeout = Duration::from_millis(200);
+  let timeout = Duration::from_millis(10_000);
+  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 5503);
 }

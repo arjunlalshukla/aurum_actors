@@ -318,8 +318,8 @@ fn run_test(
   });
 }
 
-#[test]
-// #[allow(dead_code)]
+//#[test]
+#[allow(dead_code)]
 fn crdt_test_out_of_date() {
   let mut clr = ClusterConfig::default();
   clr.ping_timeout = Duration::from_millis(200);

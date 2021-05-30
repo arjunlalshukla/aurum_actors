@@ -49,7 +49,7 @@ fn main() {
   let host = args.next().unwrap();
   let port = args.next().unwrap().parse().unwrap();
   let mode = args.next().unwrap();
-  let socket = Socket::new(Host::DNS(host), port, 1001);
+  let socket = Socket::new(Host::from(host), port, 1001);
   println!("Starting {} on {}", mode, socket);
   let node = Node::<BenchmarkTypes>::new(socket, num_cpus::get()).unwrap();
   let (tx, mut rx) = channel(1);
@@ -81,12 +81,12 @@ fn get_fail_map(args: &mut impl Iterator<Item = String>) -> FailureConfigMap {
 fn get_seeds(
   args: &mut impl Iterator<Item = String>,
   delim: Option<&str>,
-) -> Vec<Socket> {
+) -> im::HashSet<Socket> {
   let mut args = args.peekable();
-  let mut seeds = Vec::new();
+  let mut seeds = im::HashSet::new();
   while args.peek().map(|x| x.as_str()) != delim {
-    seeds.push(Socket::new(
-      Host::DNS(args.next().unwrap()),
+    seeds.insert(Socket::new(
+      Host::from(args.next().unwrap()),
       args.next().unwrap().parse().unwrap(),
       0,
     ));
@@ -279,7 +279,7 @@ fn collector(
     servers: servers
       .into_iter()
       .map(|((host, port), _)| {
-        let socket = Socket::new(Host::DNS(host.clone()), port + 1, 0);
+        let socket = Socket::new(Host::from(host.clone()), port + 1, 0);
         (host, port, socket)
       })
       .collect_vec(),
@@ -552,7 +552,7 @@ struct Collector {
 impl Collector {
   fn ssh_cmds(
     &self,
-    first: bool,
+    _first: bool,
     is_svr: bool,
     host: &String,
     port: u16,
@@ -588,7 +588,7 @@ impl Collector {
       )
       .unwrap();
     }
-    if !first {
+    //if !first {
       for (h, p, _) in self
         .servers
         .iter()
@@ -596,7 +596,7 @@ impl Collector {
       {
         write!(s, " {} {} ", h, p + 1).unwrap();
       }
-    }
+    //}
     println!("Running command ssh {} \"{}\"", host, s);
     let mut cmd = Command::new("ssh");
     cmd.arg(host);

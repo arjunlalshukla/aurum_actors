@@ -461,6 +461,38 @@ impl Pinging {
         );
         Some(State::InCluster(ic))
       }
+      Ping(member) => {
+        if !common.clr_config.seed_nodes.contains(&member.socket) {
+          return None
+        }
+        let log = 
+          format!("Got ping from seed {}, creating cluster", member.socket);
+        let gossip = Gossip {
+          states: btreemap! {
+            member => Up,
+            common.member.clone() => Up
+          }
+        };
+        let mut ring = NodeRing::new(common.clr_config.replication_factor);
+        let mut members = im::HashSet::new();
+        for m in gossip.states.keys() {
+          ring.insert(m.clone());
+          members.insert(m.clone());
+        }
+        let mut ic = InCluster {
+          charges: HashMap::new(),
+          managers: Vec::new(),
+          gossip: gossip,
+          members: members,
+          ring: ring,
+          gossip_timeout: common.schedule_gossip_timeout(ctx),
+        };
+        ic.update_charges_managers(common, ctx);
+        ic.gossip_round(common, ctx, hashset!()).await;
+        ic.notify(common, vec![ClusterEvent::Joined(common.member.clone())]);
+        info!(LOG_LEVEL, ctx.node, log);
+        Some(State::InCluster(ic))
+      }
       _ => None,
     }
   }
@@ -608,6 +640,7 @@ impl<U: UnifiedType> Actor<U, ClusterMsg<U>> for Cluster<U> {
           if png.count != 0 {
             png.ping(&self.common, ctx).await;
           } else {
+            info!(LOG_LEVEL, ctx.node, "Last ping timed out, starting cluster");
             self.create_cluster(ctx);
           }
         }
@@ -653,11 +686,12 @@ impl<U: UnifiedType> Cluster<U> {
     name: String,
     subrs: Vec<LocalRef<ClusterUpdate>>,
     fail_map: FailureConfigMap,
-    clr_config: ClusterConfig,
+    mut clr_config: ClusterConfig,
     hbr_config: HBRConfig,
   ) -> LocalRef<ClusterCmd> {
     let id = rand::random();
     let double = clr_config.double;
+    clr_config.seed_nodes.retain(|s| s != node.socket());
     let c = Cluster {
       common: NodeState {
         member: Arc::new(Member {
