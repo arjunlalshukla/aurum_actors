@@ -8,7 +8,7 @@ use crate::core::{
   Actor, ActorContext, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, info, trace, udp_select, AurumInterface};
+use crate::{debug, info, trace, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use HBReqSenderMsg::*;
@@ -104,14 +104,16 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
             &ctx.node,
             format!("Sending HBR to {}", self.charge.socket)
           );
-          udp_select!(
-            FAILURE_MODE,
-            &ctx.node,
-            &self.fail_map,
-            &self.charge.socket,
-            &self.dev_dest,
-            &DeviceClientRemoteMsg::HeartbeatRequest(ctx.interface())
-          );
+          ctx
+            .node
+            .udp_select(
+              &self.charge.socket,
+              &self.dev_dest,
+              &DeviceClientRemoteMsg::HeartbeatRequest(ctx.interface()),
+              FAILURE_MODE,
+              &self.fail_map,
+            )
+            .await;
           ctx.node.schedule_local_msg(
             self.interval.interval,
             ctx.local_interface(),

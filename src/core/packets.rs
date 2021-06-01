@@ -1,7 +1,5 @@
 use crate::core::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedType};
-use crate::testkit::FailureConfig;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -110,62 +108,6 @@ impl MessagePackets {
       let slice = &mut self.buf[start..end];
       header.put(&mut slice[..DatagramHeader::SIZE]);
       socket.send_to(&slice, addr).await.unwrap();
-    }
-  }
-
-  /*
-  pub async fn send_to(&self, socket: &UdpSocket, addr: &SocketAddr) {
-    //self.send(socket, addr, 0..=self.max_seq_num).await;
-  }
-  */
-
-  pub async fn send_to_unreliable(
-    &self,
-    socket: &UdpSocket,
-    addr: &SocketAddr,
-    fail_cfg: &FailureConfig,
-  ) {
-    let mut nums = (0..=self.max_seq_num).collect::<Vec<_>>();
-    nums.shuffle(&mut rand::thread_rng());
-    self.send(socket, addr, nums, fail_cfg).await;
-  }
-
-  async fn send<I>(
-    &self,
-    socket: &UdpSocket,
-    addr: &SocketAddr,
-    idxs: I,
-    fail_cfg: &FailureConfig,
-  ) where
-    I: IntoIterator<Item = u16>,
-  {
-    let mut header = DatagramHeader {
-      msg_id: rand::thread_rng().gen::<u64>(),
-      seq_num: 0,
-      max_seq_num: self.max_seq_num,
-      msg_size: self.msg_size as u32,
-      dest_size: self.dest_size as u16,
-      intp: self.intp,
-    };
-    let mut buf: [u8; MAX_PACKET_SIZE] = [0u8; MAX_PACKET_SIZE];
-    for i in idxs {
-      if rand::random::<f64>() >= fail_cfg.drop_prob {
-        header.seq_num = i;
-        header.put(&mut buf[..DatagramHeader::SIZE]);
-        let start =
-          header.seq_num as usize * (MAX_PACKET_SIZE - DatagramHeader::SIZE);
-        let end = std::cmp::min(
-          start + MAX_PACKET_SIZE - DatagramHeader::SIZE,
-          self.buf.len(),
-        );
-        let size = end - start;
-        buf[DatagramHeader::SIZE..DatagramHeader::SIZE + size]
-          .copy_from_slice(&self.buf[start..end]);
-        socket
-          .send_to(&buf[..DatagramHeader::SIZE + size], addr)
-          .await
-          .unwrap();
-      }
     }
   }
 }

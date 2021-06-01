@@ -7,7 +7,7 @@ use crate::core::{
   Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, trace, udp_select, AurumInterface};
+use crate::{debug, trace, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -130,14 +130,16 @@ where
         trace!(LOG_LEVEL, &ctx.node, format!("delta to {}", p));
         &delta_msg
       };
-      udp_select!(
-        FAILURE_MODE,
-        &ctx.node,
-        &common.fail_map,
-        &member.socket,
-        &common.dest,
-        &msg
-      );
+      ctx
+        .node
+        .udp_select(
+          &member.socket,
+          &common.dest,
+          &msg,
+          FAILURE_MODE,
+          &common.fail_map,
+        )
+        .await;
     }
     ctx.node.schedule_local_msg(
       common.preference.timeout,
@@ -198,14 +200,10 @@ where
         id: self.member.id,
         clock: clock,
       };
-      udp_select!(
-        FAILURE_MODE,
-        &ctx.node,
-        &common.fail_map,
-        socket,
-        &common.dest,
-        &msg
-      );
+      ctx
+        .node
+        .udp_select(socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map)
+        .await;
       let new_state = self.data.clone().join(delta.clone());
       if new_state != self.data {
         self.data = new_state;

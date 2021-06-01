@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node, NodeConfig,
+  Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node, NodeConfig,
   Socket,
 };
 use aurum::{unify, AurumInterface};
@@ -229,7 +229,7 @@ impl ReportReceiver {
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
     let msg = IoTBusinessMsg::ReportReq(ctx.interface());
-    udp_msg(&self.client, &self.dest, &msg).await;
+    ctx.node.udp_msg(&self.client, &self.dest, &msg).await;
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
@@ -311,14 +311,17 @@ struct IoTBusiness {
 impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
   async fn recv(
     &mut self,
-    _: &ActorContext<BenchmarkTypes, IoTBusinessMsg>,
+    ctx: &ActorContext<BenchmarkTypes, IoTBusinessMsg>,
     msg: IoTBusinessMsg,
   ) {
     match msg {
       IoTBusinessMsg::ReportReq(requester) => {
         let items = (1..1000u64).collect_vec();
         let msg = ReportReceiverMsg::Report(items);
-        udp_msg(&requester.socket, &requester.dest, &msg).await;
+        ctx
+          .node
+          .udp_msg(&requester.socket, &requester.dest, &msg)
+          .await;
       }
     }
   }

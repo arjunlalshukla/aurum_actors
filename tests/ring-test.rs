@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
+  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node,
+  NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};

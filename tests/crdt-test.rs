@@ -4,7 +4,9 @@ use aurum::cluster::crdt::{
   DispersalPreference, DispersalSelector, CRDT,
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
-use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket};
+use aurum::core::{
+  Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket,
+};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
 use im;
@@ -290,25 +292,25 @@ fn run_test(
     .clone()
     .unwrap();
   let events = vec![
-    Spawn(port+1),
-    Spawn(port+2),
-    Spawn(port+3),
-    Spawn(port+4),
-    Mutate(Increment { port: port+1 }),
-    Mutate(Increment { port: port+2 }),
-    Mutate(Increment { port: port+3 }),
-    Mutate(Increment { port: port+4 }),
-    Mutate(Increment { port: port+1 }),
-    Mutate(Increment { port: port+2 }),
+    Spawn(port + 1),
+    Spawn(port + 2),
+    Spawn(port + 3),
+    Spawn(port + 4),
+    Mutate(Increment { port: port + 1 }),
+    Mutate(Increment { port: port + 2 }),
+    Mutate(Increment { port: port + 3 }),
+    Mutate(Increment { port: port + 4 }),
+    Mutate(Increment { port: port + 1 }),
+    Mutate(Increment { port: port + 2 }),
     WaitForConvergence,
-    Spawn(port+5),
-    Spawn(port+6),
-    Mutate(Increment { port: port+5 }),
-    Mutate(Increment { port: port+5 }),
-    Mutate(Increment { port: port+5 }),
-    Mutate(Increment { port: port+6 }),
-    Mutate(Increment { port: port+6 }),
-    Mutate(Increment { port: port+6 }),
+    Spawn(port + 5),
+    Spawn(port + 6),
+    Mutate(Increment { port: port + 5 }),
+    Mutate(Increment { port: port + 5 }),
+    Mutate(Increment { port: port + 5 }),
+    Mutate(Increment { port: port + 6 }),
+    Mutate(Increment { port: port + 6 }),
+    Mutate(Increment { port: port + 6 }),
     Done,
   ];
   for e in events {

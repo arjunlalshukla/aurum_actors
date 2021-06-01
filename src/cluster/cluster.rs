@@ -9,7 +9,7 @@ use crate::core::{
   UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, info, trace, udp_select, AurumInterface};
+use crate::{debug, info, trace, AurumInterface};
 use async_trait::async_trait;
 use im;
 use itertools::Itertools;
@@ -90,14 +90,16 @@ impl InCluster {
         let log = format!("got gossip req from {}", member.socket.udp);
         debug!(LOG_LEVEL, ctx.node, log);
         let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &common.fail_map,
-          &member.socket,
-          &common.clr_dest,
-          &msg
-        );
+        ctx
+          .node
+          .udp_select(
+            &member.socket,
+            &common.clr_dest,
+            &msg,
+            FAILURE_MODE,
+            &common.fail_map,
+          )
+          .await;
         None
       }
       ReqHeartbeat(member, id) => {
@@ -267,14 +269,16 @@ impl InCluster {
       )
     );
     for member in guaranteed {
-      udp_select!(
-        FAILURE_MODE,
-        &ctx.node,
-        &common.fail_map,
-        &member.socket,
-        &common.clr_dest,
-        &msg
-      )
+      ctx
+        .node
+        .udp_select(
+          &member.socket,
+          &common.clr_dest,
+          &msg,
+          FAILURE_MODE,
+          &common.fail_map,
+        )
+        .await;
     }
   }
 
@@ -316,14 +320,16 @@ impl InCluster {
       )
     );
     for member in recipients {
-      udp_select!(
-        FAILURE_MODE,
-        &ctx.node,
-        &common.fail_map,
-        &member.socket,
-        &common.clr_dest,
-        &msg
-      )
+      ctx
+        .node
+        .udp_select(
+          &member.socket,
+          &common.clr_dest,
+          &msg,
+          FAILURE_MODE,
+          &common.fail_map,
+        )
+        .await;
     }
   }
 
@@ -375,14 +381,10 @@ impl Pinging {
     info!(LOG_LEVEL, ctx.node, log);
     let msg: IntraClusterMsg<U> = Ping(common.member.clone());
     for s in common.clr_config.seed_nodes.iter() {
-      udp_select!(
-        FAILURE_MODE,
-        &ctx.node,
-        &common.fail_map,
-        s,
-        &common.clr_dest,
-        &msg
-      );
+      ctx
+        .node
+        .udp_select(s, &common.clr_dest, &msg, FAILURE_MODE, &common.fail_map)
+        .await;
     }
     let ar = ctx.local_interface();
     self.timeout =
@@ -407,14 +409,16 @@ impl Pinging {
           let log = format!("HB req for id {}, id is {}", common.member.id, id);
           debug!(LOG_LEVEL, ctx.node, log);
         }
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &common.fail_map,
-          &member.socket,
-          &common.clr_dest,
-          &ReqGossip(common.member.clone())
-        );
+        ctx
+          .node
+          .udp_select(
+            &member.socket,
+            &common.clr_dest,
+            &ReqGossip(common.member.clone()),
+            FAILURE_MODE,
+            &common.fail_map,
+          )
+          .await;
         None
       }
       State(mut gossip) => {
@@ -465,15 +469,15 @@ impl Pinging {
         if !common.clr_config.seed_nodes.contains(&member.socket) {
           let log = format!("Got ping from {}, ignoring", member.socket);
           info!(LOG_LEVEL, ctx.node, log);
-          return None
+          return None;
         }
-        let log = 
+        let log =
           format!("Got ping from seed {}, creating cluster", member.socket);
         let gossip = Gossip {
           states: btreemap! {
             member => Up,
             common.member.clone() => Up
-          }
+          },
         };
         let mut ring = NodeRing::new(common.clr_config.replication_factor);
         let mut members = im::HashSet::new();
@@ -560,14 +564,16 @@ impl<U: UnifiedType> NodeState<U> {
       self.clr_config.hb_interval,
       self.hb_interval_changes,
     );
-    udp_select!(
-      FAILURE_MODE,
-      &ctx.node,
-      &self.fail_map,
-      &member.socket,
-      &self.hbr_dest,
-      &msg
-    );
+    ctx
+      .node
+      .udp_select(
+        &member.socket,
+        &self.hbr_dest,
+        &msg,
+        FAILURE_MODE,
+        &self.fail_map,
+      )
+      .await;
   }
 
   fn schedule_gossip_timeout(

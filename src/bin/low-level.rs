@@ -49,10 +49,10 @@ fn main() {
 }
 
 async fn recvr(
-  notify: Sender<()>, 
-  socket: Socket, 
-  target: Option<Socket>, 
-  bind: bool
+  notify: Sender<()>,
+  socket: Socket,
+  target: Option<Socket>,
+  bind: bool,
 ) {
   let mut reqs_recvd = 0u64;
   let mut secs = 0u64;
@@ -62,19 +62,13 @@ async fn recvr(
     .unwrap();
   let mut buf = [0u8; 0xffff];
   if let Some(t) = target {
-    let addr = t
-      .as_udp_addr()
-      .await
-      .unwrap()
-      .into_iter()
-      .next()
-      .unwrap();
+    let addr = t.as_udp_addr().await.unwrap().into_iter().next().unwrap();
     let a = to_vec(&socket).unwrap();
     if bind {
       let sender =
-      tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-        .await
-        .unwrap();
+        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+          .await
+          .unwrap();
       sender.send_to(&a[..], addr).await.unwrap();
     } else {
       udp.send_to(&a[..], addr).await.unwrap();
@@ -84,19 +78,13 @@ async fn recvr(
     let bytes = udp.recv(&mut buf[..]).await.unwrap();
     let msg: Socket = from_slice(&buf[..bytes]).unwrap();
     reqs_recvd += 1;
-    let addr = msg
-      .as_udp_addr()
-      .await
-      .unwrap()
-      .into_iter()
-      .next()
-      .unwrap();
+    let addr = msg.as_udp_addr().await.unwrap().into_iter().next().unwrap();
     let a = to_vec(&socket).unwrap();
     if bind {
       let sender =
-      tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-        .await
-        .unwrap();
+        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+          .await
+          .unwrap();
       sender.send_to(&a[..], addr).await.unwrap();
     } else {
       udp.send_to(&a[..], addr).await.unwrap();

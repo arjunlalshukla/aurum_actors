@@ -5,11 +5,11 @@ use aurum::cluster::devices::{
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host,
-  LocalRef, Node, NodeConfig, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef,
+  Node, NodeConfig, Socket,
 };
 use aurum::testkit::{FailureConfig, FailureConfigMap, FailureMode, LogLevel};
-use aurum::{debug, info, udp_select, unify, AurumInterface};
+use aurum::{debug, info, unify, AurumInterface};
 use itertools::Itertools;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
@@ -102,7 +102,8 @@ fn server(
 ) {
   let mut fail_map = get_fail_map(args);
 
-  let req_timeout = Duration::from_millis(args.next().unwrap().parse().unwrap());
+  let req_timeout =
+    Duration::from_millis(args.next().unwrap().parse().unwrap());
   println!("Using request timeout of {:#?}", req_timeout);
 
   let name = CLUSTER_NAME.to_string();
@@ -110,7 +111,9 @@ fn server(
   clr_cfg.vnodes = 20;
   clr_cfg.seed_nodes = get_seeds(args, None);
   for seed in &clr_cfg.seed_nodes {
-    fail_map.node_wide.insert(seed.clone(), FailureConfig::default());
+    fail_map
+      .node_wide
+      .insert(seed.clone(), FailureConfig::default());
   }
   let hbr_cfg = HBRConfig::default();
 
@@ -310,7 +313,7 @@ fn collector(
     fail_prob: fail_prob,
     msg_min: msg_min,
     msg_max: msg_max,
-    business_req_timeout: business_req_timeout
+    business_req_timeout: business_req_timeout,
   };
   node.spawn(false, actor, CLUSTER_NAME.to_string(), true);
 }
@@ -383,7 +386,7 @@ impl Actor<BenchmarkTypes, DataCenterBusinessMsg> for DataCenterBusiness {
           ctx.node.socket().clone(),
           self.totals.clone(),
         );
-        r.remote_send(&msg).await;
+        r.remote_send(&ctx.node, &msg).await;
       }
     }
   }
@@ -447,14 +450,16 @@ impl ReportReceiver {
     ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>,
   ) {
     let msg = IoTBusinessMsg::ReportReq(num, ctx.interface());
-    udp_select!(
-      FAILURE_MODE,
-      &ctx.node,
-      &self.fail_map,
-      &self.charge.socket,
-      &self.charge_dest,
-      &msg
-    );
+    ctx
+      .node
+      .udp_select(
+        &self.charge.socket,
+        &self.charge_dest,
+        &msg,
+        FAILURE_MODE,
+        &self.fail_map,
+      )
+      .await;
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
@@ -520,14 +525,16 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
       IoTBusinessMsg::ReportReq(clock, requester) => {
         let items = (1..1000u64).collect_vec();
         let msg = ReportReceiverMsg::Report(clock, items);
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &self.fail_map,
-          &requester.socket,
-          &requester.dest,
-          &msg
-        );
+        ctx
+          .node
+          .udp_select(
+            &requester.socket,
+            &requester.dest,
+            &msg,
+            FAILURE_MODE,
+            &self.fail_map,
+          )
+          .await;
       }
     }
   }
@@ -608,7 +615,7 @@ impl Collector {
       )
       .unwrap();
     }
-    for (h, p, _) in self.servers.iter(){
+    for (h, p, _) in self.servers.iter() {
       write!(s, " {} {} ", h, p + 1).unwrap();
     }
     println!("Running command ssh {} \"{}\"", host, s);
@@ -679,7 +686,7 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
       CollectorMsg::ReqTick => {
         let msg = DataCenterBusinessMsg::ReportReq(ctx.interface());
         for socket in &self.servers {
-          udp_msg(&socket.2, &self.svr_dest, &msg).await;
+          ctx.node.udp_msg(&socket.2, &self.svr_dest, &msg).await;
         }
         ctx.node.schedule_local_msg(
           self.req_int,

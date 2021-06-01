@@ -70,17 +70,17 @@ fn actor_ref_test(double: bool, port: u16) {
 
   let mut expected = HashSet::new();
   for e in 0..errors {
-    block_on(_err_msg.move_to(e));
+    block_on(_err_msg.move_to(&node, e));
     expected.insert(RemoteLoggerMsg::Error(e));
   }
   for w in 0..warnings {
     let to_send = format!("warning-{}", w);
-    block_on(_warn_msg.send(&to_send));
+    block_on(_warn_msg.send(&node, &to_send));
     expected.insert(RemoteLoggerMsg::Warning(to_send));
   }
   for i in 0..infos {
     let to_send = RemoteLoggerMsg::Info(format!("info-{}", i));
-    block_on(_lgr_msg.remote_send(&to_send));
+    block_on(_lgr_msg.remote_send(&node, &to_send));
     expected.insert(to_send);
   }
 
@@ -94,7 +94,7 @@ fn actor_ref_test(double: bool, port: u16) {
     println!("Received message: {:?}", msg);
     recvd.insert(msg);
   }
-  block_on(_lgr_msg.signal(ActorSignal::Term));
+  block_on(_lgr_msg.signal(&node, ActorSignal::Term));
   let msg = rx.recv_timeout(timeout).unwrap();
   assert_eq!(msg, RemoteLoggerMsg::Error(-1));
 }

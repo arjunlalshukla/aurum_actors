@@ -7,7 +7,7 @@ use crate::core::{
   ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, info, trace, warn, udp_select, AurumInterface};
+use crate::{debug, info, trace, warn, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -67,14 +67,16 @@ impl<U: UnifiedType> HeartbeatReceiver<U> {
   }
 
   async fn send_req(&self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) {
-    udp_select!(
-      FAILURE_MODE,
-      &ctx.node,
-      &self.fail_map,
-      &self.charge.socket,
-      &self.clr_dest,
-      &self.req
-    );
+    ctx
+      .node
+      .udp_select(
+        &self.charge.socket,
+        &self.clr_dest,
+        &self.req,
+        FAILURE_MODE,
+        &self.fail_map,
+      )
+      .await;
   }
 }
 #[async_trait]

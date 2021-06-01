@@ -8,7 +8,7 @@ use crate::core::{
 };
 use crate::testkit::FailureConfigMap;
 use crate::{self as aurum, core::Destination};
-use crate::{info, trace, udp_select, AurumInterface};
+use crate::{info, trace, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -134,14 +134,10 @@ impl<U: UnifiedType> DeviceClient<U> {
           &ctx.node,
           format!("On server: SETTING {} to {:?}", svr.udp, self.interval)
         );
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &self.fail_map,
-          svr,
-          &self.svr_dest,
-          &msg
-        );
+        ctx
+          .node
+          .udp_select(svr, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map)
+          .await;
       }
       None => {
         trace!(
@@ -154,14 +150,16 @@ impl<U: UnifiedType> DeviceClient<U> {
           )
         );
         for seed in self.config.seeds.iter() {
-          udp_select!(
-            FAILURE_MODE,
-            &ctx.node,
-            &self.fail_map,
-            seed,
-            &self.svr_dest,
-            &msg
-          );
+          ctx
+            .node
+            .udp_select(
+              seed,
+              &self.svr_dest,
+              &msg,
+              FAILURE_MODE,
+              &self.fail_map,
+            )
+            .await;
         }
       }
     }
@@ -235,14 +233,16 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         } else {
           self.storage.push();
         }
-        udp_select!(
-          FAILURE_MODE,
-          &ctx.node,
-          &self.fail_map,
-          &sender.socket,
-          &sender.dest,
-          &Heartbeat
-        );
+        ctx
+          .node
+          .udp_select(
+            &sender.socket,
+            &sender.dest,
+            &Heartbeat,
+            FAILURE_MODE,
+            &self.fail_map,
+          )
+          .await;
         self.server_log.push(sender);
         if self.server_log.changes + 1
           != self.server_log.frequencies.len() as u32
@@ -258,14 +258,16 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           );
           info!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {
-            udp_select!(
-              FAILURE_MODE,
-              &ctx.node,
-              &self.fail_map,
-              &svr.socket,
-              &svr.dest,
-              &MultipleSenders
-            );
+            ctx
+              .node
+              .udp_select(
+                &svr.socket,
+                &svr.dest,
+                &MultipleSenders,
+                FAILURE_MODE,
+                &self.fail_map,
+              )
+              .await;
           }
         }
       }

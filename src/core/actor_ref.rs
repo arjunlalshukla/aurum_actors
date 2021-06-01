@@ -1,6 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, udp_msg, udp_signal, ActorSignal, Case, Destination,
-  LocalActorMsg, Socket, SpecificInterface, UnifiedType,
+  local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node,
+  Socket, SpecificInterface, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -89,40 +89,40 @@ impl<U: UnifiedType + Case<I>, I> ActorRef<U, I>
 where
   I: Serialize + DeserializeOwned,
 {
-  pub async fn remote_send(&self, item: &I) {
-    udp_msg(&self.socket, &self.dest, item).await;
+  pub async fn remote_send(&self, node: &Node<U>, item: &I) {
+    node.udp_msg(&self.socket, &self.dest, item).await;
   }
 }
 impl<U: UnifiedType + Case<S>, S> ActorRef<U, S>
 where
   S: Send + Serialize + DeserializeOwned + 'static,
 {
-  pub async fn send(&self, item: &S) -> Option<bool>
+  pub async fn send(&self, node: &Node<U>, item: &S) -> Option<bool>
   where
     S: Clone,
   {
     if let Some(r) = &self.local {
       Some(r.send(item.clone()))
     } else {
-      udp_msg(&self.socket, &self.dest, item).await;
+      node.udp_msg(&self.socket, &self.dest, item).await;
       None
     }
   }
 
-  pub async fn move_to(&self, item: S) -> Option<bool> {
+  pub async fn move_to(&self, node: &Node<U>, item: S) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      udp_msg(&self.socket, &self.dest, &item).await;
+      node.udp_msg(&self.socket, &self.dest, &item).await;
       None
     }
   }
 
-  pub async fn signal(&self, sig: ActorSignal) -> Option<bool> {
+  pub async fn signal(&self, node: &Node<U>, sig: ActorSignal) -> Option<bool> {
     if let Some(r) = &self.local {
       Some(r.signal(sig))
     } else {
-      udp_signal(&self.socket, &self.dest, &sig).await;
+      node.udp_signal(&self.socket, &self.dest, &sig).await;
       None
     }
   }

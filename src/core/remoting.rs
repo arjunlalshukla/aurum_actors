@@ -1,7 +1,4 @@
-use crate::core::{
-  ActorName, ActorSignal, Case, Interpretations, MessagePackets,
-  SpecificInterface, UnifiedType,
-};
+use crate::core::{ActorName, Case, SpecificInterface, UnifiedType};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -142,43 +139,4 @@ impl<U: UnifiedType + Case<I>, I> Debug for Destination<U, I> {
       .field("untyped", &self.untyped)
       .finish()
   }
-}
-
-pub async fn udp_msg<U: UnifiedType + Case<I>, I>(
-  socket: &Socket,
-  dest: &Destination<U, I>,
-  msg: &I,
-) where
-  I: Serialize + DeserializeOwned,
-{
-  udp_send(&socket, &dest, Interpretations::Message, msg).await;
-}
-
-pub async fn udp_signal<U: UnifiedType + Case<I>, I>(
-  socket: &Socket,
-  dest: &Destination<U, I>,
-  sig: &ActorSignal,
-) {
-  udp_send(&socket, &dest, Interpretations::Signal, sig).await;
-}
-
-async fn udp_send<U: UnifiedType + Case<I>, I, T>(
-  socket: &Socket,
-  dest: &Destination<U, I>,
-  intp: Interpretations,
-  msg: &T,
-) where
-  T: Serialize + DeserializeOwned,
-{
-  let addrs = socket.as_udp_addr().await.unwrap();
-  let addr = addrs
-    .iter()
-    .next()
-    .expect(format!("No resolution for {:?}", socket).as_str());
-  let udp = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-    .await
-    .unwrap();
-  MessagePackets::new(msg, intp, dest)
-    .move_to(&udp, addr)
-    .await;
 }

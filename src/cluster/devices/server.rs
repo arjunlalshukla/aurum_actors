@@ -1,5 +1,7 @@
 use crate as aurum;
-use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference, DispersalSelector};
+use crate::cluster::crdt::{
+  CausalCmd, CausalDisperse, DispersalPreference, DispersalSelector,
+};
 use crate::cluster::devices::{
   Device, DeviceInterval, DeviceMutator, Devices, HBReqSender,
   HBReqSenderConfig, HBReqSenderMsg, LOG_LEVEL,
@@ -11,7 +13,7 @@ use crate::core::{
   Actor, ActorContext, ActorSignal, Destination, LocalRef, Node, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, trace, udp_select, AurumInterface};
+use crate::{debug, trace, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -219,14 +221,16 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
               ic.publish(&mut self.common);
             }
           } else {
-            udp_select!(
-              FAILURE_MODE,
-              &ctx.node,
-              &self.common.fail_map,
-              &manager.socket,
-              &self.common.dest,
-              &SetHeartbeatInterval(device, interval)
-            );
+            ctx
+              .node
+              .udp_select(
+                &manager.socket,
+                &self.common.dest,
+                &SetHeartbeatInterval(device, interval),
+                FAILURE_MODE,
+                &self.common.fail_map,
+              )
+              .await;
           }
         } else if let State::Waiting(w) = &mut self.state {
           debug!(
