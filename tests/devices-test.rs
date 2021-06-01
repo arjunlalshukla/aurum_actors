@@ -8,7 +8,7 @@ use aurum::cluster::{
   Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
 };
 use aurum::core::{
-  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, Socket,
+  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
 };
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
@@ -216,7 +216,9 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           return;
         }
         let socket = Socket::new(HOST.clone(), port, 0);
-        let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
+        let mut config = NodeConfig::default();
+        config.socket = socket.clone();
+        let node = Node::<DeviceTestTypes>::new(config).await.unwrap();
         let mut cli_cfg = self.cli_cfg.clone();
         cli_cfg.seeds = seeds
           .into_iter()
@@ -251,7 +253,9 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           return;
         }
         let socket = Socket::new(HOST.clone(), port, 0);
-        let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
+        let mut config = NodeConfig::default();
+        config.socket = socket.clone();
+        let node = Node::<DeviceTestTypes>::new(config).await.unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
         clr_cfg.seed_nodes = seeds
           .iter()
@@ -429,7 +433,9 @@ fn run_cluster_test(
   timeout: Duration,
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
-  let node = Node::<DeviceTestTypes>::new(socket.clone(), 1).unwrap();
+  let mut config = NodeConfig::default();
+  config.socket = socket.clone();
+  let node = Node::<DeviceTestTypes>::new_sync(config).unwrap();
   let (tx, mut rx) = channel(1);
   let actor = Coordinator {
     clr_cfg: clr_cfg,

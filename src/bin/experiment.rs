@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node,
+  udp_msg, Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node, NodeConfig,
   Socket,
 };
 use aurum::{unify, AurumInterface};
@@ -21,12 +21,13 @@ const CLUSTER_NAME: &'static str = "my-cool-device-cluster";
 fn main() {
   // Exclude the command
   let mut args = std::env::args().skip(1);
-  let threads = args.next().unwrap().parse().unwrap();
+  args.next().unwrap();
   let host = args.next().unwrap();
   let port = args.next().unwrap().parse().unwrap();
   let mode = args.next().unwrap();
-  let socket = Socket::new(Host::from(host), port, 1001);
-  let node = Node::<BenchmarkTypes>::new(socket, threads).unwrap();
+  let mut config = NodeConfig::default();
+  config.socket = Socket::new(Host::from(host), port, 0);
+  let node = Node::<BenchmarkTypes>::new_sync(config).unwrap();
   let (tx, mut rx) = channel(1);
 
   match mode.as_str() {

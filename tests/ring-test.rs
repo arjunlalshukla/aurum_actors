@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, Socket,
+  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
@@ -83,13 +83,12 @@ impl Actor<RingTypes, Ball> for Player {
   }
 }
 
-fn ring_test(double: bool, register: bool) {
+fn ring_test(double: bool, register: bool, port: u16) {
   let (tx, rx) = unbounded();
-  let node = Node::<RingTypes>::new(
-    Socket::new(Host::DNS("localhost".to_string()), 1000, 1001),
-    1,
-  )
-  .unwrap();
+  let socket = Socket::new(Host::DNS("localhost".to_string()), port, 1001);
+  let mut config = NodeConfig::default();
+  config.socket = socket.clone();
+  let node = Node::<RingTypes>::new_sync(config).unwrap();
   let names = (0..RING_SIZE)
     .rev()
     .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))
@@ -135,17 +134,17 @@ fn ring_test(double: bool, register: bool) {
 
 #[test]
 fn ring_single_registered() {
-  ring_test(false, true);
+  ring_test(false, true, 9000);
 }
 #[test]
 fn ring_single_unregistered() {
-  ring_test(false, false);
+  ring_test(false, false, 9001);
 }
 #[test]
 fn ring_double_registered() {
-  ring_test(true, true);
+  ring_test(true, true, 9002);
 }
 #[test]
 fn ring_double_unregistered() {
-  ring_test(true, false);
+  ring_test(true, false, 9003);
 }

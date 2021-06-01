@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Host, Node, Socket,
+  Actor, ActorContext, ActorRef, ActorSignal, Host, Node, NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
@@ -47,7 +47,9 @@ unify!(RemoteTestTypes = RemoteLoggerMsg ; std::string::String | i32);
 
 fn actor_ref_test(double: bool, port: u16) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 1001);
-  let node = Node::<RemoteTestTypes>::new(socket.clone(), 1).unwrap();
+  let mut config = NodeConfig::default();
+  config.socket = socket.clone();
+  let node = Node::<RemoteTestTypes>::new_sync(config).unwrap();
   let _lgr_msg = ActorRef::<RemoteTestTypes, RemoteLoggerMsg>::new::<
     RemoteLoggerMsg,
   >("logger".to_string(), socket.clone());

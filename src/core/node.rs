@@ -5,15 +5,35 @@ use crate::core::{
 };
 use crate::testkit::{LogLevel, Logger, LoggerMsg};
 use std::io::{Error, ErrorKind};
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::net::UdpSocket;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
+pub struct NodeConfig {
+  pub socket: Socket,
+  pub actor_threads: usize,
+  pub actor_thread_stack_size: usize,
+  pub compute_threads: usize,
+}
+impl Default for NodeConfig {
+  fn default() -> Self {
+    Self {
+      socket: Socket::default(),
+      actor_threads: num_cpus::get(),
+      actor_thread_stack_size: 3 * 1024 * 1024,
+      compute_threads: num_cpus::get(),
+    }
+  }
+}
+
 struct NodeImpl<U: UnifiedType> {
   socket: Socket,
+  udp: UdpSocket,
   registry: LocalRef<RegistryMsg<U>>,
   logger: LocalRef<LoggerMsg>,
   rt: Runtime,
@@ -24,14 +44,31 @@ pub struct Node<U: UnifiedType> {
   node: Arc<NodeImpl<U>>,
 }
 impl<U: UnifiedType> Node<U> {
-  pub fn new(socket: Socket, actor_threads: usize) -> std::io::Result<Self> {
+  pub fn new_sync(config: NodeConfig) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
       .enable_time()
-      .worker_threads(actor_threads)
+      .worker_threads(config.actor_threads)
       .thread_name("tokio-thread")
-      .thread_stack_size(3 * 1024 * 1024)
+      .thread_stack_size(config.actor_thread_stack_size)
       .build()?;
+    let udp = rt.block_on(UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)))?;
+    Self::new_priv(rt, udp, config)
+  }
+
+  pub async fn new(config: NodeConfig) -> std::io::Result<Self> {
+    let rt = Builder::new_multi_thread()
+      .enable_io()
+      .enable_time()
+      .worker_threads(config.actor_threads)
+      .thread_name("tokio-thread")
+      .thread_stack_size(config.actor_thread_stack_size)
+      .build()?;
+    let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)).await?;
+    Self::new_priv(rt, udp, config)
+  }
+
+  fn new_priv(rt: Runtime, udp: UdpSocket, config: NodeConfig) -> std::io::Result<Self> {
     let (reg, reg_node_tx) =
       Self::start_codependent(&rt, Registry::new(), "registry".to_string());
     let (log, log_node_tx) = Self::start_codependent(
@@ -41,7 +78,8 @@ impl<U: UnifiedType> Node<U> {
     );
     let node = Node {
       node: Arc::new(NodeImpl {
-        socket: socket,
+        socket: config.socket,
+        udp: udp,
         registry: reg,
         logger: log,
         rt: rt,
@@ -55,6 +93,10 @@ impl<U: UnifiedType> Node<U> {
       .map_err(|_| Error::new(ErrorKind::NotFound, "Logger"))?;
     node.node.rt.spawn(udp_receiver::<U>(node.clone()));
     Ok(node)
+  }
+
+  pub(in crate::core) fn udp_socket(&self) -> &UdpSocket {
+    &self.node.udp
   }
 
   pub fn socket(&self) -> &Socket {

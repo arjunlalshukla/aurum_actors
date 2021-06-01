@@ -7,7 +7,7 @@ use crate::core::{
   ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
-use crate::{debug, info, trace, udp_select, AurumInterface};
+use crate::{debug, info, trace, warn, udp_select, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -174,12 +174,12 @@ where
   ) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(0) => {
-        info!(
+        warn!(
           LOG_LEVEL,
           ctx.node,
           format!(
             "DOWNED charge {}; after timeout: {} ms",
-            self.charge.socket.udp,
+            self.charge.socket,
             self.config.req_timeout.as_millis()
           )
         );

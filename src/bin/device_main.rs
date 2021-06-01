@@ -6,7 +6,7 @@ use aurum::cluster::devices::{
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
   udp_msg, Actor, ActorContext, ActorRef, ActorSignal, Destination, Host,
-  LocalRef, Node, Socket,
+  LocalRef, Node, NodeConfig, Socket,
 };
 use aurum::testkit::{FailureConfig, FailureConfigMap, FailureMode, LogLevel};
 use aurum::{debug, info, udp_select, unify, AurumInterface};
@@ -49,9 +49,10 @@ fn main() {
   let host = args.next().unwrap();
   let port = args.next().unwrap().parse().unwrap();
   let mode = args.next().unwrap();
-  let socket = Socket::new(Host::from(host), port, 0);
-  println!("Starting {} on {}", mode, socket);
-  let node = Node::<BenchmarkTypes>::new(socket, num_cpus::get()).unwrap();
+  let mut config = NodeConfig::default();
+  config.socket = Socket::new(Host::from(host), port, 0);
+  println!("Starting {} on {}", mode, config.socket);
+  let node = Node::<BenchmarkTypes>::new_sync(config).unwrap();
   let (tx, mut rx) = channel(1);
 
   match mode.as_str() {

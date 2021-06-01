@@ -4,7 +4,7 @@ use aurum::cluster::crdt::{
   DispersalPreference, DispersalSelector, CRDT,
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
-use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, Socket};
+use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
 use im;
@@ -158,7 +158,9 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           return;
         }
         let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
-        let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
+        let mut config = NodeConfig::default();
+        config.socket = socket.clone();
+        let node = Node::<CRDTTestType>::new(config).await.unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
         clr_cfg.seed_nodes = self
           .nodes
@@ -266,7 +268,9 @@ fn run_test(
   port: u16,
 ) {
   let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
-  let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
+  let mut config = NodeConfig::default();
+  config.socket = socket.clone();
+  let node = Node::<CRDTTestType>::new_sync(config).unwrap();
   let (tx, mut rx) = channel(1);
   let actor = Coordinator {
     clr_cfg: clr_cfg,

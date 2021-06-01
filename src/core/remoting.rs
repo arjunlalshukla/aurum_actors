@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::{cmp::PartialEq, marker::PhantomData};
 use std::{fmt, str::FromStr};
 use tokio::net::lookup_host;
@@ -58,6 +58,15 @@ impl fmt::Display for Socket {
     match &self.host {
       Host::DNS(s) => write!(f, "DNS({}):{}|{}", s, self.udp, self.tcp),
       Host::IP(ip) => write!(f, "IP({}):{}|{}", ip, self.udp, self.tcp),
+    }
+  }
+}
+impl Default for Socket {
+  fn default() -> Self {
+    Self {
+      host: Host::IP(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+      udp: 0,
+      tcp: 0,
     }
   }
 }
