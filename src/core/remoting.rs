@@ -56,8 +56,8 @@ impl Socket {
 impl fmt::Display for Socket {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match &self.host {
-      Host::DNS(s) => write!(f, "{}:{}", s, self.udp),
-      Host::IP(ip) => write!(f, "{}:{}", ip, self.udp),
+      Host::DNS(s) => write!(f, "DNS({}):{}|{}", s, self.udp, self.tcp),
+      Host::IP(ip) => write!(f, "IP({}):{}|{}", ip, self.udp, self.tcp),
     }
   }
 }

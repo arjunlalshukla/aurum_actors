@@ -49,7 +49,7 @@ fn main() {
   let host = args.next().unwrap();
   let port = args.next().unwrap().parse().unwrap();
   let mode = args.next().unwrap();
-  let socket = Socket::new(Host::from(host), port, 1001);
+  let socket = Socket::new(Host::from(host), port, 0);
   println!("Starting {} on {}", mode, socket);
   let node = Node::<BenchmarkTypes>::new(socket, num_cpus::get()).unwrap();
   let (tx, mut rx) = channel(1);
@@ -568,13 +568,7 @@ struct Collector {
   business_req_timeout: u64,
 }
 impl Collector {
-  fn ssh_cmds(
-    &self,
-    _first: bool,
-    is_svr: bool,
-    host: &String,
-    port: u16,
-  ) -> Child {
+  fn ssh_cmds(&self, is_svr: bool, host: &String, port: u16) -> Child {
     let bin = std::env::args().next().unwrap();
     let dir = std::env::current_dir()
       .unwrap()
@@ -613,15 +607,9 @@ impl Collector {
       )
       .unwrap();
     }
-    //if !first {
-      for (h, p, _) in self
-        .servers
-        .iter()
-        .filter(|(h, p, _)| h != host || *p != port)
-      {
-        write!(s, " {} {} ", h, p + 1).unwrap();
-      }
-    //}
+    for (h, p, _) in self.servers.iter(){
+      write!(s, " {} {} ", h, p + 1).unwrap();
+    }
     println!("Running command ssh {} \"{}\"", host, s);
     let mut cmd = Command::new("ssh");
     cmd.arg(host);
@@ -635,13 +623,11 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
     &mut self,
     ctx: &ActorContext<BenchmarkTypes, CollectorMsg>,
   ) {
-    let mut first = true;
     for (h, p, _) in &self.servers {
-      self.ssh_procs.push(self.ssh_cmds(first, true, h, *p));
-      first = false;
+      self.ssh_procs.push(self.ssh_cmds(true, h, *p));
     }
     for (h, p) in &self.clients {
-      self.ssh_procs.push(self.ssh_cmds(false, false, h, *p));
+      self.ssh_procs.push(self.ssh_cmds(false, h, *p));
     }
     ctx.local_interface().send(CollectorMsg::PrintTick);
     ctx.local_interface().send(CollectorMsg::ReqTick);

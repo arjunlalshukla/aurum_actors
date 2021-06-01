@@ -463,6 +463,8 @@ impl Pinging {
       }
       Ping(member) => {
         if !common.clr_config.seed_nodes.contains(&member.socket) {
+          let log = format!("Got ping from {}, ignoring", member.socket);
+          info!(LOG_LEVEL, ctx.node, log);
           return None
         }
         let log = 
