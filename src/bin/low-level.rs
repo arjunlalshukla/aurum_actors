@@ -19,9 +19,8 @@ fn main() {
   let port = args.next().unwrap().parse().unwrap();
   let socket = Socket::new(Host::from(host), port, 0);
   let mode = args.next().unwrap();
-  let host = args.next().unwrap();
-  let port = args.next().unwrap().parse().unwrap();
-  let target = Socket::new(Host::from(host), port, 0);
+  let bind = args.next().unwrap().parse().unwrap();
+  println!("Running bind = {}", bind);
   let (tx, mut rx) = channel();
 
   let rt = Builder::new_multi_thread()
@@ -34,43 +33,80 @@ fn main() {
     .unwrap();
 
   match mode.as_str() {
-    "server" => {
-      rt.spawn(recvr(tx, socket, target));
+    "pinger" => {
+      let host = args.next().unwrap();
+      let port = args.next().unwrap().parse().unwrap();
+      let target = Socket::new(Host::from(host), port, 0);
+      rt.spawn(recvr(tx, socket, Some(target), bind));
     }
-    "client" => (),
+    "ponger" => {
+      rt.spawn(recvr(tx, socket, None, bind));
+    }
     _ => panic!("invalid mode {}", mode),
   }
 
   rt.block_on(rx).unwrap();
 }
 
-async fn recvr(notify: Sender<()>, socket: Socket, target: Socket) {
+async fn recvr(
+  notify: Sender<()>, 
+  socket: Socket, 
+  target: Option<Socket>, 
+  bind: bool
+) {
   let mut reqs_recvd = 0u64;
-  let mut total = 0u128;
+  let mut secs = 0u64;
   let mut start = Instant::now();
   let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, socket.udp))
     .await
     .unwrap();
   let mut buf = [0u8; 0xffff];
-  loop {
-    let addr = socket
+  if let Some(t) = target {
+    let addr = t
       .as_udp_addr()
       .await
       .unwrap()
       .into_iter()
       .next()
       .unwrap();
-    let sender =
+    let a = to_vec(&socket).unwrap();
+    if bind {
+      let sender =
       tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
         .await
         .unwrap();
-    let a = to_vec(&true).unwrap();
-    sender.send_to(&a[..], addr).await.unwrap();
-    let bytes = udp.recv(&mut buf[..]).await.unwrap();
-    let msg: Vec<u64> = from_slice(&buf[..bytes]).unwrap();
-    for x in msg {
-      total += x as u128;
+      sender.send_to(&a[..], addr).await.unwrap();
+    } else {
+      udp.send_to(&a[..], addr).await.unwrap();
     }
+  }
+  loop {
+    let bytes = udp.recv(&mut buf[..]).await.unwrap();
+    let msg: Socket = from_slice(&buf[..bytes]).unwrap();
     reqs_recvd += 1;
+    let addr = msg
+      .as_udp_addr()
+      .await
+      .unwrap()
+      .into_iter()
+      .next()
+      .unwrap();
+    let a = to_vec(&socket).unwrap();
+    if bind {
+      let sender =
+      tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
+        .await
+        .unwrap();
+      sender.send_to(&a[..], addr).await.unwrap();
+    } else {
+      udp.send_to(&a[..], addr).await.unwrap();
+    }
+    let elapsed = start.elapsed();
+    let new_secs = elapsed.as_secs();
+    if new_secs > secs {
+      secs = new_secs;
+      println!("Elapsed: {}; Total: {}", secs, reqs_recvd);
+      reqs_recvd = 0;
+    }
   }
 }
