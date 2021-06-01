@@ -274,29 +274,29 @@ fn cluster_complete(
   port: u16,
 ) {
   let events = vec![
-    Spawn(4000, vec![]),
-    Spawn(4001, vec![4000]),
-    Spawn(4002, vec![4001]),
-    Spawn(4003, vec![4002]),
-    Spawn(4004, vec![4003]),
+    Spawn(port+1, vec![]),
+    Spawn(port+2, vec![port+1]),
+    Spawn(port+3, vec![port+2]),
+    Spawn(port+4, vec![port+3]),
+    Spawn(port+5, vec![port+4]),
     WaitForConvergence,
-    Spawn(4005, vec![4004]),
-    Spawn(4006, vec![4005]),
-    Spawn(4007, vec![4006]),
-    Spawn(4008, vec![4007]),
-    Spawn(4009, vec![4008]),
+    Spawn(port+6, vec![port+5]),
+    Spawn(port+7, vec![port+6]),
+    Spawn(port+8, vec![port+7]),
+    Spawn(port+9, vec![port+8]),
+    Spawn(port+10, vec![port+9]),
     WaitForConvergence,
-    Kill(4000),
+    Kill(port+1),
     WaitForConvergence,
-    Kill(4001),
-    Kill(4002),
-    Kill(4003),
+    Kill(port+2),
+    Kill(port+3),
+    Kill(port+4),
     WaitForConvergence,
-    Kill(4004),
-    Kill(4005),
-    Kill(4006),
-    Kill(4007),
-    Kill(4008),
+    Kill(port+5),
+    Kill(port+6),
+    Kill(port+7),
+    Kill(port+8),
+    Kill(port+9),
     WaitForConvergence,
     Done,
   ];
@@ -314,11 +314,10 @@ fn cluster_test_perfect() {
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
   let timeout = Duration::from_millis(2000);
-  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 5500);
+  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 40_000);
 }
 
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn cluster_test_with_failures() {
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
@@ -332,11 +331,9 @@ fn cluster_test_with_failures() {
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(200);
   let timeout = Duration::from_millis(10_000);
-  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 5501);
+  cluster_complete(fail_map, clr_cfg, hbr_cfg, timeout, 40_100);
 }
 
-
-#[allow(dead_code)]
 fn cluster_cyclic(
   fail_map: FailureConfigMap,
   clr_cfg: ClusterConfig,
@@ -344,38 +341,38 @@ fn cluster_cyclic(
   timeout: Duration,
   port: u16,
 ) {
+  let ports = ((port+1)..(port+10)).collect::<Vec<_>>();
   let events = vec![
-    Spawn(4000, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4001, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4002, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4003, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4004, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(port+1, ports.clone()),
+    Spawn(port+2, ports.clone()),
+    Spawn(port+3, ports.clone()),
+    Spawn(port+4, ports.clone()),
+    Spawn(port+5, ports.clone()),
     WaitForConvergence,
-    Spawn(4005, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4006, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4007, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4008, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
-    Spawn(4009, vec![4000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008, 4009]),
+    Spawn(port+6, ports.clone()),
+    Spawn(port+7, ports.clone()),
+    Spawn(port+8, ports.clone()),
+    Spawn(port+9, ports.clone()),
+    Spawn(port+10, ports.clone()),
     WaitForConvergence,
-    Kill(4000),
+    Kill(port+1),
     WaitForConvergence,
-    Kill(4001),
-    Kill(4002),
-    Kill(4003),
+    Kill(port+2),
+    Kill(port+3),
+    Kill(port+4),
     WaitForConvergence,
-    Kill(4004),
-    Kill(4005),
-    Kill(4006),
-    Kill(4007),
-    Kill(4008),
+    Kill(port+5),
+    Kill(port+6),
+    Kill(port+7),
+    Kill(port+8),
+    Kill(port+9),
     WaitForConvergence,
     Done,
   ];
   run_cluster_test(events, fail_map, clr_cfg, hbr_cfg, timeout, port);
 }
 
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn cluster_test_cyclic_perfect() {
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();
@@ -385,11 +382,10 @@ fn cluster_test_cyclic_perfect() {
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
   let timeout = Duration::from_millis(2000);
-  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 5502);
+  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 40_200);
 }
 
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn cluster_test_cyclic_failures() {
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
@@ -403,5 +399,5 @@ fn cluster_test_cyclic_failures() {
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(200);
   let timeout = Duration::from_millis(10_000);
-  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 5503);
+  cluster_cyclic(fail_map, clr_cfg, hbr_cfg, timeout, 40_300);
 }

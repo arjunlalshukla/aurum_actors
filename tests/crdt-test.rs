@@ -263,8 +263,9 @@ fn run_test(
   hbr_cfg: HBRConfig,
   fail_map: FailureConfigMap,
   preference: DispersalPreference,
+  port: u16,
 ) {
-  let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), 5500, 0);
+  let socket = Socket::new(Host::DNS("127.0.0.1".to_string()), port, 0);
   let node = Node::<CRDTTestType>::new(socket.clone(), 1).unwrap();
   let (tx, mut rx) = channel(1);
   let actor = Coordinator {
@@ -285,25 +286,25 @@ fn run_test(
     .clone()
     .unwrap();
   let events = vec![
-    Spawn(5501),
-    Spawn(5502),
-    Spawn(5503),
-    Spawn(5504),
-    Mutate(Increment { port: 5501 }),
-    Mutate(Increment { port: 5502 }),
-    Mutate(Increment { port: 5503 }),
-    Mutate(Increment { port: 5504 }),
-    Mutate(Increment { port: 5501 }),
-    Mutate(Increment { port: 5502 }),
+    Spawn(port+1),
+    Spawn(port+2),
+    Spawn(port+3),
+    Spawn(port+4),
+    Mutate(Increment { port: port+1 }),
+    Mutate(Increment { port: port+2 }),
+    Mutate(Increment { port: port+3 }),
+    Mutate(Increment { port: port+4 }),
+    Mutate(Increment { port: port+1 }),
+    Mutate(Increment { port: port+2 }),
     WaitForConvergence,
-    Spawn(5505),
-    Spawn(5506),
-    Mutate(Increment { port: 5505 }),
-    Mutate(Increment { port: 5505 }),
-    Mutate(Increment { port: 5505 }),
-    Mutate(Increment { port: 5506 }),
-    Mutate(Increment { port: 5506 }),
-    Mutate(Increment { port: 5506 }),
+    Spawn(port+5),
+    Spawn(port+6),
+    Mutate(Increment { port: port+5 }),
+    Mutate(Increment { port: port+5 }),
+    Mutate(Increment { port: port+5 }),
+    Mutate(Increment { port: port+6 }),
+    Mutate(Increment { port: port+6 }),
+    Mutate(Increment { port: port+6 }),
     Done,
   ];
   for e in events {
@@ -318,8 +319,7 @@ fn run_test(
   });
 }
 
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn crdt_test_out_of_date() {
   let mut clr = ClusterConfig::default();
   clr.ping_timeout = Duration::from_millis(200);
@@ -332,7 +332,7 @@ fn crdt_test_out_of_date() {
     Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut preference = DispersalPreference::default();
   preference.timeout = Duration::from_millis(200);
-  run_test(clr, hbr, fail_map, preference);
+  run_test(clr, hbr, fail_map, preference, 41_000);
 }
 
 #[test]
@@ -349,5 +349,5 @@ fn crdt_test_all() {
   let mut preference = DispersalPreference::default();
   preference.selector = DispersalSelector::All;
   preference.timeout = Duration::from_millis(200);
-  run_test(clr, hbr, fail_map, preference);
+  run_test(clr, hbr, fail_map, preference, 41_100);
 }
