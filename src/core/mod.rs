@@ -38,15 +38,13 @@ pub(crate) use {
 
 // Needed for macros
 #[rustfmt::skip]
+#[doc(hidden)]
 pub use {
   actor::LocalActorMsg,
   registry::RegistryMsg,
   packets::deserialize_msg,
   packets::DeserializeError, 
   packets::Interpretations,
-  unify::Case, 
-  unify::SpecificInterface, 
-  unify::UnifiedType,
 };
 
 // Actual public interface
@@ -66,4 +64,7 @@ pub use {
   remoting::udp_msg,
   remoting::udp_signal,
   node::Node,
+  unify::Case, 
+  unify::SpecificInterface, 
+  unify::UnifiedType,
 };

@@ -309,7 +309,7 @@ fn cluster_test_perfect() {
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(50);
-  clr_cfg.vnodes = 3;
+  clr_cfg.vnodes = 1;
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
@@ -324,7 +324,7 @@ fn cluster_test_with_failures() {
   fail_map.cluster_wide.delay =
     Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
-  clr_cfg.vnodes = 100;
+  clr_cfg.vnodes = 1;
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(200);
   let mut hbr_cfg = HBRConfig::default();
@@ -377,7 +377,7 @@ fn cluster_test_cyclic_perfect() {
   let fail_map = FailureConfigMap::default();
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.ping_timeout = Duration::from_millis(50);
-  clr_cfg.vnodes = 3;
+  clr_cfg.vnodes = 1;
   let mut hbr_cfg = HBRConfig::default();
   hbr_cfg.req_tries = 1;
   hbr_cfg.req_timeout = Duration::from_millis(50);
@@ -392,7 +392,7 @@ fn cluster_test_cyclic_failures() {
   fail_map.cluster_wide.delay =
     Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
-  clr_cfg.vnodes = 100;
+  clr_cfg.vnodes = 1;
   clr_cfg.num_pings = 20;
   clr_cfg.ping_timeout = Duration::from_millis(200);
   let mut hbr_cfg = HBRConfig::default();

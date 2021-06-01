@@ -24,9 +24,6 @@ pub(crate) use {
 pub use {
   cluster::Cluster,
   cluster::ClusterCmd,
-  cluster::ClusterMsg,
-  cluster::IntraClusterMsg,
-  heartbeat_receiver::HeartbeatReceiverMsg,
   node_ring::NodeRing,
   utils::ClusterConfig,
   utils::ClusterEvent,
@@ -34,4 +31,12 @@ pub use {
   utils::ClusterUpdate,
   utils::HBRConfig,
   utils::Member,
+};
+
+#[rustfmt::skip]
+#[doc(hidden)]
+pub use {
+  cluster::ClusterMsg,
+  cluster::IntraClusterMsg,
+  heartbeat_receiver::HeartbeatReceiverMsg,
 };
