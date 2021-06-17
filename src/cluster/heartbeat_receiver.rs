@@ -1,11 +1,9 @@
 use crate as aurum;
 use crate::cluster::{
-  ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState,
-  FAILURE_MODE, LOG_LEVEL,
+  ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState, FAILURE_MODE,
+  LOG_LEVEL,
 };
-use crate::core::{
-  ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType,
-};
+use crate::core::{ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, warn, AurumInterface};
 use async_trait::async_trait;
@@ -69,13 +67,7 @@ impl<U: UnifiedType> HeartbeatReceiver<U> {
   async fn send_req(&self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) {
     ctx
       .node
-      .udp_select(
-        &self.charge.socket,
-        &self.clr_dest,
-        &self.req,
-        FAILURE_MODE,
-        &self.fail_map,
-      )
+      .udp_select(&self.charge.socket, &self.clr_dest, &self.req, FAILURE_MODE, &self.fail_map)
       .await;
   }
 }
@@ -84,17 +76,11 @@ impl<U> TimeoutActor<U, HeartbeatReceiverMsg> for HeartbeatReceiver<U>
 where
   U: UnifiedType,
 {
-  async fn pre_start(
-    &mut self,
-    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
-  ) -> Option<Duration> {
+  async fn pre_start(&mut self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) -> Option<Duration> {
     debug!(
       LOG_LEVEL,
       ctx.node,
-      format!(
-        "killed HBR for {}-{}",
-        self.charge.socket.udp, self.charge.id
-      )
+      format!("killed HBR for {}-{}", self.charge.socket.udp, self.charge.id)
     );
     self.send_req(ctx).await;
     None
@@ -117,12 +103,7 @@ where
               dur.as_millis()
             )
           );
-          let is = IntervalStorage::new(
-            self.config.capacity,
-            dur * 2,
-            self.config.times,
-            None,
-          );
+          let is = IntervalStorage::new(self.config.capacity, dur * 2, self.config.times, None);
           let new_dur = Some(is.duration_phi(self.config.phi));
           let new_state = Some(HBRState::Receiving(is, cnt));
           (new_dur, new_state)
@@ -140,12 +121,8 @@ where
                 new_dur.as_millis()
               )
             );
-            *storage = IntervalStorage::new(
-              self.config.capacity,
-              new_dur * 2,
-              self.config.times,
-              None,
-            );
+            *storage =
+              IntervalStorage::new(self.config.capacity, new_dur * 2, self.config.times, None);
           } else {
             storage.push();
           }
@@ -170,10 +147,7 @@ where
     state.0
   }
 
-  async fn timeout(
-    &mut self,
-    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
-  ) -> Option<Duration> {
+  async fn timeout(&mut self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) -> Option<Duration> {
     let state = match &mut self.state {
       HBRState::Initial(0) => {
         warn!(
@@ -185,13 +159,8 @@ where
             self.config.req_timeout.as_millis()
           )
         );
-        self
-          .supervisor
-          .send(ClusterMsg::Downed(self.charge.clone()));
-        (
-          Some(Duration::from_secs(u32::MAX as u64)),
-          Some(HBRState::Downed),
-        )
+        self.supervisor.send(ClusterMsg::Downed(self.charge.clone()));
+        (Some(Duration::from_secs(u32::MAX as u64)), Some(HBRState::Downed))
       }
       HBRState::Receiving(storage, _) => {
         debug!(
@@ -205,10 +174,7 @@ where
             storage.mean()
           )
         );
-        (
-          Some(self.config.req_timeout),
-          Some(HBRState::Initial(self.config.req_tries)),
-        )
+        (Some(self.config.req_timeout), Some(HBRState::Initial(self.config.req_tries)))
       }
       HBRState::Initial(ref mut reqs_left) => {
         *reqs_left -= 1;
@@ -221,17 +187,11 @@ where
     state.0
   }
 
-  async fn post_stop(
-    &mut self,
-    ctx: &ActorContext<U, HeartbeatReceiverMsg>,
-  ) -> Option<Duration> {
+  async fn post_stop(&mut self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) -> Option<Duration> {
     debug!(
       LOG_LEVEL,
       ctx.node,
-      format!(
-        "killed HBR for {}-{}",
-        self.charge.socket.udp, self.charge.id
-      )
+      format!("killed HBR for {}-{}", self.charge.socket.udp, self.charge.id)
     );
     None
   }

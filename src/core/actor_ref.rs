@@ -1,6 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node,
-  Socket, SpecificInterface, UnifiedType,
+  local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node, Socket,
+  SpecificInterface, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -34,9 +34,7 @@ impl<T: Send + 'static> LocalRef<T> {
   {
     let func = self.func.clone();
     LocalRef {
-      func: Arc::new(move |x: LocalActorMsg<I>| {
-        func(local_actor_msg_convert(x))
-      }),
+      func: Arc::new(move |x: LocalActorMsg<I>| func(local_actor_msg_convert(x))),
     }
   }
 
@@ -48,9 +46,7 @@ impl<T: Send + 'static> LocalRef<T> {
 
   pub fn panic() -> LocalRef<T> {
     LocalRef {
-      func: Arc::new(|_| {
-        panic!("LocalRef<{}> is a panic", std::any::type_name::<T>())
-      }),
+      func: Arc::new(|_| panic!("LocalRef<{}> is a panic", std::any::type_name::<T>())),
     }
   }
 }

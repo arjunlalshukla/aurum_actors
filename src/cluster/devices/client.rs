@@ -1,11 +1,8 @@
 use crate::cluster::devices::{
-  Device, DeviceInterval, DeviceServerMsg, DeviceServerRemoteMsg,
-  HBReqSenderRemoteMsg, LOG_LEVEL,
+  Device, DeviceInterval, DeviceServerMsg, DeviceServerRemoteMsg, HBReqSenderRemoteMsg, LOG_LEVEL,
 };
 use crate::cluster::{IntervalStorage, FAILURE_MODE};
-use crate::core::{
-  Actor, ActorContext, ActorRef, LocalRef, Node, Socket, UnifiedType,
-};
+use crate::core::{Actor, ActorContext, ActorRef, LocalRef, Node, Socket, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{self as aurum, core::Destination};
 use crate::{info, trace, AurumInterface};
@@ -44,12 +41,7 @@ impl Default for DeviceClientConfig {
 }
 impl DeviceClientConfig {
   fn new_storage(&self, init: Duration) -> IntervalStorage {
-    IntervalStorage::new(
-      self.storage_capacity as usize,
-      init * 2,
-      self.times as usize,
-      None,
-    )
+    IntervalStorage::new(self.storage_capacity as usize, init * 2, self.times as usize, None)
   }
 }
 
@@ -117,12 +109,7 @@ impl<U: UnifiedType> DeviceClient<U> {
       fail_map: fail_map,
       subscribers: subscribers,
     };
-    node
-      .spawn(false, actor, name, true)
-      .local()
-      .clone()
-      .unwrap()
-      .transform()
+    node.spawn(false, actor, name, true).local().clone().unwrap().transform()
   }
 
   async fn notify_server(&self, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
@@ -134,10 +121,7 @@ impl<U: UnifiedType> DeviceClient<U> {
           &ctx.node,
           format!("On server: SETTING {} to {:?}", svr.udp, self.interval)
         );
-        ctx
-          .node
-          .udp_select(svr, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map)
-          .await;
+        ctx.node.udp_select(svr, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map).await;
       }
       None => {
         trace!(
@@ -150,26 +134,13 @@ impl<U: UnifiedType> DeviceClient<U> {
           )
         );
         for seed in self.config.seeds.iter() {
-          ctx
-            .node
-            .udp_select(
-              seed,
-              &self.svr_dest,
-              &msg,
-              FAILURE_MODE,
-              &self.fail_map,
-            )
-            .await;
+          ctx.node.udp_select(seed, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map).await;
         }
       }
     }
   }
 
-  async fn new_interval(
-    &mut self,
-    dur: Duration,
-    ctx: &ActorContext<U, DeviceClientMsg<U>>,
-  ) {
+  async fn new_interval(&mut self, dur: Duration, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
     self.interval.clock += 1;
     self.interval.interval = dur;
     self.notify_server(ctx).await;
@@ -184,36 +155,20 @@ impl<U: UnifiedType> DeviceClient<U> {
 impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
   async fn pre_start(&mut self, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
     self.notify_server(ctx).await;
-    ctx.node.schedule_local_msg(
-      self.interval.interval,
-      ctx.local_interface(),
-      Tick,
-    );
+    ctx.node.schedule_local_msg(self.interval.interval, ctx.local_interface(), Tick);
   }
 
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<U, DeviceClientMsg<U>>,
-    msg: DeviceClientMsg<U>,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<U, DeviceClientMsg<U>>, msg: DeviceClientMsg<U>) {
     match msg {
       Tick => {
         let phi = self.storage.phi();
-        trace!(
-          LOG_LEVEL,
-          &ctx.node,
-          format!("Received tick; {:?}", self.storage)
-        );
+        trace!(LOG_LEVEL, &ctx.node, format!("Received tick; {:?}", self.storage));
         if phi > self.config.phi {
           info!(LOG_LEVEL, &ctx.node, "Assuming the server is down");
           self.set_server(None);
           self.notify_server(ctx).await;
         }
-        ctx.node.schedule_local_msg(
-          self.interval.interval,
-          ctx.local_interface(),
-          Tick,
-        );
+        ctx.node.schedule_local_msg(self.interval.interval, ctx.local_interface(), Tick);
       }
       Remote(HeartbeatRequest(sender)) => {
         trace!(
@@ -221,12 +176,7 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           &ctx.node,
           format!("Heartbeat request from {} received:", sender.socket.udp)
         );
-        if self
-          .server
-          .as_ref()
-          .filter(|x| *x == &sender.socket)
-          .is_none()
-        {
+        if self.server.as_ref().filter(|x| *x == &sender.socket).is_none() {
           self.storage = self.config.new_storage(self.interval.interval);
           self.set_server(Some(sender.socket.clone()));
           self.config.seeds.insert(sender.socket.clone());
@@ -235,38 +185,19 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         }
         ctx
           .node
-          .udp_select(
-            &sender.socket,
-            &sender.dest,
-            &Heartbeat,
-            FAILURE_MODE,
-            &self.fail_map,
-          )
+          .udp_select(&sender.socket, &sender.dest, &Heartbeat, FAILURE_MODE, &self.fail_map)
           .await;
         self.server_log.push(sender);
-        if self.server_log.changes + 1
-          != self.server_log.frequencies.len() as u32
-        {
+        if self.server_log.changes + 1 != self.server_log.frequencies.len() as u32 {
           let log = format!(
             "Multiple senders detected: {:?}",
-            self
-              .server_log
-              .frequencies
-              .keys()
-              .map(|x| x.socket.to_string())
-              .collect_vec()
+            self.server_log.frequencies.keys().map(|x| x.socket.to_string()).collect_vec()
           );
           info!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {
             ctx
               .node
-              .udp_select(
-                &svr.socket,
-                &svr.dest,
-                &MultipleSenders,
-                FAILURE_MODE,
-                &self.fail_map,
-              )
+              .udp_select(&svr.socket, &svr.dest, &MultipleSenders, FAILURE_MODE, &self.fail_map)
               .await;
           }
         }

@@ -8,9 +8,7 @@ use std::{cmp::PartialEq, marker::PhantomData};
 use std::{fmt, str::FromStr};
 use tokio::net::lookup_host;
 
-#[derive(
-  Clone, Debug, Deserialize, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize,
-)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize)]
 pub enum Host {
   DNS(String),
   IP(IpAddr),
@@ -24,9 +22,7 @@ impl From<String> for Host {
   }
 }
 
-#[derive(
-  Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Ord, PartialOrd,
-)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Ord, PartialOrd)]
 pub struct Socket {
   pub host: Host,
   pub udp: u16,
@@ -44,9 +40,9 @@ impl Socket {
   pub async fn as_udp_addr(&self) -> std::io::Result<Vec<SocketAddr>> {
     match &self.host {
       Host::IP(ip) => Ok(vec![SocketAddr::new(*ip, self.udp)]),
-      Host::DNS(s) => lookup_host((s.as_str(), self.udp))
-        .await
-        .map(|x| x.filter(|a| a.is_ipv4()).collect()),
+      Host::DNS(s) => {
+        lookup_host((s.as_str(), self.udp)).await.map(|x| x.filter(|a| a.is_ipv4()).collect())
+      }
     }
   }
 }
@@ -106,11 +102,7 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
   }
 
   pub fn valid(&self) -> bool {
-    self
-      .untyped
-      .name
-      .recv_type
-      .has_interface(<U as Case<I>>::VARIANT)
+    self.untyped.name.recv_type.has_interface(<U as Case<I>>::VARIANT)
   }
 }
 impl<U: UnifiedType + Case<I>, I> Clone for Destination<U, I> {

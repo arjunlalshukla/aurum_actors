@@ -17,12 +17,7 @@ pub struct IntervalStorage {
   latest: Instant,
 }
 impl IntervalStorage {
-  pub fn new(
-    cap: usize,
-    init: Duration,
-    times: usize,
-    start: Option<Instant>,
-  ) -> IntervalStorage {
+  pub fn new(cap: usize, init: Duration, times: usize, start: Option<Instant>) -> IntervalStorage {
     let intervals = repeat(dur2u64(&init))
       .take(times)
       .interleave(repeat(0).take(times))
@@ -103,17 +98,9 @@ fn dur2u64(dur: &Duration) -> u64 {
 #[test]
 fn test_interval_storage() {
   let mut start = Instant::now();
-  let mut test = IntervalStorage::new(
-    10,
-    Duration::from_millis(10000),
-    2,
-    Some(start.clone()),
-  );
+  let mut test = IntervalStorage::new(10, Duration::from_millis(10000), 2, Some(start.clone()));
   println!("intervals: {:?}", test.intervals);
-  let insertions = (4500..=5500)
-    .step_by(100)
-    .map(Duration::from_millis)
-    .collect::<Vec<_>>();
+  let insertions = (4500..=5500).step_by(100).map(Duration::from_millis).collect::<Vec<_>>();
   for dur in &insertions[..5] {
     start = start.add(*dur);
     test.push_instant(start.clone());
@@ -125,11 +112,7 @@ fn test_interval_storage() {
   }
   println!("intervals: {:?}", test.intervals);
   for millis in (4000..=6000).step_by(100) {
-    println!(
-      "phi({}) = {}",
-      millis,
-      test.phi_duration(Duration::from_millis(millis))
-    );
+    println!("phi({}) = {}", millis, test.phi_duration(Duration::from_millis(millis)));
   }
   let millis = 5150;
   let phi = test.phi_duration(Duration::from_millis(millis));

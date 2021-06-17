@@ -48,27 +48,18 @@ fn main() {
   rt.block_on(rx).unwrap();
 }
 
-async fn recvr(
-  notify: Sender<()>,
-  socket: Socket,
-  target: Option<Socket>,
-  bind: bool,
-) {
+async fn recvr(notify: Sender<()>, socket: Socket, target: Option<Socket>, bind: bool) {
   let mut reqs_recvd = 0u64;
   let mut secs = 0u64;
   let mut start = Instant::now();
-  let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, socket.udp))
-    .await
-    .unwrap();
+  let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, socket.udp)).await.unwrap();
   let mut buf = [0u8; 0xffff];
   if let Some(t) = target {
     let addr = t.as_udp_addr().await.unwrap().into_iter().next().unwrap();
     let a = to_vec(&socket).unwrap();
     if bind {
       let sender =
-        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-          .await
-          .unwrap();
+        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await.unwrap();
       sender.send_to(&a[..], addr).await.unwrap();
     } else {
       udp.send_to(&a[..], addr).await.unwrap();
@@ -82,9 +73,7 @@ async fn recvr(
     let a = to_vec(&socket).unwrap();
     if bind {
       let sender =
-        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0))
-          .await
-          .unwrap();
+        tokio::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await.unwrap();
       sender.send_to(&a[..], addr).await.unwrap();
     } else {
       udp.send_to(&a[..], addr).await.unwrap();

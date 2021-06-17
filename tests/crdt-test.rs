@@ -1,12 +1,10 @@
 use async_trait::async_trait;
 use aurum::cluster::crdt::{
-  CausalCmd, CausalDisperse, CausalIntraMsg, CausalMsg, DeltaMutator,
-  DispersalPreference, DispersalSelector, CRDT,
+  CausalCmd, CausalDisperse, CausalIntraMsg, CausalMsg, DeltaMutator, DispersalPreference,
+  DispersalSelector, CRDT,
 };
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
-use aurum::core::{
-  Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket,
-};
+use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket};
 use aurum::testkit::FailureConfigMap;
 use aurum::{unify, AurumInterface};
 use im;
@@ -102,11 +100,7 @@ impl Coordinator {
 }
 #[async_trait]
 impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<CRDTTestType, CoordinatorMsg>,
-    msg: CoordinatorMsg,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<CRDTTestType, CoordinatorMsg>, msg: CoordinatorMsg) {
     match msg {
       Data(port, data) => {
         if self.waiting && data == self.convergence {
@@ -147,12 +141,7 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           self.convergence = self.convergence.clone().join(d);
           self.converged = HashSet::new();
         }
-        self
-          .nodes
-          .get(&mutator.port)
-          .unwrap()
-          .recvr
-          .send(DataReceiverMsg::Mutate(mutator));
+        self.nodes.get(&mutator.port).unwrap().recvr.send(DataReceiverMsg::Mutate(mutator));
       }
       Spawn(port) => {
         if self.waiting {
@@ -190,11 +179,7 @@ impl Actor<CRDTTestType, CoordinatorMsg> for Coordinator {
           coor: ctx.local_interface(),
           data: counter.clone(),
         };
-        let recvr = node
-          .spawn(false, recvr, "".to_string(), false)
-          .local()
-          .clone()
-          .unwrap();
+        let recvr = node.spawn(false, recvr, "".to_string(), false).local().clone().unwrap();
         counter.send(CausalCmd::Subscribe(recvr.transform()));
         let entry = TestNode {
           recvr: recvr,
@@ -286,43 +271,58 @@ fn run_test(
     waiting: false,
     notification: tx,
   };
-  let coor = node
-    .spawn(false, actor, "".to_string(), false)
-    .local()
-    .clone()
-    .unwrap();
+  let coor = node.spawn(false, actor, "".to_string(), false).local().clone().unwrap();
   let events = vec![
     Spawn(port + 1),
     Spawn(port + 2),
     Spawn(port + 3),
     Spawn(port + 4),
-    Mutate(Increment { port: port + 1 }),
-    Mutate(Increment { port: port + 2 }),
-    Mutate(Increment { port: port + 3 }),
-    Mutate(Increment { port: port + 4 }),
-    Mutate(Increment { port: port + 1 }),
-    Mutate(Increment { port: port + 2 }),
+    Mutate(Increment {
+      port: port + 1,
+    }),
+    Mutate(Increment {
+      port: port + 2,
+    }),
+    Mutate(Increment {
+      port: port + 3,
+    }),
+    Mutate(Increment {
+      port: port + 4,
+    }),
+    Mutate(Increment {
+      port: port + 1,
+    }),
+    Mutate(Increment {
+      port: port + 2,
+    }),
     WaitForConvergence,
     Spawn(port + 5),
     Spawn(port + 6),
-    Mutate(Increment { port: port + 5 }),
-    Mutate(Increment { port: port + 5 }),
-    Mutate(Increment { port: port + 5 }),
-    Mutate(Increment { port: port + 6 }),
-    Mutate(Increment { port: port + 6 }),
-    Mutate(Increment { port: port + 6 }),
+    Mutate(Increment {
+      port: port + 5,
+    }),
+    Mutate(Increment {
+      port: port + 5,
+    }),
+    Mutate(Increment {
+      port: port + 5,
+    }),
+    Mutate(Increment {
+      port: port + 6,
+    }),
+    Mutate(Increment {
+      port: port + 6,
+    }),
+    Mutate(Increment {
+      port: port + 6,
+    }),
     Done,
   ];
   for e in events {
     coor.send(e);
   }
   let timeout = Duration::from_millis(10_000);
-  node.rt().block_on(async {
-    tokio::time::timeout(timeout, rx.recv())
-      .await
-      .unwrap()
-      .unwrap()
-  });
+  node.rt().block_on(async { tokio::time::timeout(timeout, rx.recv()).await.unwrap().unwrap() });
 }
 
 #[test]
@@ -334,8 +334,7 @@ fn crdt_test_out_of_date() {
   let hbr = HBRConfig::default();
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.delay = Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut preference = DispersalPreference::default();
   preference.timeout = Duration::from_millis(200);
   run_test(clr, hbr, fail_map, preference, 41_000);
@@ -350,8 +349,7 @@ fn crdt_test_all() {
   let hbr = HBRConfig::default();
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.delay = Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut preference = DispersalPreference::default();
   preference.selector = DispersalSelector::All;
   preference.timeout = Duration::from_millis(200);

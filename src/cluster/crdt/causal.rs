@@ -1,11 +1,7 @@
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
-use crate::cluster::{
-  ClusterCmd, ClusterEvent, ClusterUpdate, Member, FAILURE_MODE,
-};
-use crate::core::{
-  Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType,
-};
+use crate::cluster::{ClusterCmd, ClusterEvent, ClusterUpdate, Member, FAILURE_MODE};
+use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, AurumInterface};
 use async_trait::async_trait;
@@ -38,7 +34,10 @@ pub enum CausalMsg<S: CRDT> {
 #[serde(bound = "S: CRDT")]
 pub enum CausalIntraMsg<S: CRDT> {
   Delta(S, u64, u64),
-  Ack { id: u64, clock: u64 },
+  Ack {
+    id: u64,
+    clock: u64,
+  },
 }
 
 pub enum CausalCmd<S: CRDT> {
@@ -92,16 +91,8 @@ where
   U: UnifiedType + Case<CausalMsg<S>> + Case<CausalIntraMsg<S>>,
   S: CRDT,
 {
-  async fn disperse(
-    &mut self,
-    common: &Common<S, U>,
-    ctx: &ActorContext<U, CausalMsg<S>>,
-  ) {
-    trace!(
-      LOG_LEVEL,
-      &ctx.node,
-      format!("CLOCK: {} ORD_ACKS: {:?}", self.clock, self.ord_acks)
-    );
+  async fn disperse(&mut self, common: &Common<S, U>, ctx: &ActorContext<U, CausalMsg<S>>) {
+    trace!(LOG_LEVEL, &ctx.node, format!("CLOCK: {} ORD_ACKS: {:?}", self.clock, self.ord_acks));
     let to_send = self.ord_acks.iter().map(|(_, i)| self.acks.get(i).unwrap());
     let to_send = match common.preference.selector {
       DispersalSelector::OutOfDate => to_send
@@ -112,8 +103,7 @@ where
     };
     let delta = self.deltas.clone().into_iter().fold(S::minimum(), S::join);
     let delta_msg = CausalIntraMsg::Delta(delta, self.member.id, self.clock);
-    let full_msg =
-      CausalIntraMsg::Delta(self.data.clone(), self.member.id, self.clock);
+    let full_msg = CausalIntraMsg::Delta(self.data.clone(), self.member.id, self.clock);
     let members = common
       .preference
       .priority
@@ -132,13 +122,7 @@ where
       };
       ctx
         .node
-        .udp_select(
-          &member.socket,
-          &common.dest,
-          &msg,
-          FAILURE_MODE,
-          &common.fail_map,
-        )
+        .udp_select(&member.socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map)
         .await;
     }
     ctx.node.schedule_local_msg(
@@ -156,10 +140,7 @@ where
     debug!(
       LOG_LEVEL,
       &ctx.node,
-      format!(
-        "CLOCK: {} - ACK({}) from {}",
-        self.clock, clock, member.socket.udp
-      )
+      format!("CLOCK: {} - ACK({}) from {}", self.clock, clock, member.socket.udp)
     );
     assert!(self.ord_acks.remove(&(*cnt, id)));
     *cnt = clock;
@@ -200,10 +181,7 @@ where
         id: self.member.id,
         clock: clock,
       };
-      ctx
-        .node
-        .udp_select(socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map)
-        .await;
+      ctx.node.udp_select(socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map).await;
       let new_state = self.data.clone().join(delta.clone());
       if new_state != self.data {
         self.data = new_state;
@@ -235,8 +213,7 @@ where
           if m.id != self.member.id {
             let cnt = self.acks.remove(&m.id).unwrap().1;
             assert!(self.ord_acks.remove(&(cnt, m.id)));
-            self.min_ord =
-              self.ord_acks.iter().next().map(|(c, _)| *c).unwrap_or(0);
+            self.min_ord = self.ord_acks.iter().next().map(|(c, _)| *c).unwrap_or(0);
             disperse = true;
           }
         }
@@ -257,9 +234,7 @@ where
   }
 
   fn publish(&self, common: &mut Common<S, U>) {
-    common
-      .subscribers
-      .retain(|subr| subr.send(self.data.clone()));
+    common.subscribers.retain(|subr| subr.send(self.data.clone()));
   }
 }
 
@@ -346,14 +321,11 @@ where
         preference: preference,
         cluster_ref: cluster_ref,
       },
-      state: State::Waiting(Waiting { ops_queue: vec![] }),
+      state: State::Waiting(Waiting {
+        ops_queue: vec![],
+      }),
     };
-    node
-      .spawn(false, actor, name, true)
-      .local()
-      .clone()
-      .unwrap()
-      .transform()
+    node.spawn(false, actor, name, true).local().clone().unwrap().transform()
   }
 }
 #[async_trait]
@@ -363,17 +335,10 @@ where
   S: CRDT,
 {
   async fn pre_start(&mut self, ctx: &ActorContext<U, CausalMsg<S>>) {
-    self
-      .common
-      .cluster_ref
-      .send(ClusterCmd::Subscribe(ctx.local_interface()));
+    self.common.cluster_ref.send(ClusterCmd::Subscribe(ctx.local_interface()));
   }
 
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<U, CausalMsg<S>>,
-    msg: CausalMsg<S>,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<U, CausalMsg<S>>, msg: CausalMsg<S>) {
     match msg {
       CausalMsg::Cmd(cmd) => match cmd {
         CausalCmd::Mutate(op) => match &mut self.state {
@@ -393,7 +358,10 @@ where
       CausalMsg::Intra(intra) => {
         if let State::InCluster(ic) = &mut self.state {
           match intra {
-            CausalIntraMsg::Ack { id, clock } => ic.ack(ctx, id, clock),
+            CausalIntraMsg::Ack {
+              id,
+              clock,
+            } => ic.ack(ctx, id, clock),
             CausalIntraMsg::Delta(delta, id, clock) => {
               ic.delta(&mut self.common, ctx, delta, id, clock).await
             }

@@ -21,34 +21,32 @@ impl Gossip {
     let mut right = right_iter.next();
     loop {
       match (left, right) {
-        (Some((l_mem, l_state)), Some((r_mem, r_state))) => {
-          match l_mem.cmp(&r_mem) {
-            Equal => {
-              if let Less = l_state.cmp(&r_state) {
-                let event = match &r_state {
-                  Up => ClusterEvent::Added(r_mem.clone()),
-                  Down => ClusterEvent::Removed(r_mem.clone()),
-                };
-                changes.push((r_mem.clone(), r_state));
-                events.push(event);
-              }
-              left = left_iter.next();
-              right = right_iter.next();
-            }
-            Greater => {
-              if let Up = &r_state {
-                events.push(ClusterEvent::Added(r_mem.clone()));
+        (Some((l_mem, l_state)), Some((r_mem, r_state))) => match l_mem.cmp(&r_mem) {
+          Equal => {
+            if let Less = l_state.cmp(&r_state) {
+              let event = match &r_state {
+                Up => ClusterEvent::Added(r_mem.clone()),
+                Down => ClusterEvent::Removed(r_mem.clone()),
               };
               changes.push((r_mem.clone(), r_state));
-              left = Some((l_mem, l_state));
-              right = right_iter.next();
+              events.push(event);
             }
-            Less => {
-              left = left_iter.next();
-              right = Some((r_mem, r_state));
-            }
+            left = left_iter.next();
+            right = right_iter.next();
           }
-        }
+          Greater => {
+            if let Up = &r_state {
+              events.push(ClusterEvent::Added(r_mem.clone()));
+            };
+            changes.push((r_mem.clone(), r_state));
+            left = Some((l_mem, l_state));
+            right = right_iter.next();
+          }
+          Less => {
+            left = left_iter.next();
+            right = Some((r_mem, r_state));
+          }
+        },
         (None, Some((r_mem, r_state))) => {
           if let Up = &r_state {
             events.push(ClusterEvent::Added(r_mem.clone()));
@@ -67,18 +65,7 @@ impl Gossip {
   }
 }
 
-#[derive(
-  Serialize,
-  Deserialize,
-  Hash,
-  PartialEq,
-  Eq,
-  Ord,
-  PartialOrd,
-  Clone,
-  Copy,
-  Debug,
-)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Ord, PartialOrd, Clone, Copy, Debug)]
 pub enum MachineState {
   Up,
   Down,

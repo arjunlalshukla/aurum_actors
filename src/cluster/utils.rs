@@ -56,9 +56,7 @@ impl Default for HBRConfig {
   }
 }
 
-#[derive(
-  AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
-)]
+#[derive(AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
 pub enum ClusterEventSimple {
   Alone,
   Joined,
@@ -78,9 +76,7 @@ impl From<ClusterEvent> for ClusterEventSimple {
   }
 }
 
-#[derive(
-  AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug,
-)]
+#[derive(AurumInterface, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
 pub enum ClusterEvent {
   Alone(Arc<Member>),
   Joined(Arc<Member>),
@@ -122,11 +118,7 @@ impl PartialEq for Member {
 impl Default for Member {
   fn default() -> Self {
     Member {
-      socket: Socket::new(
-        Host::IP(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
-        0,
-        0,
-      ),
+      socket: Socket::new(Host::IP(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))), 0, 0),
       id: 0,
       vnodes: 0,
     }

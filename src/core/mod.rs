@@ -10,18 +10,13 @@ mod packets;
 mod registry;
 mod remoting;
 mod udp_receiver;
+mod udp_serial;
 mod unify;
 
 pub const LOG_LEVEL: LogLevel = LogLevel::Error;
 
 #[rustfmt::skip]
-#[cfg(test)]
-pub(crate) use {
-  packets::serialize,
-};
-
-#[rustfmt::skip]
-pub(crate) use {
+pub(in crate::core) use {
   actor::local_actor_msg_convert, 
   actor::ActorMsg,
   actor_tasks_unit::unit_secondary, 
@@ -30,6 +25,7 @@ pub(crate) use {
   packets::MessageBuilder, 
   packets::MessagePackets,
   packets::deserialize,
+  packets::serialize,
   registry::Registry, 
   registry::SerializedRecvr,
   remoting::DestinationUntyped,

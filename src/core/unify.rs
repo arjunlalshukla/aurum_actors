@@ -1,12 +1,10 @@
 use crate::cluster::crdt::{CausalIntraMsg, CausalMsg};
 use crate::cluster::devices::{
-  DeviceClientMsg, DeviceClientRemoteMsg, DeviceServerMsg,
-  DeviceServerRemoteMsg, Devices, HBReqSenderMsg, HBReqSenderRemoteMsg,
+  DeviceClientMsg, DeviceClientRemoteMsg, DeviceServerMsg, DeviceServerRemoteMsg, Devices,
+  HBReqSenderMsg, HBReqSenderRemoteMsg,
 };
 use crate::cluster::{ClusterMsg, HeartbeatReceiverMsg, IntraClusterMsg};
-use crate::core::{
-  DeserializeError, Interpretations, LocalActorMsg, RegistryMsg,
-};
+use crate::core::{DeserializeError, Interpretations, LocalActorMsg, RegistryMsg};
 use crate::testkit::LoggerMsg;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

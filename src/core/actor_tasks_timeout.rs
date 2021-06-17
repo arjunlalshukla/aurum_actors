@@ -1,6 +1,6 @@
 use crate::core::{
-  ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
-  SpecificInterface, TimeoutActor, UnifiedType,
+  ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, SpecificInterface,
+  TimeoutActor, UnifiedType,
 };
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -19,13 +19,8 @@ pub(crate) async fn run_single_timeout<U, S, A>(
 {
   if register {
     let (tx, rx) = channel::<()>();
-    ctx.node.registry(RegistryMsg::Register(
-      ctx.name.clone(),
-      ctx.ser_recvr(),
-      tx,
-    ));
-    rx.await
-      .expect(format!("Could not register {:?}", ctx.name).as_str());
+    ctx.node.registry(RegistryMsg::Register(ctx.name.clone(), ctx.ser_recvr(), tx));
+    rx.await.expect(format!("Could not register {:?}", ctx.name).as_str());
   }
   timeout = actor.pre_start(&ctx).await.unwrap_or(timeout);
   loop {

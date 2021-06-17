@@ -1,6 +1,6 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg,
-  SpecificInterface, UnifiedType,
+  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, SpecificInterface,
+  UnifiedType,
 };
 use std::collections::VecDeque;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
@@ -18,26 +18,19 @@ pub(crate) async fn unit_single<U, S, A>(
 {
   if register {
     let (tx, rx) = channel::<()>();
-    ctx.node.registry(RegistryMsg::Register(
-      ctx.name.clone(),
-      ctx.ser_recvr(),
-      tx,
-    ));
-    rx.await
-      .expect(format!("Could not register {:?}", ctx.name).as_str());
+    ctx.node.registry(RegistryMsg::Register(ctx.name.clone(), ctx.ser_recvr(), tx));
+    rx.await.expect(format!("Could not register {:?}", ctx.name).as_str());
   }
   actor.pre_start(&ctx).await;
   loop {
     let msg = match rx.recv().await.unwrap() {
       ActorMsg::Msg(x) => x,
-      ActorMsg::Serial(interface, mb) => {
-        match S::deserialize_as(interface, mb.intp, mb.msg()) {
-          Ok(s) => s,
-          Err(e) => {
-            panic!("Socket: {:?} - {:?}", &ctx.node.socket(), e)
-          }
+      ActorMsg::Serial(interface, mb) => match S::deserialize_as(interface, mb.intp, mb.msg()) {
+        Ok(s) => s,
+        Err(e) => {
+          panic!("Socket: {:?} - {:?}", &ctx.node.socket(), e)
         }
-      }
+      },
       _ => unreachable!(),
     };
     match msg {
@@ -68,13 +61,8 @@ pub(crate) async fn unit_secondary<U, S, A>(
 {
   if register {
     let (tx, rx) = channel::<()>();
-    ctx.node.registry(RegistryMsg::Register(
-      ctx.name.clone(),
-      ctx.ser_recvr(),
-      tx,
-    ));
-    rx.await
-      .expect(format!("Could not register {:?}", ctx.name).as_str());
+    ctx.node.registry(RegistryMsg::Register(ctx.name.clone(), ctx.ser_recvr(), tx));
+    rx.await.expect(format!("Could not register {:?}", ctx.name).as_str());
   }
   let mut queue = VecDeque::<PrimaryMsg<S>>::new();
   let mut primary_waiting = false;
@@ -102,9 +90,7 @@ pub(crate) async fn unit_secondary<U, S, A>(
           continue;
         }
       }
-      ActorMsg::Serial(interface, mb) => {
-        S::deserialize_as(interface, mb.intp, mb.msg()).unwrap()
-      }
+      ActorMsg::Serial(interface, mb) => S::deserialize_as(interface, mb.intp, mb.msg()).unwrap(),
     };
     let pri = match msg {
       LocalActorMsg::Msg(lam) => Some(PrimaryMsg::Msg(lam)),

@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use aurum::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Host, Node, NodeConfig, Socket,
-};
+use aurum::core::{Actor, ActorContext, ActorRef, ActorSignal, Host, Node, NodeConfig, Socket};
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
 use serde::{Deserialize, Serialize};
@@ -10,9 +8,7 @@ use std::fmt::Debug;
 use std::time::Duration;
 use tokio_test::block_on;
 
-#[derive(
-  AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone,
-)]
+#[derive(AurumInterface, Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 #[aurum]
 enum RemoteLoggerMsg {
   Info(String),
@@ -34,10 +30,7 @@ impl Actor<RemoteTestTypes, RemoteLoggerMsg> for Logger {
     self.tester.send(msg).unwrap();
   }
 
-  async fn post_stop(
-    &mut self,
-    _: &ActorContext<RemoteTestTypes, RemoteLoggerMsg>,
-  ) {
+  async fn post_stop(&mut self, _: &ActorContext<RemoteTestTypes, RemoteLoggerMsg>) {
     self.tester.send(RemoteLoggerMsg::Error(-1)).unwrap();
     println!("I am dead.");
   }
@@ -50,19 +43,25 @@ fn actor_ref_test(double: bool, port: u16) {
   let mut config = NodeConfig::default();
   config.socket = socket.clone();
   let node = Node::<RemoteTestTypes>::new_sync(config).unwrap();
-  let _lgr_msg = ActorRef::<RemoteTestTypes, RemoteLoggerMsg>::new::<
-    RemoteLoggerMsg,
-  >("logger".to_string(), socket.clone());
-  let _err_msg = ActorRef::<RemoteTestTypes, i32>::new::<RemoteLoggerMsg>(
+  let _lgr_msg = ActorRef::<RemoteTestTypes, RemoteLoggerMsg>::new::<RemoteLoggerMsg>(
     "logger".to_string(),
     socket.clone(),
   );
+  let _err_msg =
+    ActorRef::<RemoteTestTypes, i32>::new::<RemoteLoggerMsg>("logger".to_string(), socket.clone());
   let _warn_msg = ActorRef::<RemoteTestTypes, String>::new::<RemoteLoggerMsg>(
     "logger".to_string(),
     socket.clone(),
   );
   let (tx, rx) = unbounded();
-  node.spawn(double, Logger { tester: tx }, "logger".to_string(), true);
+  node.spawn(
+    double,
+    Logger {
+      tester: tx,
+    },
+    "logger".to_string(),
+    true,
+  );
 
   let errors = 10;
   let warnings = 15;

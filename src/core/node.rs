@@ -1,12 +1,9 @@
 use crate::core::{
-  run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor,
-  ActorContext, ActorMsg, ActorName, ActorRef, ActorSignal, Case, Destination,
-  Interpretations, LocalRef, MessagePackets, Registry, RegistryMsg, Socket,
-  SpecificInterface, TimeoutActor, UnifiedType,
+  run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorMsg,
+  ActorName, ActorRef, ActorSignal, Case, Destination, Interpretations, LocalRef, MessagePackets,
+  Registry, RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedType,
 };
-use crate::testkit::{
-  FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg,
-};
+use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg};
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use serde::{de::DeserializeOwned, Serialize};
@@ -58,8 +55,7 @@ impl<U: UnifiedType> Node<U> {
       .thread_name("tokio-thread")
       .thread_stack_size(config.actor_thread_stack_size)
       .build()?;
-    let udp =
-      rt.block_on(UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)))?;
+    let udp = rt.block_on(UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)))?;
     Self::new_priv(rt, udp, config)
   }
 
@@ -71,23 +67,14 @@ impl<U: UnifiedType> Node<U> {
       .thread_name("tokio-thread")
       .thread_stack_size(config.actor_thread_stack_size)
       .build()?;
-    let udp =
-      UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)).await?;
+    let udp = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, config.socket.udp)).await?;
     Self::new_priv(rt, udp, config)
   }
 
-  fn new_priv(
-    rt: Runtime,
-    udp: UdpSocket,
-    config: NodeConfig,
-  ) -> std::io::Result<Self> {
-    let (reg, reg_node_tx) =
-      Self::start_codependent(&rt, Registry::new(), "registry".to_string());
-    let (log, log_node_tx) = Self::start_codependent(
-      &rt,
-      Logger::new(LogLevel::Trace),
-      "node_logger".to_string(),
-    );
+  fn new_priv(rt: Runtime, udp: UdpSocket, config: NodeConfig) -> std::io::Result<Self> {
+    let (reg, reg_node_tx) = Self::start_codependent(&rt, Registry::new(), "registry".to_string());
+    let (log, log_node_tx) =
+      Self::start_codependent(&rt, Logger::new(LogLevel::Trace), "node_logger".to_string());
     let node = Node {
       node: Arc::new(NodeImpl {
         socket: config.socket,
@@ -97,12 +84,8 @@ impl<U: UnifiedType> Node<U> {
         rt: rt,
       }),
     };
-    reg_node_tx
-      .send(node.clone())
-      .map_err(|_| Error::new(ErrorKind::NotFound, "Registry"))?;
-    log_node_tx
-      .send(node.clone())
-      .map_err(|_| Error::new(ErrorKind::NotFound, "Logger"))?;
+    reg_node_tx.send(node.clone()).map_err(|_| Error::new(ErrorKind::NotFound, "Registry"))?;
+    log_node_tx.send(node.clone()).map_err(|_| Error::new(ErrorKind::NotFound, "Logger"))?;
     node.node.rt.spawn(udp_receiver::<U>(node.clone()));
     Ok(node)
   }
@@ -149,11 +132,7 @@ impl<U: UnifiedType> Node<U> {
     })
   }
 
-  fn start_codependent<S, A>(
-    rt: &Runtime,
-    actor: A,
-    name: String,
-  ) -> (LocalRef<S>, Sender<Self>)
+  fn start_codependent<S, A>(rt: &Runtime, actor: A, name: String) -> (LocalRef<S>, Sender<Self>)
   where
     A: Actor<U, S> + Send + 'static,
     S: SpecificInterface<U>,
@@ -173,13 +152,7 @@ impl<U: UnifiedType> Node<U> {
     ret
   }
 
-  pub fn spawn<S, A>(
-    &self,
-    double: bool,
-    actor: A,
-    name: String,
-    register: bool,
-  ) -> ActorRef<U, S>
+  pub fn spawn<S, A>(&self, double: bool, actor: A, name: String, register: bool) -> ActorRef<U, S>
   where
     U: Case<S>,
     S: SpecificInterface<U>,
@@ -219,38 +192,23 @@ impl<U: UnifiedType> Node<U> {
       node: self.clone(),
     };
     let ret = ctx.interface();
-    self
-      .node
-      .rt
-      .spawn(run_single_timeout(actor, ctx, rx, register, timeout));
+    self.node.rt.spawn(run_single_timeout(actor, ctx, rx, register, timeout));
     ret
   }
 
-  pub async fn udp_msg<I>(
-    &self,
-    socket: &Socket,
-    dest: &Destination<U, I>,
-    msg: &I,
-  ) where
+  pub async fn udp_msg<I>(&self, socket: &Socket, dest: &Destination<U, I>, msg: &I)
+  where
     I: Serialize + DeserializeOwned,
     U: Case<I>,
   {
-    self
-      .udp_send(&socket, &dest, Interpretations::Message, msg)
-      .await;
+    self.udp_send(&socket, &dest, Interpretations::Message, msg).await;
   }
 
-  pub async fn udp_signal<I>(
-    &self,
-    socket: &Socket,
-    dest: &Destination<U, I>,
-    sig: &ActorSignal,
-  ) where
+  pub async fn udp_signal<I>(&self, socket: &Socket, dest: &Destination<U, I>, sig: &ActorSignal)
+  where
     U: Case<I>,
   {
-    self
-      .udp_send(&socket, &dest, Interpretations::Signal, sig)
-      .await;
+    self.udp_send(&socket, &dest, Interpretations::Signal, sig).await;
   }
 
   async fn udp_send<I, T>(
@@ -264,13 +222,8 @@ impl<U: UnifiedType> Node<U> {
     U: Case<I>,
   {
     let addrs = socket.as_udp_addr().await.unwrap();
-    let addr = addrs
-      .iter()
-      .next()
-      .expect(format!("No resolution for {:?}", socket).as_str());
-    MessagePackets::new(msg, intp, dest)
-      .move_to(&self.node.udp, addr)
-      .await;
+    let addr = addrs.iter().next().expect(format!("No resolution for {:?}", socket).as_str());
+    MessagePackets::new(msg, intp, dest).move_to(&self.node.udp, addr).await;
   }
 
   pub async fn udp_msg_unreliable_msg<I>(
@@ -283,9 +236,7 @@ impl<U: UnifiedType> Node<U> {
     I: Serialize + DeserializeOwned,
     U: Case<I>,
   {
-    self
-      .udp_unreliable_msg(socket, dest, Interpretations::Message, msg, fail_cfg)
-      .await;
+    self.udp_unreliable_msg(socket, dest, Interpretations::Message, msg, fail_cfg).await;
   }
 
   pub async fn udp_signal_unreliable_msg<I>(
@@ -297,9 +248,7 @@ impl<U: UnifiedType> Node<U> {
   ) where
     U: Case<I>,
   {
-    self
-      .udp_unreliable_msg(socket, dest, Interpretations::Signal, sig, fail_cfg)
-      .await;
+    self.udp_unreliable_msg(socket, dest, Interpretations::Signal, sig, fail_cfg).await;
   }
 
   async fn udp_unreliable_msg<I, T>(
@@ -315,10 +264,7 @@ impl<U: UnifiedType> Node<U> {
   {
     let fail_cfg = fail_map.get(socket);
     let addrs = socket.as_udp_addr().await.unwrap();
-    let addr = addrs
-      .into_iter()
-      .next()
-      .expect(format!("No resolution for {:?}", socket).as_str());
+    let addr = addrs.into_iter().next().expect(format!("No resolution for {:?}", socket).as_str());
     let packets = MessagePackets::new(msg, intp, dest);
     let dur = fail_cfg.delay.map(|(min, max)| {
       let range = min.as_millis()..=max.as_millis();
@@ -354,9 +300,7 @@ impl<U: UnifiedType> Node<U> {
         self.udp_msg(socket, dest, msg).await;
       }
       FailureMode::Message => {
-        self
-          .udp_msg_unreliable_msg(socket, dest, msg, fail_map)
-          .await;
+        self.udp_msg_unreliable_msg(socket, dest, msg, fail_map).await;
       }
       FailureMode::Packet => {
         todo!()

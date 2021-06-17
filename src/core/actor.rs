@@ -1,6 +1,6 @@
 use crate::core::{
-  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr,
-  SpecificInterface, UnifiedType,
+  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr, SpecificInterface,
+  UnifiedType,
 };
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
@@ -11,9 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
-#[derive(
-  Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize,
-)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedType")]
 pub struct ActorName<U> {
   pub recv_type: U,
@@ -42,8 +40,7 @@ where
 }
 
 #[async_trait]
-pub trait TimeoutActor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>>
-{
+pub trait TimeoutActor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>> {
   async fn pre_start(&mut self, _: &ActorContext<U, S>) -> Option<Duration> {
     None
   }
@@ -94,9 +91,7 @@ impl<S: Debug> Debug for LocalActorMsg<S> {
   }
 }
 
-pub fn local_actor_msg_convert<S: From<I>, I>(
-  msg: LocalActorMsg<I>,
-) -> LocalActorMsg<S> {
+pub fn local_actor_msg_convert<S: From<I>, I>(msg: LocalActorMsg<I>) -> LocalActorMsg<S> {
   match msg {
     LocalActorMsg::Msg(s) => LocalActorMsg::Msg(S::from(s)),
     LocalActorMsg::Signal(s) => LocalActorMsg::Signal(s),
@@ -125,9 +120,7 @@ where
   {
     LocalRef {
       func: Arc::new(move |x: LocalActorMsg<T>| {
-        sender
-          .send(ActorMsg::Msg(local_actor_msg_convert(x)))
-          .is_ok()
+        sender.send(ActorMsg::Msg(local_actor_msg_convert(x))).is_ok()
       }),
     }
   }

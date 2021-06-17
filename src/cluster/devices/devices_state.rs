@@ -12,9 +12,7 @@ use std::time::Duration;
 #[cfg(test)]
 use DeviceMutator::*;
 
-#[derive(
-  Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Device {
   pub socket: Socket,
 }
@@ -76,12 +74,7 @@ pub struct DeviceInterval {
 }
 impl PartialOrd for DeviceInterval {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    Some(
-      self
-        .clock
-        .cmp(&other.clock)
-        .then_with(|| other.interval.cmp(&self.interval)),
-    )
+    Some(self.clock.cmp(&other.clock).then_with(|| other.interval.cmp(&self.interval)))
   }
 }
 impl Ord for DeviceInterval {
@@ -90,18 +83,7 @@ impl Ord for DeviceInterval {
   }
 }
 
-#[derive(
-  Copy,
-  Clone,
-  Debug,
-  Eq,
-  PartialEq,
-  Hash,
-  Ord,
-  PartialOrd,
-  Serialize,
-  Deserialize,
-)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct DeviceEntry {
   pub removals: u64,
   pub interval: Option<DeviceInterval>,

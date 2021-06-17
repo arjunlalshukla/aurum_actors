@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node,
-  NodeConfig, Socket,
+  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
@@ -62,10 +61,7 @@ impl Actor<RingTypes, Ball> for Player {
 
   async fn recv(&mut self, ctx: &ActorContext<RingTypes, Ball>, msg: Ball) {
     let Ball::Ball(hit_num, sender) = msg;
-    self
-      .tester
-      .send(TestRecvr::IntraRing(hit_num, sender))
-      .unwrap();
+    self.tester.send(TestRecvr::IntraRing(hit_num, sender)).unwrap();
     if hit_num < (RING_SIZE) as u32 * ROUNDS - 1 {
       self.next.send(Ball::Ball(hit_num + 1, ctx.name.clone()));
     }
@@ -77,10 +73,7 @@ impl Actor<RingTypes, Ball> for Player {
         panic!("{:?} could not send kill message to next", ctx.name);
       }
     }
-    self
-      .tester
-      .send(TestRecvr::IAmDying(ctx.name.clone()))
-      .unwrap();
+    self.tester.send(TestRecvr::IAmDying(ctx.name.clone())).unwrap();
   }
 }
 
@@ -116,13 +109,7 @@ fn ring_test(double: bool, register: bool, port: u16) {
       match rx.recv() {
         Err(_) => panic!("round = {}; name = {:?}", x, name),
         Ok(res) => {
-          assert_eq!(
-            res,
-            TestRecvr::IntraRing(
-              x * RING_SIZE as u32 + num as u32,
-              name.clone()
-            )
-          );
+          assert_eq!(res, TestRecvr::IntraRing(x * RING_SIZE as u32 + num as u32, name.clone()));
         }
       }
     }

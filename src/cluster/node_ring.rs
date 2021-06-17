@@ -51,11 +51,7 @@ impl NodeRing {
     if !self.contains(member) {
       return None;
     }
-    let ret = self
-      .managers(member, self.rep_factor + 1)
-      .into_iter()
-      .skip(1)
-      .collect();
+    let ret = self.managers(member, self.rep_factor + 1).into_iter().skip(1).collect();
     Some(ret)
   }
 
@@ -96,20 +92,13 @@ impl NodeRing {
           }
         }
       }
-      uniq
-        .iter()
-        .filter(|(_, (_, b))| *b)
-        .for_each(|(_, (mbr, _))| c.push((*mbr).clone()))
+      uniq.iter().filter(|(_, (_, b))| *b).for_each(|(_, (mbr, _))| c.push((*mbr).clone()))
     });
     Some(c)
   }
 
   pub fn contains(&self, member: &Member) -> bool {
-    self
-      .ring
-      .get(&hash_code(member))
-      .filter(|m| member == &*(**m).1)
-      .is_some()
+    self.ring.get(&hash_code(member)).filter(|m| member == &*(**m).1).is_some()
   }
 
   pub fn insert(&mut self, item: Arc<Member>) {
@@ -169,15 +158,7 @@ fn test_node_ring() {
   expected_successors.iter_mut().for_each(|v| v.sort());
   let successors = members
     .iter()
-    .map(|m| {
-      ring
-        .node_managers(m)
-        .unwrap()
-        .iter()
-        .map(|x| x.socket.udp)
-        .sorted()
-        .collect()
-    })
+    .map(|m| ring.node_managers(m).unwrap().iter().map(|x| x.socket.udp).sorted().collect())
     .collect::<Vec<Vec<u16>>>();
   assert_eq!(expected_successors, successors);
   drop(expected_successors);
@@ -191,15 +172,7 @@ fn test_node_ring() {
   expected_charges.iter_mut().for_each(|v| v.sort());
   let charges = members
     .iter()
-    .map(|m| {
-      ring
-        .charges(m)
-        .unwrap()
-        .iter()
-        .map(|x| x.socket.udp)
-        .sorted()
-        .collect()
-    })
+    .map(|m| ring.charges(m).unwrap().iter().map(|x| x.socket.udp).sorted().collect())
     .collect::<Vec<Vec<u16>>>();
   assert_eq!(expected_charges, charges);
   for m in members.iter() {

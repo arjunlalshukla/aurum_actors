@@ -1,15 +1,11 @@
 use async_trait::async_trait;
 use aurum::cluster::crdt::CRDT;
 use aurum::cluster::devices::{
-  Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer,
-  DeviceServerCmd, Devices, Manager,
+  Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer, DeviceServerCmd,
+  Devices, Manager,
 };
-use aurum::cluster::{
-  Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig,
-};
-use aurum::core::{
-  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
-};
+use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
+use aurum::core::{Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket};
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
 use std::collections::{BTreeMap, BTreeSet};
@@ -82,31 +78,20 @@ impl Coordinator {
     for (port, svr) in &self.servers {
       for c in svr.charges.iter() {
         let exclusive = clients.insert(*c);
-        let is_manager =
-          Some(*port) == self.clients.get(c).map(|t| t.manager).flatten();
+        let is_manager = Some(*port) == self.clients.get(c).map(|t| t.manager).flatten();
         if !exclusive || !is_manager {
           return false;
         }
       }
     }
     let clients_valid = self.clients.iter().all(|(c, test)| {
-      clients.contains(c)
-        && test
-          .manager
-          .filter(|p| self.servers.contains_key(p))
-          .is_some()
+      clients.contains(c) && test.manager.filter(|p| self.servers.contains_key(p)).is_some()
     });
     let crdt_converged = self
       .servers
       .values()
       .next()
-      .map(|first| {
-        self
-          .servers
-          .values()
-          .skip(1)
-          .all(|other| other.view == first.view)
-      })
+      .map(|first| self.servers.values().skip(1).all(|other| other.view == first.view))
       .unwrap_or(true);
     crdt_converged && clients_valid
   }
@@ -115,10 +100,7 @@ impl Coordinator {
     self.servers.keys().all(|k| self.converged.contains(k))
   }
 
-  fn check_convergence(
-    &mut self,
-    ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>,
-  ) {
+  fn check_convergence(&mut self, ctx: &ActorContext<DeviceTestTypes, CoordinatorMsg>) {
     if let Some(mode) = self.waiting {
       let converged = match mode {
         ConvergenceType::Cluster => {
@@ -220,10 +202,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         config.socket = socket.clone();
         let node = Node::<DeviceTestTypes>::new(config).await.unwrap();
         let mut cli_cfg = self.cli_cfg.clone();
-        cli_cfg.seeds = seeds
-          .into_iter()
-          .map(|p| Socket::new(HOST.clone(), p, 0))
-          .collect();
+        cli_cfg.seeds = seeds.into_iter().map(|p| Socket::new(HOST.clone(), p, 0)).collect();
         let client = DeviceClient::new(
           &node,
           cli_cfg,
@@ -235,11 +214,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           supervisor: ctx.local_interface(),
           client: client,
         };
-        let recvr = node
-          .spawn(false, recvr, "".to_string(), false)
-          .local()
-          .clone()
-          .unwrap();
+        let recvr = node.spawn(false, recvr, "".to_string(), false).local().clone().unwrap();
         let entry = TestClient {
           actor: recvr,
           manager: None,
@@ -257,10 +232,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
         config.socket = socket.clone();
         let node = Node::<DeviceTestTypes>::new(config).await.unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
-        clr_cfg.seed_nodes = seeds
-          .iter()
-          .map(|p| Socket::new(HOST.clone(), *p, 0))
-          .collect();
+        clr_cfg.seed_nodes = seeds.iter().map(|p| Socket::new(HOST.clone(), *p, 0)).collect();
         let cluster = Cluster::new(
           &node,
           "test-devices".to_string(),
@@ -281,11 +253,7 @@ impl Actor<DeviceTestTypes, CoordinatorMsg> for Coordinator {
           cluster: cluster,
           devices: devices,
         };
-        let recvr = node
-          .spawn(false, recvr, "".to_string(), false)
-          .local()
-          .clone()
-          .unwrap();
+        let recvr = node.spawn(false, recvr, "".to_string(), false).local().clone().unwrap();
 
         let entry = TestServer {
           actor: recvr,
@@ -348,19 +316,12 @@ struct Client {
 }
 #[async_trait]
 impl Actor<DeviceTestTypes, ClientMsg> for Client {
-  async fn pre_start(
-    &mut self,
-    ctx: &ActorContext<DeviceTestTypes, ClientMsg>,
-  ) {
+  async fn pre_start(&mut self, ctx: &ActorContext<DeviceTestTypes, ClientMsg>) {
     let msg = DeviceClientCmd::Subscribe(ctx.local_interface());
     self.client.send(msg);
   }
 
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<DeviceTestTypes, ClientMsg>,
-    msg: ClientMsg,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<DeviceTestTypes, ClientMsg>, msg: ClientMsg) {
     match msg {
       ClientMsg::Manager(manager) => {
         let msg = Client(ClientData(ctx.node.socket().udp, manager));
@@ -390,21 +351,14 @@ struct Server {
 }
 #[async_trait]
 impl Actor<DeviceTestTypes, ServerMsg> for Server {
-  async fn pre_start(
-    &mut self,
-    ctx: &ActorContext<DeviceTestTypes, ServerMsg>,
-  ) {
+  async fn pre_start(&mut self, ctx: &ActorContext<DeviceTestTypes, ServerMsg>) {
     let msg = DeviceServerCmd::Subscribe(ctx.local_interface());
     self.devices.send(msg);
     let msg = ClusterCmd::Subscribe(ctx.local_interface());
     self.cluster.send(msg);
   }
 
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<DeviceTestTypes, ServerMsg>,
-    msg: ServerMsg,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<DeviceTestTypes, ServerMsg>, msg: ServerMsg) {
     match msg {
       ServerMsg::Devices(charges) => {
         let msg = Server(ServerData(ctx.node.socket().udp, charges));
@@ -450,20 +404,11 @@ fn run_cluster_test(
     waiting: None,
     notification: tx,
   };
-  let coor = node
-    .spawn(false, actor, "".to_string(), false)
-    .local()
-    .clone()
-    .unwrap();
+  let coor = node.spawn(false, actor, "".to_string(), false).local().clone().unwrap();
   for e in events {
     coor.send(e);
   }
-  node.rt().block_on(async {
-    tokio::time::timeout(timeout, rx.recv())
-      .await
-      .unwrap()
-      .unwrap()
-  });
+  node.rt().block_on(async { tokio::time::timeout(timeout, rx.recv()).await.unwrap().unwrap() });
 }
 
 #[test]
@@ -496,8 +441,7 @@ fn devices_test_perfect() {
   ];
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.25;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.delay = Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.vnodes = 100;
   clr_cfg.num_pings = 20;

@@ -1,12 +1,9 @@
 use crate as aurum;
 use crate::cluster::devices::{
-  Device, DeviceClientMsg, DeviceClientRemoteMsg, DeviceInterval,
-  DeviceServerMsg, LOG_LEVEL,
+  Device, DeviceClientMsg, DeviceClientRemoteMsg, DeviceInterval, DeviceServerMsg, LOG_LEVEL,
 };
 use crate::cluster::{IntervalStorage, FAILURE_MODE};
-use crate::core::{
-  Actor, ActorContext, Destination, LocalRef, Node, UnifiedType,
-};
+use crate::core::{Actor, ActorContext, Destination, LocalRef, Node, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, AurumInterface};
 use async_trait::async_trait;
@@ -62,12 +59,7 @@ impl<U: UnifiedType> HBReqSender<U> {
     interval: DeviceInterval,
     name: String,
   ) -> LocalRef<HBReqSenderMsg> {
-    let storage = IntervalStorage::new(
-      config.capacity,
-      interval.interval * 2,
-      config.times,
-      None,
-    );
+    let storage = IntervalStorage::new(config.capacity, interval.interval * 2, config.times, None);
     let id = rand::random::<u64>();
     let actor = Self {
       supervisor: supervisor,
@@ -78,11 +70,7 @@ impl<U: UnifiedType> HBReqSender<U> {
       storage: storage,
       fail_map: FailureConfigMap::default(),
     };
-    node
-      .spawn(false, actor, format!("{}-{}", name, id), true)
-      .local()
-      .clone()
-      .unwrap()
+    node.spawn(false, actor, format!("{}-{}", name, id), true).local().clone().unwrap()
   }
 }
 #[async_trait]
@@ -91,19 +79,11 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
     ctx.local_interface().send(Tick);
   }
 
-  async fn recv(
-    &mut self,
-    ctx: &ActorContext<U, HBReqSenderMsg>,
-    msg: HBReqSenderMsg,
-  ) {
+  async fn recv(&mut self, ctx: &ActorContext<U, HBReqSenderMsg>, msg: HBReqSenderMsg) {
     match msg {
       Tick => {
         if self.storage.phi() < self.config.phi {
-          trace!(
-            LOG_LEVEL,
-            &ctx.node,
-            format!("Sending HBR to {}", self.charge.socket)
-          );
+          trace!(LOG_LEVEL, &ctx.node, format!("Sending HBR to {}", self.charge.socket));
           ctx
             .node
             .udp_select(
@@ -114,40 +94,23 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
               &self.fail_map,
             )
             .await;
-          ctx.node.schedule_local_msg(
-            self.interval.interval,
-            ctx.local_interface(),
-            Tick,
-          );
+          ctx.node.schedule_local_msg(self.interval.interval, ctx.local_interface(), Tick);
         } else {
-          info!(
-            LOG_LEVEL,
-            &ctx.node,
-            format!("Downing device {}", self.charge.socket)
-          );
-          self
-            .supervisor
-            .send(DeviceServerMsg::DownedDevice(self.charge.clone()));
+          info!(LOG_LEVEL, &ctx.node, format!("Downing device {}", self.charge.socket));
+          self.supervisor.send(DeviceServerMsg::DownedDevice(self.charge.clone()));
         }
       }
       Interval(interval) => {
-        let log =
-          format!("New interval for {} {:?}", self.charge.socket, interval);
+        let log = format!("New interval for {} {:?}", self.charge.socket, interval);
         debug!(LOG_LEVEL, &ctx.node, log);
         self.interval = interval;
       }
       Remote(Heartbeat) => {
-        trace!(
-          LOG_LEVEL,
-          &ctx.node,
-          format!("Heartbeat from {}", self.charge.socket)
-        );
+        trace!(LOG_LEVEL, &ctx.node, format!("Heartbeat from {}", self.charge.socket));
         self.storage.push();
       }
       Remote(MultipleSenders) => {
-        self
-          .supervisor
-          .send(DeviceServerMsg::AmISender(self.charge.clone()));
+        self.supervisor.send(DeviceServerMsg::AmISender(self.charge.clone()));
       }
     }
   }

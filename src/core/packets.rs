@@ -19,9 +19,7 @@ pub enum DeserializeError<U: Debug> {
   Other(U),
 }
 
-pub(crate) fn serialize<T: Serialize + DeserializeOwned>(
-  item: &T,
-) -> Option<Vec<u8>> {
+pub(crate) fn serialize<T: Serialize + DeserializeOwned>(item: &T) -> Option<Vec<u8>> {
   Some(serde_cbor::to_vec(item).unwrap())
 }
 
@@ -70,8 +68,7 @@ impl MessagePackets {
     MessagePackets {
       msg_size: msg_size as u32,
       dest_size: (ser.len() - msg_size) as u16,
-      max_seq_num: (ser.len() / (MAX_PACKET_SIZE - DatagramHeader::SIZE))
-        as u16,
+      max_seq_num: (ser.len() / (MAX_PACKET_SIZE - DatagramHeader::SIZE)) as u16,
       buf: ser,
       intp: intp,
     }
@@ -96,14 +93,12 @@ impl MessagePackets {
     };
     header.put(&mut first[..DatagramHeader::SIZE]);
     let len = first.len();
-    first[DatagramHeader::SIZE..]
-      .copy_from_slice(&self.buf[..len - DatagramHeader::SIZE]);
+    first[DatagramHeader::SIZE..].copy_from_slice(&self.buf[..len - DatagramHeader::SIZE]);
     socket.send_to(&first, addr).await.unwrap();
     for i in 1..=self.max_seq_num {
       header.seq_num = i;
-      let start = header.seq_num as usize
-        * (MAX_PACKET_SIZE - DatagramHeader::SIZE)
-        - DatagramHeader::SIZE;
+      let start =
+        header.seq_num as usize * (MAX_PACKET_SIZE - DatagramHeader::SIZE) - DatagramHeader::SIZE;
       let end = std::cmp::min(start + MAX_PACKET_SIZE, self.buf.len());
       let slice = &mut self.buf[start..end];
       header.put(&mut slice[..DatagramHeader::SIZE]);
@@ -130,12 +125,7 @@ impl MessageBuilder {
       max_seq_num: header.max_seq_num,
       seqs_recvd: smallvec![0; recvd_len as usize],
       num_recvd: 0,
-      buf: vec![
-        0u8;
-        header.msg_size as usize
-          + header.dest_size as usize
-          + DatagramHeader::SIZE
-      ],
+      buf: vec![0u8; header.msg_size as usize + header.dest_size as usize + DatagramHeader::SIZE],
       intp: header.intp,
     }
   }
@@ -165,14 +155,11 @@ impl MessageBuilder {
   }
 
   pub fn msg(&self) -> &[u8] {
-    &self.buf
-      [DatagramHeader::SIZE..DatagramHeader::SIZE + self.msg_size as usize]
+    &self.buf[DatagramHeader::SIZE..DatagramHeader::SIZE + self.msg_size as usize]
   }
 }
 
-#[derive(
-  Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive,
-)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Interpretations {
   Message = 0,

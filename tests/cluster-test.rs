@@ -1,11 +1,8 @@
 use async_trait::async_trait;
 use aurum::cluster::{
-  Cluster, ClusterCmd, ClusterConfig, ClusterEvent, ClusterUpdate, HBRConfig,
-  Member,
+  Cluster, ClusterCmd, ClusterConfig, ClusterEvent, ClusterUpdate, HBRConfig, Member,
 };
-use aurum::core::{
-  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
-};
+use aurum::core::{Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket};
 use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
 use aurum::{unify, AurumInterface};
 use itertools::Itertools;
@@ -70,11 +67,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
           self.converged.remove(&port);
         }
 
-        println!(
-          "{} MEMBERS - {:?}",
-          port,
-          members.iter().map(|x| x.udp).sorted().collect_vec()
-        );
+        println!("{} MEMBERS - {:?}", port, members.iter().map(|x| x.udp).sorted().collect_vec());
         println!("{} CHARGES - {:?}", port, charges);
 
         if self.waiting && self.convergence_reached() {
@@ -108,10 +101,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
         config.socket = socket.clone();
         let node = Node::<ClusterTestTypes>::new(config).await.unwrap();
         let mut clr_cfg = self.clr_cfg.clone();
-        clr_cfg.seed_nodes = seeds
-          .iter()
-          .map(|p| Socket::new(HOST.clone(), *p, 0))
-          .collect();
+        clr_cfg.seed_nodes = seeds.iter().map(|p| Socket::new(HOST.clone(), *p, 0)).collect();
         let cluster = Cluster::new(
           &node,
           "test-crdt-cluster".to_string(),
@@ -125,11 +115,7 @@ impl Actor<ClusterTestTypes, CoordinatorMsg> for Coordinator {
           cluster: cluster.clone(),
           member: Arc::new(Member::default()),
         };
-        let recvr = node
-          .spawn(false, recvr, "".to_string(), false)
-          .local()
-          .clone()
-          .unwrap();
+        let recvr = node.spawn(false, recvr, "".to_string(), false).local().clone().unwrap();
         let entry = TestNode {
           recvr: recvr,
           node: node,
@@ -184,13 +170,8 @@ struct ClusterClient {
 }
 #[async_trait]
 impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
-  async fn pre_start(
-    &mut self,
-    ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>,
-  ) {
-    self
-      .cluster
-      .send(ClusterCmd::Subscribe(ctx.local_interface()));
+  async fn pre_start(&mut self, ctx: &ActorContext<ClusterTestTypes, ClusterClientMsg>) {
+    self.cluster.send(ClusterCmd::Subscribe(ctx.local_interface()));
   }
 
   async fn recv(
@@ -205,8 +186,7 @@ impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
           ClusterEvent::Joined(m) => m,
           _ => self.member.clone(),
         };
-        let sockets =
-          update.nodes.into_iter().map(|m| m.socket.clone()).collect();
+        let sockets = update.nodes.into_iter().map(|m| m.socket.clone()).collect();
         let charges = update
           .ring
           .charges(&self.member)
@@ -215,17 +195,12 @@ impl Actor<ClusterTestTypes, ClusterClientMsg> for ClusterClient {
           .map(|m| m.socket.udp)
           .sorted()
           .collect_vec();
-        self
-          .supervisor
-          .send(NodeSet(ctx.node.socket().udp, sockets, charges));
+        self.supervisor.send(NodeSet(ctx.node.socket().udp, sockets, charges));
       }
     }
   }
 
-  async fn post_stop(
-    &mut self,
-    _: &ActorContext<ClusterTestTypes, ClusterClientMsg>,
-  ) {
+  async fn post_stop(&mut self, _: &ActorContext<ClusterTestTypes, ClusterClientMsg>) {
     self.cluster.signal(ActorSignal::Term);
   }
 }
@@ -254,20 +229,11 @@ fn run_cluster_test(
     waiting: false,
     notification: tx,
   };
-  let coor = node
-    .spawn(false, actor, "".to_string(), false)
-    .local()
-    .clone()
-    .unwrap();
+  let coor = node.spawn(false, actor, "".to_string(), false).local().clone().unwrap();
   for e in events {
     coor.send(e);
   }
-  node.rt().block_on(async {
-    tokio::time::timeout(timeout, rx.recv())
-      .await
-      .unwrap()
-      .unwrap()
-  });
+  node.rt().block_on(async { tokio::time::timeout(timeout, rx.recv()).await.unwrap().unwrap() });
 }
 
 fn cluster_complete(
@@ -325,8 +291,7 @@ fn cluster_test_perfect() {
 fn cluster_test_with_failures() {
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.delay = Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.vnodes = 1;
   clr_cfg.num_pings = 20;
@@ -393,8 +358,7 @@ fn cluster_test_cyclic_perfect() {
 fn cluster_test_cyclic_failures() {
   let mut fail_map = FailureConfigMap::default();
   fail_map.cluster_wide.drop_prob = 0.5;
-  fail_map.cluster_wide.delay =
-    Some((Duration::from_millis(20), Duration::from_millis(50)));
+  fail_map.cluster_wide.delay = Some((Duration::from_millis(20), Duration::from_millis(50)));
   let mut clr_cfg = ClusterConfig::default();
   clr_cfg.vnodes = 1;
   clr_cfg.num_pings = 20;
