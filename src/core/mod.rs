@@ -59,6 +59,7 @@ pub use {
   remoting::Socket,
   node::Node,
   node::NodeConfig,
+  udp_serial::UdpSerial,
   unify::Case, 
   unify::SpecificInterface, 
   unify::UnifiedType,

@@ -1,4 +1,4 @@
-use crate::core::{ActorSignal, Case, Destination, LocalActorMsg, UnifiedType};
+use crate::core::{ActorSignal, Case, Destination, LocalActorMsg, UdpSerial, UnifiedType};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::Rng;
 use serde::de::DeserializeOwned;
@@ -137,8 +137,8 @@ impl MessageBuilder {
     }
     self.num_recvd += 1;
     self.seqs_recvd[seq_num / 8] |= 1 << seq_num % 8;
-    let start = seq_num * (MAX_PACKET_SIZE - DatagramHeader::SIZE);
-    let end = std::cmp::min(start + MAX_PACKET_SIZE, self.buf.len());
+    let start = seq_num * (UdpSerial::PACKET_SIZE - DatagramHeader::SIZE);
+    let end = std::cmp::min(start + UdpSerial::PACKET_SIZE, self.buf.len());
     let slice = &mut self.buf[start..end];
     let mut header_buf = [0u8; DatagramHeader::SIZE];
     header_buf[..].copy_from_slice(&slice[..DatagramHeader::SIZE]);

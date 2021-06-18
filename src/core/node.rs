@@ -1,7 +1,7 @@
 use crate::core::{
   run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorMsg,
   ActorName, ActorRef, ActorSignal, Case, Destination, Interpretations, LocalRef, MessagePackets,
-  Registry, RegistryMsg, Socket, SpecificInterface, TimeoutActor, UnifiedType,
+  Registry, RegistryMsg, Socket, SpecificInterface, TimeoutActor, UdpSerial, UnifiedType,
 };
 use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg};
 use rand::rngs::SmallRng;
@@ -201,29 +201,21 @@ impl<U: UnifiedType> Node<U> {
     I: Serialize + DeserializeOwned,
     U: Case<I>,
   {
-    self.udp_send(&socket, &dest, Interpretations::Message, msg).await;
+    //self.udp_send(&socket, &dest, Interpretations::Message, msg).await;
+    let addrs = socket.as_udp_addr().await.unwrap();
+    let addr = addrs.iter().next().expect(format!("No resolution for {:?}", socket).as_str());
+    UdpSerial::msg(dest, msg).send(&self.node.udp, addr).await;
   }
 
   pub async fn udp_signal<I>(&self, socket: &Socket, dest: &Destination<U, I>, sig: &ActorSignal)
   where
+    I: Serialize + DeserializeOwned,
     U: Case<I>,
   {
-    self.udp_send(&socket, &dest, Interpretations::Signal, sig).await;
-  }
-
-  async fn udp_send<I, T>(
-    &self,
-    socket: &Socket,
-    dest: &Destination<U, I>,
-    intp: Interpretations,
-    msg: &T,
-  ) where
-    T: Serialize + DeserializeOwned,
-    U: Case<I>,
-  {
+    // self.udp_send(&socket, &dest, Interpretations::Signal, sig).await;
     let addrs = socket.as_udp_addr().await.unwrap();
     let addr = addrs.iter().next().expect(format!("No resolution for {:?}", socket).as_str());
-    MessagePackets::new(msg, intp, dest).move_to(&self.node.udp, addr).await;
+    UdpSerial::sig(dest, sig).send(&self.node.udp, addr).await;
   }
 
   pub async fn udp_msg_unreliable_msg<I>(
@@ -231,41 +223,16 @@ impl<U: UnifiedType> Node<U> {
     socket: &Socket,
     dest: &Destination<U, I>,
     msg: &I,
-    fail_cfg: &FailureConfigMap,
+    fail_map: &FailureConfigMap,
   ) where
     I: Serialize + DeserializeOwned,
     U: Case<I>,
   {
-    self.udp_unreliable_msg(socket, dest, Interpretations::Message, msg, fail_cfg).await;
-  }
-
-  pub async fn udp_signal_unreliable_msg<I>(
-    &self,
-    socket: &Socket,
-    dest: &Destination<U, I>,
-    sig: &ActorSignal,
-    fail_cfg: &FailureConfigMap,
-  ) where
-    U: Case<I>,
-  {
-    self.udp_unreliable_msg(socket, dest, Interpretations::Signal, sig, fail_cfg).await;
-  }
-
-  async fn udp_unreliable_msg<I, T>(
-    &self,
-    socket: &Socket,
-    dest: &Destination<U, I>,
-    intp: Interpretations,
-    msg: &T,
-    fail_map: &FailureConfigMap,
-  ) where
-    T: Serialize + DeserializeOwned,
-    U: Case<I>,
-  {
+    // self.udp_unreliable_msg(socket, dest, Interpretations::Message, msg, fail_cfg).await;
     let fail_cfg = fail_map.get(socket);
     let addrs = socket.as_udp_addr().await.unwrap();
     let addr = addrs.into_iter().next().expect(format!("No resolution for {:?}", socket).as_str());
-    let packets = MessagePackets::new(msg, intp, dest);
+    let packets = UdpSerial::msg(dest, msg);
     let dur = fail_cfg.delay.map(|(min, max)| {
       let range = min.as_millis()..=max.as_millis();
       Duration::from_millis(SmallRng::from_entropy().gen_range(range) as u64)
@@ -276,10 +243,10 @@ impl<U: UnifiedType> Node<U> {
         let node = self.clone();
         self.rt().spawn(async move {
           tokio::time::sleep(dur).await;
-          packets.move_to(node.udp_socket(), &addr).await;
+          packets.send(node.udp_socket(), &addr).await;
         });
       } else {
-        packets.move_to(self.udp_socket(), &addr).await;
+        packets.send(self.udp_socket(), &addr).await;
       }
     }
   }
