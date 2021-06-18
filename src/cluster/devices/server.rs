@@ -5,7 +5,9 @@ use crate::cluster::devices::{
   LOG_LEVEL,
 };
 use crate::cluster::{ClusterCmd, ClusterEvent, ClusterUpdate, Member, NodeRing, FAILURE_MODE};
-use crate::core::{Actor, ActorContext, ActorSignal, Destination, LocalRef, Node, UnifiedType};
+use crate::core::{
+  Actor, ActorContext, ActorSignal, Destination, LocalRef, Node, UdpSerial, UnifiedType,
+};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, AurumInterface};
 use async_trait::async_trait;
@@ -188,7 +190,7 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
                 HBReqSenderConfig::default(),
                 device.clone(),
                 interval,
-                self.common.dest.name().name.clone(),
+                self.common.dest.name().name().clone(),
               );
               sender.send(msg);
               ic.req_senders.insert(device.clone(), sender);
@@ -196,16 +198,9 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
               ic.publish(&mut self.common);
             }
           } else {
-            ctx
-              .node
-              .udp_select(
-                &manager.socket,
-                &self.common.dest,
-                &SetHeartbeatInterval(device, interval),
-                FAILURE_MODE,
-                &self.common.fail_map,
-              )
-              .await;
+            let msg = SetHeartbeatInterval(device, interval);
+            let ser = Arc::new(UdpSerial::msg(&self.common.dest, &msg));
+            ctx.node.udp_select(&manager.socket, &ser, FAILURE_MODE, &self.common.fail_map).await;
           }
         } else if let State::Waiting(w) = &mut self.state {
           debug!(

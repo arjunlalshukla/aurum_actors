@@ -1,7 +1,9 @@
 use crate as aurum;
 use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
 use crate::cluster::{ClusterCmd, ClusterEvent, ClusterUpdate, Member, FAILURE_MODE};
-use crate::core::{Actor, ActorContext, Case, Destination, LocalRef, Node, UnifiedType};
+use crate::core::{
+  Actor, ActorContext, Case, Destination, LocalRef, Node, UdpSerial, UnifiedType,
+};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, trace, AurumInterface};
 use async_trait::async_trait;
@@ -120,10 +122,8 @@ where
         trace!(LOG_LEVEL, &ctx.node, format!("delta to {}", p));
         &delta_msg
       };
-      ctx
-        .node
-        .udp_select(&member.socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map)
-        .await;
+      let ser = Arc::new(UdpSerial::msg(&common.dest, msg));
+      ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &common.fail_map).await;
     }
     ctx.node.schedule_local_msg(
       common.preference.timeout,
@@ -181,7 +181,8 @@ where
         id: self.member.id,
         clock: clock,
       };
-      ctx.node.udp_select(socket, &common.dest, &msg, FAILURE_MODE, &common.fail_map).await;
+      let ser = Arc::new(UdpSerial::msg(&common.dest, &msg));
+      ctx.node.udp_select(socket, &ser, FAILURE_MODE, &common.fail_map).await;
       let new_state = self.data.clone().join(delta.clone());
       if new_state != self.data {
         self.data = new_state;

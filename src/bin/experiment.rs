@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node, NodeConfig, Socket,
+  Actor, ActorContext, ActorRef, Destination, Host, LocalRef, Node, NodeConfig, Socket, UdpSerial,
 };
 use aurum::{unify, AurumInterface};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -199,7 +200,8 @@ struct ReportReceiver {
 impl ReportReceiver {
   async fn req(&self, num: u64, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
     let msg = IoTBusinessMsg::ReportReq(ctx.interface());
-    ctx.node.udp_msg(&self.client, &self.dest, &msg).await;
+    let ser = Arc::new(UdpSerial::msg(&self.dest, &msg));
+    ctx.node.udp(&self.client, &ser).await;
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
@@ -282,7 +284,8 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
       IoTBusinessMsg::ReportReq(requester) => {
         let items = (1..1000u64).collect_vec();
         let msg = ReportReceiverMsg::Report(items);
-        ctx.node.udp_msg(&requester.socket, &requester.dest, &msg).await;
+        let ser = Arc::new(UdpSerial::msg(&requester.dest, &msg));
+        ctx.node.udp(&requester.socket, &ser).await;
       }
     }
   }

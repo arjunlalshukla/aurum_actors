@@ -4,7 +4,7 @@ use crate::cluster::{
   HeartbeatReceiverMsg, MachineState, Member, NodeRing, FAILURE_MODE, LOG_LEVEL,
 };
 use crate::core::{
-  Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node, UnifiedType,
+  Actor, ActorContext, ActorRef, ActorSignal, Destination, LocalRef, Node, UdpSerial, UnifiedType,
 };
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, AurumInterface};
@@ -87,11 +87,8 @@ impl InCluster {
       ReqGossip(member) => {
         let log = format!("got gossip req from {}", member.socket.udp);
         debug!(LOG_LEVEL, ctx.node, log);
-        let msg: IntraClusterMsg<U> = State(self.gossip.clone());
-        ctx
-          .node
-          .udp_select(&member.socket, &common.clr_dest, &msg, FAILURE_MODE, &common.fail_map)
-          .await;
+        let ser = Arc::new(UdpSerial::msg(&common.clr_dest, &State(self.gossip.clone())));
+        ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &common.fail_map).await;
         None
       }
       ReqHeartbeat(member, id) => {
@@ -215,7 +212,6 @@ impl InCluster {
     ctx: &ActorContext<U, ClusterMsg<U>>,
     mut guaranteed: HashSet<&Arc<Member>>,
   ) {
-    let msg: IntraClusterMsg<U> = State(self.gossip.clone());
     self.managers.iter().for_each(|m| {
       guaranteed.insert(m);
     });
@@ -238,11 +234,9 @@ impl InCluster {
       ctx.node,
       format!("gossiping to {:?}", guaranteed.iter().map(|m| m.socket.udp).collect_vec())
     );
+    let ser = Arc::new(UdpSerial::msg(&common.clr_dest, &State(self.gossip.clone())));
     for member in guaranteed {
-      ctx
-        .node
-        .udp_select(&member.socket, &common.clr_dest, &msg, FAILURE_MODE, &common.fail_map)
-        .await;
+      ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &common.fail_map).await;
     }
   }
 
@@ -251,7 +245,6 @@ impl InCluster {
     common: &NodeState<U>,
     ctx: &ActorContext<U, ClusterMsg<U>>,
   ) {
-    let msg: IntraClusterMsg<U> = ReqGossip(common.member.clone());
     debug!(
       LOG_LEVEL,
       ctx.node,
@@ -272,11 +265,9 @@ impl InCluster {
       ctx.node,
       format!("gossip reqs sent to: {:?}", recipients.iter().map(|m| m.socket.udp).collect_vec())
     );
+    let ser = Arc::new(UdpSerial::msg(&common.clr_dest, &ReqGossip(common.member.clone())));
     for member in recipients {
-      ctx
-        .node
-        .udp_select(&member.socket, &common.clr_dest, &msg, FAILURE_MODE, &common.fail_map)
-        .await;
+      ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &common.fail_map).await;
     }
   }
 
@@ -322,9 +313,9 @@ impl Pinging {
     self.count -= 1;
     let log = format!("starting ping. {} attempts left", self.count);
     info!(LOG_LEVEL, ctx.node, log);
-    let msg: IntraClusterMsg<U> = Ping(common.member.clone());
+    let ser = Arc::new(UdpSerial::msg(&common.clr_dest, &Ping(common.member.clone())));
     for s in common.clr_config.seed_nodes.iter() {
-      ctx.node.udp_select(s, &common.clr_dest, &msg, FAILURE_MODE, &common.fail_map).await;
+      ctx.node.udp_select(s, &ser, FAILURE_MODE, &common.fail_map).await;
     }
     let ar = ctx.local_interface();
     self.timeout = ctx.node.schedule(common.clr_config.ping_timeout, move || {
@@ -348,16 +339,8 @@ impl Pinging {
           let log = format!("HB req for id {}, id is {}", common.member.id, id);
           debug!(LOG_LEVEL, ctx.node, log);
         }
-        ctx
-          .node
-          .udp_select(
-            &member.socket,
-            &common.clr_dest,
-            &ReqGossip(common.member.clone()),
-            FAILURE_MODE,
-            &common.fail_map,
-          )
-          .await;
+        let ser = Arc::new(UdpSerial::msg(&common.clr_dest, &ReqGossip(common.member.clone())));
+        ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &common.fail_map).await;
         None
       }
       State(mut gossip) => {
@@ -478,7 +461,7 @@ impl<U: UnifiedType> NodeState<U> {
       vnodes: self.member.vnodes,
     });
     self.hbr_dest = Destination::new::<HeartbeatReceiverMsg>(HeartbeatReceiver::<U>::from_clr(
-      self.clr_dest.name().name.as_str(),
+      self.clr_dest.name().name().as_str(),
       self.member.id,
     ));
     let log = format!("Was downed, id {} -> {}", old_id, self.member.id);
@@ -488,7 +471,8 @@ impl<U: UnifiedType> NodeState<U> {
   async fn heartbeat(&self, ctx: &ActorContext<U, ClusterMsg<U>>, member: &Member) {
     let msg =
       HeartbeatReceiverMsg::Heartbeat(self.clr_config.hb_interval, self.hb_interval_changes);
-    ctx.node.udp_select(&member.socket, &self.hbr_dest, &msg, FAILURE_MODE, &self.fail_map).await;
+    let ser = Arc::new(UdpSerial::msg(&self.hbr_dest, &msg));
+    ctx.node.udp_select(&member.socket, &ser, FAILURE_MODE, &self.fail_map).await;
   }
 
   fn schedule_gossip_timeout(&self, ctx: &ActorContext<U, ClusterMsg<U>>) -> JoinHandle<bool> {

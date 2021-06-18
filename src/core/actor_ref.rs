@@ -1,6 +1,6 @@
 use crate::core::{
   local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node, Socket,
-  SpecificInterface, UnifiedType,
+  SpecificInterface, UdpSerial, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -85,8 +85,10 @@ impl<U: UnifiedType + Case<I>, I> ActorRef<U, I>
 where
   I: Serialize + DeserializeOwned,
 {
-  pub async fn remote_send(&self, node: &Node<U>, item: &I) {
-    node.udp_msg(&self.socket, &self.dest, item).await;
+  pub async fn remote_send(&self, node: &Node<U>, item: &I) -> UdpSerial {
+    let ser = UdpSerial::msg(&self.dest, item);
+    node.udp(&self.socket, &ser).await;
+    ser
   }
 }
 impl<U: UnifiedType + Case<S>, S> ActorRef<U, S>
@@ -100,7 +102,8 @@ where
     if let Some(r) = &self.local {
       Some(r.send(item.clone()))
     } else {
-      node.udp_msg(&self.socket, &self.dest, item).await;
+      let ser = UdpSerial::msg(&self.dest, item);
+      node.udp(&self.socket, &ser).await;
       None
     }
   }
@@ -109,7 +112,8 @@ where
     if let Some(r) = &self.local {
       Some(r.send(item))
     } else {
-      node.udp_msg(&self.socket, &self.dest, &item).await;
+      let ser = UdpSerial::msg(&self.dest, &item);
+      node.udp(&self.socket, &ser).await;
       None
     }
   }
@@ -118,7 +122,8 @@ where
     if let Some(r) = &self.local {
       Some(r.signal(sig))
     } else {
-      node.udp_signal(&self.socket, &self.dest, &sig).await;
+      let ser = UdpSerial::sig(&self.dest, &sig);
+      node.udp(&self.socket, &ser).await;
       None
     }
   }

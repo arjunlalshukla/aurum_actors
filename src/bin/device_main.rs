@@ -5,7 +5,7 @@ use aurum::cluster::devices::{
 use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
 use aurum::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Destination, Host, LocalRef, Node, NodeConfig,
-  Socket,
+  Socket, UdpSerial,
 };
 use aurum::testkit::{FailureConfig, FailureConfigMap, FailureMode, LogLevel};
 use aurum::{debug, info, unify, AurumInterface};
@@ -19,6 +19,7 @@ use std::fmt::Write;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -389,10 +390,8 @@ impl ReportReceiver {
 
   async fn req(&self, num: u64, ctx: &ActorContext<BenchmarkTypes, ReportReceiverMsg>) {
     let msg = IoTBusinessMsg::ReportReq(num, ctx.interface());
-    ctx
-      .node
-      .udp_select(&self.charge.socket, &self.charge_dest, &msg, FAILURE_MODE, &self.fail_map)
-      .await;
+    let ser = Arc::new(UdpSerial::msg(&self.charge_dest, &msg));
+    ctx.node.udp_select(&self.charge.socket, &ser, FAILURE_MODE, &self.fail_map).await;
     ctx.node.schedule_local_msg(
       self.req_timeout,
       ctx.local_interface(),
@@ -455,10 +454,8 @@ impl Actor<BenchmarkTypes, IoTBusinessMsg> for IoTBusiness {
       IoTBusinessMsg::ReportReq(clock, requester) => {
         let items = (1..1000u64).collect_vec();
         let msg = ReportReceiverMsg::Report(clock, items);
-        ctx
-          .node
-          .udp_select(&requester.socket, &requester.dest, &msg, FAILURE_MODE, &self.fail_map)
-          .await;
+        let ser = Arc::new(UdpSerial::msg(&requester.dest, &msg));
+        ctx.node.udp_select(&requester.socket, &ser, FAILURE_MODE, &self.fail_map).await;
       }
     }
   }
@@ -595,8 +592,9 @@ impl Actor<BenchmarkTypes, CollectorMsg> for Collector {
       }
       CollectorMsg::ReqTick => {
         let msg = DataCenterBusinessMsg::ReportReq(ctx.interface());
+        let ser = Arc::new(UdpSerial::msg(&self.svr_dest, &msg));
         for socket in &self.servers {
-          ctx.node.udp_msg(&socket.2, &self.svr_dest, &msg).await;
+          ctx.node.udp(&socket.2, &ser).await;
         }
         ctx.node.schedule_local_msg(self.req_int, ctx.local_interface(), CollectorMsg::ReqTick);
       }

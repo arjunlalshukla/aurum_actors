@@ -3,7 +3,7 @@ use crate::cluster::{
   ClusterMsg, HBRConfig, IntervalStorage, IntraClusterMsg, Member, NodeState, FAILURE_MODE,
   LOG_LEVEL,
 };
-use crate::core::{ActorContext, Destination, LocalRef, TimeoutActor, UnifiedType};
+use crate::core::{ActorContext, Destination, LocalRef, TimeoutActor, UdpSerial, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, warn, AurumInterface};
 use async_trait::async_trait;
@@ -55,7 +55,7 @@ impl<U: UnifiedType> HeartbeatReceiver<U> {
           state: HBRState::Initial(common.hbr_config.req_tries),
           config: common.hbr_config.clone(),
         },
-        Self::from_clr(common.clr_dest.name().name.as_str(), cid),
+        Self::from_clr(common.clr_dest.name().name().as_str(), cid),
         true,
         common.hbr_config.req_timeout,
       )
@@ -65,10 +65,8 @@ impl<U: UnifiedType> HeartbeatReceiver<U> {
   }
 
   async fn send_req(&self, ctx: &ActorContext<U, HeartbeatReceiverMsg>) {
-    ctx
-      .node
-      .udp_select(&self.charge.socket, &self.clr_dest, &self.req, FAILURE_MODE, &self.fail_map)
-      .await;
+    let ser = Arc::new(UdpSerial::msg(&self.clr_dest, &self.req));
+    ctx.node.udp_select(&self.charge.socket, &ser, FAILURE_MODE, &self.fail_map).await;
   }
 }
 #[async_trait]

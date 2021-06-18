@@ -3,11 +3,12 @@ use crate::cluster::devices::{
   Device, DeviceClientMsg, DeviceClientRemoteMsg, DeviceInterval, DeviceServerMsg, LOG_LEVEL,
 };
 use crate::cluster::{IntervalStorage, FAILURE_MODE};
-use crate::core::{Actor, ActorContext, Destination, LocalRef, Node, UnifiedType};
+use crate::core::{Actor, ActorContext, Destination, LocalRef, Node, UdpSerial, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{debug, info, trace, AurumInterface};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use HBReqSenderMsg::*;
 use HBReqSenderRemoteMsg::*;
 
@@ -84,16 +85,9 @@ impl<U: UnifiedType> Actor<U, HBReqSenderMsg> for HBReqSender<U> {
       Tick => {
         if self.storage.phi() < self.config.phi {
           trace!(LOG_LEVEL, &ctx.node, format!("Sending HBR to {}", self.charge.socket));
-          ctx
-            .node
-            .udp_select(
-              &self.charge.socket,
-              &self.dev_dest,
-              &DeviceClientRemoteMsg::HeartbeatRequest(ctx.interface()),
-              FAILURE_MODE,
-              &self.fail_map,
-            )
-            .await;
+          let msg = DeviceClientRemoteMsg::HeartbeatRequest(ctx.interface());
+          let ser = Arc::new(UdpSerial::msg(&self.dev_dest, &msg));
+          ctx.node.udp_select(&self.charge.socket, &ser, FAILURE_MODE, &self.fail_map).await;
           ctx.node.schedule_local_msg(self.interval.interval, ctx.local_interface(), Tick);
         } else {
           info!(LOG_LEVEL, &ctx.node, format!("Downing device {}", self.charge.socket));

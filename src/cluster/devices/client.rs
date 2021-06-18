@@ -2,7 +2,7 @@ use crate::cluster::devices::{
   Device, DeviceInterval, DeviceServerMsg, DeviceServerRemoteMsg, HBReqSenderRemoteMsg, LOG_LEVEL,
 };
 use crate::cluster::{IntervalStorage, FAILURE_MODE};
-use crate::core::{Actor, ActorContext, ActorRef, LocalRef, Node, Socket, UnifiedType};
+use crate::core::{Actor, ActorContext, ActorRef, LocalRef, Node, Socket, UdpSerial, UnifiedType};
 use crate::testkit::FailureConfigMap;
 use crate::{self as aurum, core::Destination};
 use crate::{info, trace, AurumInterface};
@@ -11,6 +11,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{hash_map::Entry::*, HashMap, VecDeque};
 use std::hash::Hash;
+use std::sync::Arc;
 use std::time::Duration;
 use DeviceClientCmd::*;
 use DeviceClientMsg::*;
@@ -114,6 +115,7 @@ impl<U: UnifiedType> DeviceClient<U> {
 
   async fn notify_server(&self, ctx: &ActorContext<U, DeviceClientMsg<U>>) {
     let msg = SetHeartbeatInterval(self.my_info.clone(), self.interval);
+    let ser = Arc::new(UdpSerial::msg(&self.svr_dest, &msg));
     match &self.server {
       Some(svr) => {
         trace!(
@@ -121,7 +123,7 @@ impl<U: UnifiedType> DeviceClient<U> {
           &ctx.node,
           format!("On server: SETTING {} to {:?}", svr.udp, self.interval)
         );
-        ctx.node.udp_select(svr, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map).await;
+        ctx.node.udp_select(svr, &ser, FAILURE_MODE, &self.fail_map).await;
       }
       None => {
         trace!(
@@ -134,7 +136,7 @@ impl<U: UnifiedType> DeviceClient<U> {
           )
         );
         for seed in self.config.seeds.iter() {
-          ctx.node.udp_select(seed, &self.svr_dest, &msg, FAILURE_MODE, &self.fail_map).await;
+          ctx.node.udp_select(seed, &ser, FAILURE_MODE, &self.fail_map).await;
         }
       }
     }
@@ -183,10 +185,8 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
         } else {
           self.storage.push();
         }
-        ctx
-          .node
-          .udp_select(&sender.socket, &sender.dest, &Heartbeat, FAILURE_MODE, &self.fail_map)
-          .await;
+        let ser = Arc::new(UdpSerial::msg(&sender.dest, &Heartbeat));
+        ctx.node.udp_select(&sender.socket, &ser, FAILURE_MODE, &self.fail_map).await;
         self.server_log.push(sender);
         if self.server_log.changes + 1 != self.server_log.frequencies.len() as u32 {
           let log = format!(
@@ -195,10 +195,8 @@ impl<U: UnifiedType> Actor<U, DeviceClientMsg<U>> for DeviceClient<U> {
           );
           info!(LOG_LEVEL, &ctx.node, log);
           for svr in self.server_log.frequencies.keys() {
-            ctx
-              .node
-              .udp_select(&svr.socket, &svr.dest, &MultipleSenders, FAILURE_MODE, &self.fail_map)
-              .await;
+            let ser = Arc::new(UdpSerial::msg(&svr.dest, &MultipleSenders));
+            ctx.node.udp_select(&svr.socket, &ser, FAILURE_MODE, &self.fail_map).await;
           }
         }
       }

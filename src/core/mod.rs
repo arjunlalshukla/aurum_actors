@@ -23,7 +23,6 @@ pub(in crate::core) use {
   actor_tasks_unit::unit_single, 
   packets::DatagramHeader, 
   packets::MessageBuilder, 
-  packets::MessagePackets,
   packets::deserialize,
   packets::serialize,
   registry::Registry, 
@@ -48,10 +47,10 @@ pub use {
 #[rustfmt::skip]
 pub use {
   actor::Actor, 
-  actor::TimeoutActor,
   actor::ActorContext, 
   actor::ActorName, 
   actor::ActorSignal,
+  actor::TimeoutActor,
   actor_ref::ActorRef, 
   actor_ref::LocalRef,
   remoting::Destination,

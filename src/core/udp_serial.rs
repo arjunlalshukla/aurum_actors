@@ -1,7 +1,6 @@
 use crate::core::{
   serialize, ActorSignal, Case, DatagramHeader, Destination, Interpretations, UnifiedType,
 };
-use crate::testkit::FailureConfigMap;
 use rand::random;
 use serde::{de::DeserializeOwned, Serialize};
 use std::net::SocketAddr;
@@ -12,6 +11,7 @@ pub struct UdpSerial {
 }
 impl UdpSerial {
   // const MAX_SAFE_PAYLOAD: usize = 508;
+  #[allow(dead_code)]
   const MAX_UDP_PAYLOAD: usize = 65507;
   pub const PACKET_SIZE: usize = 75;
   const PAYLOAD_PER_PACKET: usize = Self::PACKET_SIZE - DatagramHeader::SIZE;

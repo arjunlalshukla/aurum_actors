@@ -14,8 +14,8 @@ use tokio::sync::mpsc::UnboundedSender;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedType")]
 pub struct ActorName<U> {
-  pub recv_type: U,
-  pub name: String,
+  recv_type: U,
+  name: String,
 }
 impl<U: UnifiedType> ActorName<U> {
   pub fn new<T>(s: String) -> ActorName<U>
@@ -26,6 +26,14 @@ impl<U: UnifiedType> ActorName<U> {
       recv_type: <U as Case<T>>::VARIANT,
       name: s,
     }
+  }
+
+  pub fn recv_type(&self) -> U {
+    self.recv_type
+  }
+
+  pub fn name(&self) -> &String {
+    &self.name
   }
 }
 
@@ -103,7 +111,7 @@ where
   U: Case<S> + UnifiedType,
   S: 'static + Send + SpecificInterface<U>,
 {
-  pub(crate) tx: UnboundedSender<ActorMsg<U, S>>,
+  pub(in crate::core) tx: UnboundedSender<ActorMsg<U, S>>,
   pub name: ActorName<U>,
   pub node: Node<U>,
 }
@@ -144,7 +152,7 @@ where
     }
   }
 
-  pub fn ser_recvr(&self) -> SerializedRecvr<U> {
+  pub(in crate::core) fn ser_recvr(&self) -> SerializedRecvr<U> {
     let sender = self.tx.clone();
     Box::new(move |unified: U, mb: MessageBuilder| {
       sender.send(ActorMsg::Serial(unified, mb)).is_ok()

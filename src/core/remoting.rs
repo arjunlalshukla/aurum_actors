@@ -66,7 +66,7 @@ impl Default for Socket {
 
 #[derive(Eq, PartialEq, Clone, Hash, Debug, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
-pub struct DestinationUntyped<U: UnifiedType> {
+pub(in crate::core) struct DestinationUntyped<U: UnifiedType> {
   pub name: ActorName<U>,
   pub interface: U,
 }
@@ -74,9 +74,9 @@ pub struct DestinationUntyped<U: UnifiedType> {
 #[derive(Eq, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct Destination<U: UnifiedType + Case<I>, I> {
-  pub untyped: DestinationUntyped<U>,
+  untyped: DestinationUntyped<U>,
   #[serde(skip)]
-  pub x: PhantomData<I>,
+  x: PhantomData<I>,
 }
 impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
   pub fn new<S>(s: String) -> Destination<U, I>
@@ -97,12 +97,12 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
     &self.untyped.name
   }
 
-  pub fn untyped(&self) -> &DestinationUntyped<U> {
+  pub(in crate::core) fn untyped(&self) -> &DestinationUntyped<U> {
     &self.untyped
   }
 
   pub fn valid(&self) -> bool {
-    self.untyped.name.recv_type.has_interface(<U as Case<I>>::VARIANT)
+    self.untyped.name.recv_type().has_interface(<U as Case<I>>::VARIANT)
   }
 }
 impl<U: UnifiedType + Case<I>, I> Clone for Destination<U, I> {
