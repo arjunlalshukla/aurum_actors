@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr, SpecificInterface,
+  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr, RootMessage,
   UnifiedType,
 };
 use async_trait::async_trait;
@@ -37,8 +37,18 @@ impl<U: UnifiedType> ActorName<U> {
   }
 }
 
+/// The main trait for actors to process messages.
+/// 
+/// Each actor runs on at least one asynchronous task. Messages are received and processed
+/// atomically. Actors are lightweight and have good scalability locally.
+/// [`Node`](crate::core::Node) uses the [`Tokio`] runtime to schedule its tasks.
+/// Aurum operates under the same rules as Rust’s (and Tokio’s) asynchrony: tasks are IO-bound.
+/// Code running in tasks is expected to `await` often, and starvation can occur if asynchronous
+/// code performs heavy compute operations or synchronous IO.
+/// 
+/// [`Tokio`]: https://docs.rs/tokio/
 #[async_trait]
-pub trait Actor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>>
+pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>
 where
   Self: Send + 'static,
 {
@@ -48,7 +58,7 @@ where
 }
 
 #[async_trait]
-pub trait TimeoutActor<U: Case<S> + UnifiedType, S: Send + SpecificInterface<U>> {
+pub trait TimeoutActor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>> {
   async fn pre_start(&mut self, _: &ActorContext<U, S>) -> Option<Duration> {
     None
   }
@@ -109,7 +119,7 @@ pub fn local_actor_msg_convert<S: From<I>, I>(msg: LocalActorMsg<I>) -> LocalAct
 pub struct ActorContext<U, S>
 where
   U: Case<S> + UnifiedType,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
 {
   pub(in crate::core) tx: UnboundedSender<ActorMsg<U, S>>,
   pub name: ActorName<U>,
@@ -118,7 +128,7 @@ where
 impl<U, S> ActorContext<U, S>
 where
   U: Case<S> + UnifiedType,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
 {
   pub(in crate::core) fn create_local<T: Send>(
     sender: UnboundedSender<ActorMsg<U, S>>,

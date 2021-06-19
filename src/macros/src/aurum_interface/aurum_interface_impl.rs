@@ -70,7 +70,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
   let code = TokenStream::from(quote! {
     #(#from_impls)*
 
-    impl<__Unified, #generics> aurum::core::SpecificInterface<__Unified>
+    impl<__Unified, #generics> aurum::core::RootMessage<__Unified>
     for #type_id_with_generics
     where __Unified: aurum::core::UnifiedType #(+ aurum::core::Case<#cases>)* ,
     #where_clause

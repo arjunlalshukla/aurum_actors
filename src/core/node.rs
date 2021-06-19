@@ -1,6 +1,6 @@
 use crate::core::{
   run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorMsg,
-  ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket, SpecificInterface,
+  ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket, RootMessage,
   TimeoutActor, UdpSerial, UnifiedType,
 };
 use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg};
@@ -41,6 +41,15 @@ struct NodeImpl<U: UnifiedType> {
   rt: Runtime,
 }
 
+/// Spawns actors and manages system-wide information. 
+/// 
+/// The [`Node`] accessible from every actor it spawns through that actor's
+/// [`ActorContext`]. It contains references to its configuration,
+/// asynchronous runtime, registry and logger. To create a [`Node`], create a [`NodeConfig`], set
+/// the fields and pass it to [`new`] or [`new_sync`] associated functions.
+/// 
+/// [`new`]: #method.new
+/// [`new_sync`]: #method.new_sync
 #[derive(Clone)]
 pub struct Node<U: UnifiedType> {
   node: Arc<NodeImpl<U>>,
@@ -134,7 +143,7 @@ impl<U: UnifiedType> Node<U> {
   fn start_codependent<S, A>(rt: &Runtime, actor: A, name: String) -> (LocalRef<S>, Sender<Self>)
   where
     A: Actor<U, S> + Send + 'static,
-    S: SpecificInterface<U>,
+    S: RootMessage<U>,
     U: Case<S>,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
@@ -154,7 +163,7 @@ impl<U: UnifiedType> Node<U> {
   pub fn spawn<S, A>(&self, double: bool, actor: A, name: String, register: bool) -> ActorRef<U, S>
   where
     U: Case<S>,
-    S: SpecificInterface<U>,
+    S: RootMessage<U>,
     A: Actor<U, S> + Send + 'static,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
@@ -181,7 +190,7 @@ impl<U: UnifiedType> Node<U> {
   ) -> ActorRef<U, S>
   where
     U: Case<S>,
-    S: SpecificInterface<U>,
+    S: RootMessage<U>,
     A: TimeoutActor<U, S> + Send + 'static,
   {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();

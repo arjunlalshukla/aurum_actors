@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, SpecificInterface,
+  ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, RootMessage,
   TimeoutActor, UnifiedType,
 };
 use std::time::Duration;
@@ -14,7 +14,7 @@ pub(crate) async fn run_single_timeout<U, S, A>(
   mut timeout: Duration,
 ) where
   U: UnifiedType + Case<S>,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
   A: TimeoutActor<U, S> + Send + 'static,
 {
   if register {

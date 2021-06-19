@@ -1,4 +1,4 @@
-use crate::core::{ActorName, Case, SpecificInterface, UnifiedType};
+use crate::core::{ActorName, Case, RootMessage, UnifiedType};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -82,7 +82,7 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
   pub fn new<S>(s: String) -> Destination<U, I>
   where
     U: Case<S>,
-    S: From<I> + SpecificInterface<U>,
+    S: From<I> + RootMessage<U>,
   {
     Destination {
       untyped: DestinationUntyped {

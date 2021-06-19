@@ -1,5 +1,5 @@
 use crate::core::{
-  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, SpecificInterface,
+  Actor, ActorContext, ActorMsg, ActorSignal, Case, LocalActorMsg, RegistryMsg, RootMessage,
   UnifiedType,
 };
 use std::collections::VecDeque;
@@ -13,7 +13,7 @@ pub(crate) async fn unit_single<U, S, A>(
   register: bool,
 ) where
   U: UnifiedType + Case<S>,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
   A: Actor<U, S> + Send + 'static,
 {
   if register {
@@ -56,7 +56,7 @@ pub(crate) async fn unit_secondary<U, S, A>(
   register: bool,
 ) where
   U: UnifiedType + Case<S>,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
   A: Actor<U, S> + Send + 'static,
 {
   if register {
@@ -116,7 +116,7 @@ async fn unit_primary<U, S, A>(
   mut rx: UnboundedReceiver<PrimaryMsg<S>>,
 ) where
   U: UnifiedType + Case<S>,
-  S: 'static + Send + SpecificInterface<U>,
+  S: 'static + Send + RootMessage<U>,
   A: Actor<U, S> + Send + 'static,
 {
   let send_to_secondary = |x: ActorMsg<U, S>| {

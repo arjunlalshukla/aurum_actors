@@ -1,6 +1,6 @@
 use crate::core::{
   local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node, Socket,
-  SpecificInterface, UdpSerial, UnifiedType,
+  RootMessage, UdpSerial, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ impl<U: UnifiedType + Case<I>, I> ActorRef<U, I> {
   pub fn new<S>(name: String, socket: Socket) -> Self
   where
     U: Case<S>,
-    S: From<I> + SpecificInterface<U>,
+    S: From<I> + RootMessage<U>,
   {
     Self {
       socket: socket,

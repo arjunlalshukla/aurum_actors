@@ -82,7 +82,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       fn has_interface(self, interface: Self) -> bool {
         match self {
           #(
-            #unified::#specific_variants => <#specifics as aurum::core::SpecificInterface<#unified>>::has_interface(interface),
+            #unified::#specific_variants => <#specifics as aurum::core::RootMessage<#unified>>::has_interface(interface),
           )*
           _ => false
         }

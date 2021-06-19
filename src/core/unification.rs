@@ -47,7 +47,7 @@ pub trait Case<S> {
   const VARIANT: Self;
 }
 
-pub trait SpecificInterface<U: UnifiedType + Case<Self>>
+pub trait RootMessage<U: UnifiedType + Case<Self>>
 where
   Self: Sized + Send + 'static,
 {
