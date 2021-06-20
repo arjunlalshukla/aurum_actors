@@ -47,6 +47,61 @@ impl<U: UnifiedType> ActorId<U> {
 /// Code running in tasks is expected to `await` often, and starvation can occur if asynchronous
 /// code performs heavy compute operations or synchronous IO.
 /// 
+/// It is recommended to implement [`Actor`] the [`async_trait`](async_trait::async_trait)
+/// annotation. Rust cannot have async functions in traits yet, so this is a temporary work-around.
+/// [`async_trait`](async_trait::async_trait) changes the type signatures of the member funtions
+/// for [`Actor`]. Just pretend the trait looks like this instead of the monstrosity below:
+/// 
+/// ```ignore
+/// #[async_trait]
+/// pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>
+/// where
+/// Self: Send + 'static,
+/// {
+///   async fn pre_start(&mut self, _: &ActorContext<U, S>) {}
+///   async fn recv(&mut self, ctx: &ActorContext<U, S>, msg: S);
+///   async fn post_stop(&mut self, _: &ActorContext<U, S>) {}
+/// }
+/// ```
+/// 
+/// You'll need to use [`async_trait`](async_trait::async_trait) for every implementation of
+/// [`Actor`].
+/// 
+/// ```
+/// use async_trait::async_trait;
+/// use aurum::AurumInterface;
+/// use aurum::core::{Actor, ActorContext, ActorRef, Case, UnifiedType};
+/// use serde::{Serialize, Deserialize};
+/// 
+/// #[derive(AurumInterface, Serialize, Deserialize)]
+/// #[serde(bound = "U: UnifiedType")]
+/// enum Ball<U: UnifiedType + Case<Ball<U>>> {
+///   Ping(ActorRef<U, Self>),
+///   Pong(ActorRef<U, Self>),
+/// }
+/// 
+/// struct Player<U: UnifiedType + Case<Ball<U>>> {
+///   initial_contact: Option<ActorRef<U, Ball<U>>>
+/// }
+/// #[async_trait]
+/// impl<U: UnifiedType + Case<Ball<U>>> Actor<U, Ball<U>> for Player<U> {
+///   async fn pre_start(&mut self, ctx: &ActorContext<U, Ball<U>>) {
+///     if let Some(r) = &self.initial_contact {
+///       r.remote_send(&ctx.node, &Ball::Ping(ctx.interface())).await;
+///     }
+///   }
+///   async fn recv(&mut self, ctx: &ActorContext<U, Ball<U>>, msg: Ball<U>) {
+///     match msg {
+///       Ball::Ping(r) => {
+///         r.remote_send(&ctx.node, &Ball::Pong(ctx.interface())).await;
+///       }
+///       Ball::Pong(r) => {
+///         r.remote_send(&ctx.node, &Ball::Ping(ctx.interface())).await;
+///       }
+///     }
+///   }
+/// } 
+/// ```
 /// [`Tokio`]: https://docs.rs/tokio/
 #[async_trait]
 pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>

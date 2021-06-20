@@ -90,7 +90,7 @@ extern crate aurum_macros;
 /// match that generic type as well as match each other, to make sure we do not create a 
 /// [`Destination`](crate::core::Destination) that is invalid according to our type system.
 /// 
-/// Rust's [`TypeId`] (std::any::TypeId) is not serializable, and does not come with any guarantees
+/// Rust's [`TypeId`](std::any::TypeId) is not serializable, and does not come with any guarantees
 /// at all. We had to create our own system of reflection to fix this problem, but it is fairly easy
 /// to use. The [`UnifiedType`](crate::core::UnifiedType) created by this macro is an enum, whose
 /// variant represent all possible root message types and actor interfaces usable in an application.
