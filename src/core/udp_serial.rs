@@ -12,7 +12,8 @@ use tokio::net::UdpSocket;
 /// both of them and places them in buffer delimited with packet headers. If a message is too large
 /// to fit in a single packets, it is split into multiple packets.
 /// 
-/// To send a [`UdpSerial`], use the methods provided by [`Node`](crate::core::Node).
+/// To send a [`UdpSerial`], use [`Node::udp`](crate::core::Node::udp) and
+/// [`Node::udp_select`](crate::core::Node::udp_select).
 pub struct UdpSerial {
   bytes: Vec<u8>,
 }
@@ -20,6 +21,7 @@ impl UdpSerial {
   // const MAX_SAFE_PAYLOAD: usize = 508;
   #[allow(dead_code)]
   const MAX_UDP_PAYLOAD: usize = 65507;
+  /// The size of each packet sent of UDP, including the header.
   pub const PACKET_SIZE: usize = 75;
   const PAYLOAD_PER_PACKET: usize = Self::PACKET_SIZE - DatagramHeader::SIZE;
 
@@ -36,7 +38,7 @@ impl UdpSerial {
     self.len() - DatagramHeader::SIZE * self.packets()
   }
 
-  /// Creates a [`UdpSerial`] by serializing message and a [`Destination`]
+  /// Creates a [`UdpSerial`] by serializing a message and a [`Destination`]
   pub fn msg<U, I>(dest: &Destination<U, I>, item: &I) -> Self
   where
     U: UnifiedType + Case<I>,

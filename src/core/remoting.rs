@@ -71,6 +71,7 @@ pub(in crate::core) struct DestinationUntyped<U: UnifiedType> {
   pub interface: U,
 }
 
+/// The local part of an actor's messaging address.
 #[derive(Eq, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct Destination<U: UnifiedType + Case<I>, I> {
@@ -79,6 +80,7 @@ pub struct Destination<U: UnifiedType + Case<I>, I> {
   x: PhantomData<I>,
 }
 impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
+  /// Forges a new [`Destination`]
   pub fn new<S>(s: String) -> Destination<U, I>
   where
     U: Case<S>,
@@ -101,6 +103,8 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
     &self.untyped
   }
 
+  /// Tests whether the [`ActorId`] held by this [`Destination`] can receive messages of its
+  /// interface type.
   pub fn valid(&self) -> bool {
     self.untyped.name.recv_type().has_interface(<U as Case<I>>::VARIANT)
   }

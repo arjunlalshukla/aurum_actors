@@ -217,6 +217,7 @@ impl<U: UnifiedType> Node<U> {
     ret
   }
 
+  /// Sends the [`UdpSerial`] to the specified [`Socket`].
   pub async fn udp(&self, socket: &Socket, ser: &UdpSerial) {
     let addrs = socket.as_udp_addr().await.unwrap();
     let addr = addrs.iter().next().expect(format!("No resolution for {:?}", socket).as_str());

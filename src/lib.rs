@@ -76,4 +76,71 @@ pub mod core;
 pub mod testkit;
 extern crate aurum_macros;
 
-pub use aurum_macros::{unify, AurumInterface};
+/// Creates a [`UnifiedType`](crate::core::UnifiedType) and implements traits for it.
+/// 
+/// This macro is central to how [`Aurum`](crate) functions. Because we have actor interfaces, there
+/// are multiple possible interpretations of a sequence of bytes. In order to deserialize messages
+/// correctly, we need to know how to interpret the bytes. We need to know what type was serialized.
+/// Information on what type the message is must be included within the message. 
+/// [`UnifiedType`](crate::core::UnifiedType) instances are also used to safely deserialize
+/// [`Destination`](crate::core::Destination) instances, which contain a
+/// [`UnifiedType`](crate::core::UnifiedType) instance. Generic type information does not serialize,
+/// so if a [`Destination`](crate::core::Destination) is deserialized and interpreted with a
+/// generic type, we have to make sure that the [`ActorId`](crate::core::ActorId) and interface
+/// match that generic type as well as match each other, to make sure we do not create a 
+/// [`Destination`](crate::core::Destination) that is invalid according to our type system.
+/// 
+/// Rust's [`TypeId`] (std::any::TypeId) is not serializable, and does not come with any guarantees
+/// at all. We had to create our own system of reflection to fix this problem, but it is fairly easy
+/// to use. The [`UnifiedType`](crate::core::UnifiedType) created by this macro is an enum, whose
+/// variant represent all possible root message types and actor interfaces usable in an application.
+/// A type that is not in the [`UnifiedType`](crate::core::UnifiedType) may not be used in your
+/// application. [`Aurum`] uses the [`Case`](crate::core::Case) trait to enforce this restriction. 
+/// The end users must define a single [`UnifiedType`](crate::core::UnifiedType) for their
+/// application. DO NOT communicate between two [`Node`](crate::core::Node) instances with different
+/// types, things are bound to go wrong.
+/// 
+/// [`Case::VARIANT`](crate::core::Case::VARIANT) can be used to create instances of its
+/// [`UnifiedType`](crate::core::UnifiedType) from type information without needing to access the
+/// variants of that [`UnifiedType`](crate::core::UnifiedType), which are defined in the macro. This
+/// is how [`ActorRef`](crate::core::ActorRef) and [`Destination`](crate::core::Destination)
+/// construct [`UnifiedType`](crate::core::UnifiedType) instances for forging.
+/// 
+/// If you are writing a library built on top of
+/// [`Aurum`](crate), you can use [`Case`](crate::core::Case) to restrict your user's
+/// [`UnifiedType`](crate::core::UnifiedType) to make sure it is compatible with your messages.
+/// Users are required to list your dependent message types in their invocation of 
+/// [`unify`](crate::unify). This is how [`cluster`](crate::cluster) would normally be implemented,
+/// but the [`Case`](crate::core::Case) bounds for [`UnifiedType`](crate::core::UnifiedType) include
+/// the dependent message types for [`cluster`](crate::cluster) for the sake on convenience.
+/// 
+/// ```ignore
+/// #[derive(AurumInterface, Serialize, Deserialize)]
+/// enum MsgTypeForSomeThirdPartyLibrary { 
+///   #[aurum]
+///   Something(InterfaceForSomeThirdPartyLibrary)
+/// }
+/// 
+/// struct LibraryActor { ... }
+/// #[async_trait]
+/// impl<U> Actor<U, MsgTypeForSomeThirdPartyLibrary> for LibraryActor
+/// where
+///   U: UnifiedType + Case<MsgTypeForSomeThirdPartyLibrary>
+/// { ... }
+/// ```
+/// 
+/// The syntax for [`unify`](crate::unify) is as follows:
+/// 
+/// ```ignore
+/// unify! { pub MyUnifiedType =
+///   MyMsgType |
+///   MyOtherMsgType |
+///   MsgTypeForSomeThirdPartyLibrary
+///   ;
+///   String |
+///   InterfaceForSomeThirdPartyLibrary
+/// }
+/// ```
+pub use aurum_macros::unify;
+
+pub use aurum_macros::AurumInterface;

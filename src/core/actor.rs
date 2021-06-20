@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
+/// An identifier for actors unique in the registry of a [`Node`]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedType")]
 pub struct ActorId<U> {
@@ -116,6 +117,7 @@ pub fn local_actor_msg_convert<S: From<I>, I>(msg: LocalActorMsg<I>) -> LocalAct
   }
 }
 
+/// Contains contextual information needed by implementors of [`Actor`] to process messages.
 pub struct ActorContext<U, S>
 where
   U: Case<S> + UnifiedType,
