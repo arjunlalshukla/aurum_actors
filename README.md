@@ -1,3 +1,14 @@
+Make sure you have [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed. To build the docs, use this command from the project root:
+```
+$ cargo doc
+```
+
+The docs are generated HTML. The root doc is located here after generation:
+
+```
+./target/doc/aurum/index.html
+```
+
 Project layout:
 ```
 src
