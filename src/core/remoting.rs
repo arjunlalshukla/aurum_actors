@@ -8,6 +8,7 @@ use std::{cmp::PartialEq, marker::PhantomData};
 use std::{fmt, str::FromStr};
 use tokio::net::lookup_host;
 
+/// The DNS name or IP address of the machine hosting a [`Node`](crate::core::Node).
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize)]
 pub enum Host {
   DNS(String),
@@ -22,13 +23,18 @@ impl From<String> for Host {
   }
 }
 
+/// The remote address of a [`Node`](crate::core::Node), reachable by remoting.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize, Ord, PartialOrd)]
 pub struct Socket {
+  /// The DNS name or IP address of the machine hosting the [`Node`](crate::core::Node).
   pub host: Host,
+  /// The UDP port our [`Node`](crate::core::Node) receives on.
   pub udp: u16,
+  /// The TCP port our [`Node`](crate::core::Node) receives on.
   pub tcp: u16,
 }
 impl Socket {
+  /// Creates a new [`Socket`]
   pub fn new(host: Host, udp: u16, tcp: u16) -> Socket {
     Socket {
       host: host,
@@ -37,6 +43,9 @@ impl Socket {
     }
   }
 
+  /// Uses this the UDP port of this [`Socket`] in a raw [`SocketAddr`]. If the [`Host`] for this
+  /// [`Socket`] is a DNS name, this funtion will perform a DNS lookup. Only returns an error if the
+  /// DNS lookup fails.
   pub async fn as_udp_addr(&self) -> std::io::Result<Vec<SocketAddr>> {
     match &self.host {
       Host::IP(ip) => Ok(vec![SocketAddr::new(*ip, self.udp)]),
@@ -95,6 +104,7 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
     }
   }
 
+  /// Returns the [`ActorId`] component of this [`Destination`]
   pub fn name(&self) -> &ActorId<U> {
     &self.untyped.name
   }

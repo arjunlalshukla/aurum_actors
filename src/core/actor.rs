@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
-/// An identifier for actors unique in the registry of a [`Node`]
+/// An identifier for actors unique in the registry of a [`Node`].
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedType")]
 pub struct ActorId<U> {
@@ -19,20 +19,23 @@ pub struct ActorId<U> {
   name: String,
 }
 impl<U: UnifiedType> ActorId<U> {
-  pub fn new<T>(s: String) -> ActorId<U>
+  /// Creates a new [`ActorId`] the given [`String`] and `R`'s [`Case`] variant.
+  pub fn new<R>(s: String) -> ActorId<U>
   where
-    U: Case<T>,
+    U: Case<R>,
   {
     ActorId {
-      recv_type: <U as Case<T>>::VARIANT,
+      recv_type: <U as Case<R>>::VARIANT,
       name: s,
     }
   }
 
+  /// Returns the [`Case`] variant of this [`ActorId`]
   pub fn recv_type(&self) -> U {
     self.recv_type
   }
 
+  /// Returns the [`String`] part of this [`ActorId`]
   pub fn name(&self) -> &String {
     &self.name
   }
@@ -108,8 +111,13 @@ pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>
 where
   Self: Send + 'static,
 {
+  /// A setup function. This is called before the actor starts receiving messages.
   async fn pre_start(&mut self, _: &ActorContext<U, S>) {}
+
+  /// Called whenever the actor receives a message.
   async fn recv(&mut self, ctx: &ActorContext<U, S>, msg: S);
+
+  /// Called when the actor terminates gracefully and has stopped receiving messages.
   async fn post_stop(&mut self, _: &ActorContext<U, S>) {}
 }
 
@@ -132,13 +140,20 @@ pub(crate) enum ActorMsg<U, S> {
   Die,
 }
 
+/// Messages that can be sent to any actor, regardless of its receiving type.
+/// 
+/// There are some messages that you need to be able to send to any actor, regardless of what type
+/// that actor receives. Most of these messages concern the lifetime and execution of the actor.
+/// An actor of any type can be sent an [`ActorSignal`].
 #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ActorSignal {
+  /// Terminates the actor gracefully.
   Term,
 }
 
 #[derive(Eq, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
+#[doc(hidden)]
 pub enum LocalActorMsg<S> {
   Msg(S),
   Signal(ActorSignal),

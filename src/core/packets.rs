@@ -95,10 +95,14 @@ impl MessageBuilder {
   }
 }
 
+/// Used to signify where we should interpret a particular message as an [`ActorSignal`] or not.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Interpretations {
+  /// The message will be interpreted as the interface type for the
+  /// [`Destination`](crate::core::Destination) it was sent to.
   Message = 0,
+  /// The message will be interpreted as an [`ActorSignal`]
   Signal = 1,
 }
 

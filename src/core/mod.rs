@@ -20,12 +20,7 @@
 //! [`UnifiedType`](crate::core::UnifiedType) and the interface (not the root message type).
 //! 
 //! ### Creating a Message Type
-//! [`AurumInterface`](crate::AurumInterface) is a derive macro applied to the message types for
-//! actors. It generates all the necessary implementations for the message type to interact with
-//! the [`UnifiedType`](crate::core::UnifiedType) and produce interfaces.
-//! [`AurumInterface`](crate::AurumInterface) has a single annotation: `aurum`, which has one
-//! optional argument, telling [`AurumInterface`](crate::AurumInterface) whether the interface is
-//! to be exclusively local or not. See [`AurumInterface`](crate::AurumInterface) for details.
+//! Use [`AurumInterface`](crate::AurumInterface) to create message types for actors.
 //! 
 //! ```ignore
 //! #[derive(AurumInterface)]
@@ -38,13 +33,6 @@
 //!   MyOtherMsg(usize),
 //! }
 //! ```
-//! 
-//! In this example, because one of the message options is not serializable, the message type as a
-//! whole is not serializable. However, you can use an
-//! [`ActorRef<MyUnifiedType, String>`](crate::core::ActorRef) to send a string from a remote
-//! machine to whatever actor uses this message type. You can also create a
-//! [`LocalRef<&’static str>`](crate::core::LocalRef), but not a usable
-//! [`ActorRef`](crate::core::ActorRef).
 //! 
 //! ### A [`unify`](crate::unify) Example
 //! The [`unify`](crate::unify) macro is responsible for constructing the
@@ -81,7 +69,7 @@
 //! 
 //! let mut config = NodeConfig::default();
 //! config.socket = Socket::new(...);
-//! let node = Node::new(config);
+//! let node = Node::new_sync(config);
 //! let actor = MyActor {
 //!   first: "hi  there".to_string(),
 //!   second: 4214

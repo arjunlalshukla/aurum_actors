@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-/// An exclusively local actor reference
+/// An exclusively local actor reference.
 pub struct LocalRef<T> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
 }
@@ -52,7 +52,7 @@ impl<T: Send + 'static> LocalRef<T> {
   }
 }
 
-/// A location-transparent local actor reference
+/// A location-transparent local actor reference.
 #[derive(Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct ActorRef<U: UnifiedType + Case<I>, I> {

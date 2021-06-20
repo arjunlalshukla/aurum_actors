@@ -16,7 +16,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
-/// Holds configuration options for [`Node`]
+/// Holds configuration options for [`Node`].
 pub struct NodeConfig {
   /// The socket this node will receive remote messages on.
   /// 
@@ -68,6 +68,8 @@ pub struct Node<U: UnifiedType> {
   node: Arc<NodeImpl<U>>,
 }
 impl<U: UnifiedType> Node<U> {
+  /// Creates a new [`Node`] in a synchronous context. Panics if called from an asynchronous
+  /// context.
   pub fn new_sync(config: NodeConfig) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
@@ -80,6 +82,7 @@ impl<U: UnifiedType> Node<U> {
     Self::new_priv(rt, udp, config)
   }
 
+  /// Creates a new [`Node`].
   pub async fn new(config: NodeConfig) -> std::io::Result<Self> {
     let rt = Builder::new_multi_thread()
       .enable_io()
@@ -119,7 +122,7 @@ impl<U: UnifiedType> Node<U> {
     &self.node.socket
   }
 
-  pub fn registry(&self, msg: RegistryMsg<U>) -> bool {
+  pub(in crate::core) fn registry(&self, msg: RegistryMsg<U>) -> bool {
     self.node.registry.send(msg)
   }
 

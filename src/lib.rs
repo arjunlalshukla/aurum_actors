@@ -95,7 +95,7 @@ extern crate aurum_macros;
 /// to use. The [`UnifiedType`](crate::core::UnifiedType) created by this macro is an enum, whose
 /// variant represent all possible root message types and actor interfaces usable in an application.
 /// A type that is not in the [`UnifiedType`](crate::core::UnifiedType) may not be used in your
-/// application. [`Aurum`] uses the [`Case`](crate::core::Case) trait to enforce this restriction. 
+/// application. [`Aurum`](crate) uses the [`Case`](crate::core::Case) trait to enforce this restriction. 
 /// The end users must define a single [`UnifiedType`](crate::core::UnifiedType) for their
 /// application. DO NOT communicate between two [`Node`](crate::core::Node) instances with different
 /// types, things are bound to go wrong.
@@ -143,4 +143,42 @@ extern crate aurum_macros;
 /// ```
 pub use aurum_macros::unify;
 
+/// Implements [`RootMessage`](crate::core::RootMessage) and other traits for a root message type.
+/// 
+/// This derive macro is applicable to enums only. It generates all the necessary implementations
+/// for the message type to interact with the [`UnifiedType`](crate::core::UnifiedType) and produce
+/// interfaces. It uses the `#[aurum]` atrribute to configure interfaces. The `#[aurum]` attribute
+/// has a single optional argument: `local`. Use `#[aurum(local)]` to notify [`AurumInterface`] that
+/// the interface is exclusively local.
+/// 
+/// ```ignore
+/// #[derive(AurumInterface)]
+/// #[aurum(local)]
+/// enum MyMsgType {
+///   #[aurum]
+///   MyStringInterface(String),
+///   #[aurum(local)]
+///   MyNonserializableInterface(&'static str),
+///   MyOtherMsg(usize),
+/// }
+/// ```
+/// 
+/// In this example, because one of the message options is not serializable, the message type as a
+/// whole is not serializable. However, you can use an
+/// [`ActorRef<MyUnifiedType, String>`](crate::core::ActorRef) to send a string from a remote
+/// machine to whatever actor uses this message type. You can also create a
+/// [`LocalRef<&’static str>`](crate::core::LocalRef), but not a usable
+/// [`ActorRef`](crate::core::ActorRef).
+/// 
+/// [`AurumInterface`] creates an implementation of [`RootMessage`](crate::core::RootMessage) for
+/// the type it is invoked on. The [`RootMessage`](crate::core::RootMessage) implementation is
+/// blanketed over all types implementing [`UnifiedType`](crate::core::UnifiedType). The blanket is
+/// bounded by [`Case`](crate::core::Case) implementation for the root type and each remote
+/// interface. In the example, the implementation is bounded by
+/// [`Case<MyMsgType>`](crate::core::Case) and [`Case<String>`](crate::core::Case) but not
+/// [`Case<&'static str>`](crate::core::Case).
+/// 
+/// [`AurumInterface`] implements [`From`](std::convert::From) on every interface type, local or
+/// not. In the example, [`From<String>`](std::convert::From) and
+/// [`From<&'static str>`](std::convert::From) are implemented for `MyMsgType`.
 pub use aurum_macros::AurumInterface;

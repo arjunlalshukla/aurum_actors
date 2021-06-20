@@ -44,6 +44,7 @@ pub trait UnifiedType:
   + Case<CausalMsg<Devices>>
   + Case<CausalIntraMsg<Devices>>
 {
+  /// Tests if this variant's type has another variant's type as an interface.
   fn has_interface(self, interface: Self) -> bool;
 }
 
@@ -59,16 +60,19 @@ pub trait Case<S> {
 /// Denotes message types that [`Actor`](crate::core::Actor) receives.
 /// 
 /// This trait shoud not be implemented manually. The [`AurumInterface`](crate::AurumInterface)
-/// derive macro will implement it. Fee free to use it in trait bounds.
+/// derive macro will implement it. Feel free to use it in trait bounds.
 pub trait RootMessage<U: UnifiedType + Case<Self>>
 where
   Self: Sized + Send + 'static,
 {
+  #[doc(hidden)]
   fn deserialize_as(
     interface: U,
     intp: Interpretations,
     bytes: &[u8],
   ) -> Result<LocalActorMsg<Self>, DeserializeError<U>>;
 
+  /// Tests if this root message type has an interface for the type corresponding to the given
+  /// variant of our [`UnifiedType`].
   fn has_interface(interface: U) -> bool;
 }

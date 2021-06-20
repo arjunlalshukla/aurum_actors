@@ -25,6 +25,7 @@ impl UdpSerial {
   pub const PACKET_SIZE: usize = 75;
   const PAYLOAD_PER_PACKET: usize = Self::PACKET_SIZE - DatagramHeader::SIZE;
 
+  /// The number of UDP packets that will be sent over the wire.
   pub fn packets(&self) -> usize {
     self.bytes.len() / Self::PACKET_SIZE - (self.bytes.len() % Self::PACKET_SIZE == 0) as usize + 1
   }
@@ -34,6 +35,7 @@ impl UdpSerial {
     self.bytes.len()
   }
 
+  /// The total length of the serialized message, excluding the headers.
   pub fn payload_len(&self) -> usize {
     self.len() - DatagramHeader::SIZE * self.packets()
   }
