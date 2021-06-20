@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aurum::core::{
-  Actor, ActorContext, ActorName, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
+  Actor, ActorContext, ActorId, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
@@ -11,14 +11,14 @@ const RING_SIZE: u16 = 20;
 #[derive(AurumInterface, Clone)]
 #[aurum(local)]
 enum Ball {
-  Ball(u32, ActorName<RingTypes>),
+  Ball(u32, ActorId<RingTypes>),
 }
 unify!(RingTypes = Ball);
 
 #[derive(PartialEq, Eq, Debug)]
 enum TestRecvr {
-  IntraRing(u32, ActorName<RingTypes>),
-  IAmDying(ActorName<RingTypes>),
+  IntraRing(u32, ActorId<RingTypes>),
+  IAmDying(ActorId<RingTypes>),
 }
 
 struct Player {
@@ -85,7 +85,7 @@ fn ring_test(double: bool, register: bool, port: u16) {
   let node = Node::<RingTypes>::new_sync(config).unwrap();
   let names = (0..RING_SIZE)
     .rev()
-    .map(|x| ActorName::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))
+    .map(|x| ActorId::<RingTypes>::new::<Ball>(format!("ring-member-{}", x)))
     .collect::<Vec<_>>();
   let leader = node
     .spawn(

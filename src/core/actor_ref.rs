@@ -9,6 +9,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
+/// An exclusively local actor reference
 pub struct LocalRef<T> {
   pub(crate) func: Arc<dyn Fn(LocalActorMsg<T>) -> bool + Send + Sync>,
 }
@@ -51,6 +52,7 @@ impl<T: Send + 'static> LocalRef<T> {
   }
 }
 
+/// A location-transparent local actor reference
 #[derive(Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub struct ActorRef<U: UnifiedType + Case<I>, I> {
@@ -60,10 +62,13 @@ pub struct ActorRef<U: UnifiedType + Case<I>, I> {
   pub(in crate::core) local: Option<LocalRef<I>>,
 }
 impl<U: UnifiedType + Case<I>, I> ActorRef<U, I> {
+
+  /// Tests if the actor identifier is valid given the generic type.
   pub fn valid(&self) -> bool {
     self.dest.valid()
   }
 
+  /// Forges a remote actor reference
   pub fn new<S>(name: String, socket: Socket) -> Self
   where
     U: Case<S>,
@@ -77,6 +82,7 @@ impl<U: UnifiedType + Case<I>, I> ActorRef<U, I> {
   }
 }
 impl<U: UnifiedType + Case<I>, I: Send + 'static> ActorRef<U, I> {
+  /// Returns the local reference if it exists
   pub fn local(&self) -> &Option<LocalRef<I>> {
     &self.local
   }
@@ -85,6 +91,7 @@ impl<U: UnifiedType + Case<I>, I> ActorRef<U, I>
 where
   I: Serialize + DeserializeOwned,
 {
+  /// Sends the message over the network, regardless of whether the local reference exists
   pub async fn remote_send(&self, node: &Node<U>, item: &I) -> UdpSerial {
     let ser = UdpSerial::msg(&self.dest, item);
     node.udp(&self.socket, &ser).await;

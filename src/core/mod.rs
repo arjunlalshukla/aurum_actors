@@ -94,6 +94,71 @@
 //! );
 //! ```
 //! 
+//! ### Sending Messages
+//! An [`ActorId`] is used to uniquely identify an actor in the registry of a [`Node`]. A
+//! [`Destination`] contains an [`ActorId`] and information on which interface it is sending
+//! messages to. A [`Destination`] can be forged, just like an [`ActorRef`]. The combination of a
+//! [`Socket`] and a [`Destination`] consitutes a complete actor address. You can construct and use
+//! these two components indepentently.
+//! 
+//! ```ignore
+//! let socket = Socket::new(...);
+//! 
+//! // Forging a Destination
+//! let dest = Destination::<MyUnifiedType, String>::new::<MyMsgType>(
+//!   "my-very-cool-actor".to_string()
+//! );
+//! let msg = "My name is Baloo".to_string();
+//! let ser = UdpSerial::new(&dest, &msg)
+//! node.udp(&socket, &ser);
+//! 
+//! // Forging an ActorRef
+//! let forged = ActorRef::<MyUnifiedType, String>::new::<MyMsgType>(
+//!   "my-very-cool-actor".to_string(),
+//!   socket.clone()
+//! );
+//! forged.remote_send(&node, &msg) ;
+//! ```
+//! 
+//! You can send a message unreliably using [`Node.udp_select`](crate::core::Node::udp_select).
+//! How messages are dropped or delayed depends on a [`FailureMode`](crate::testkit::FailureMode)
+//! and a [`FailureConfigMap`](crate::testkit::FailureConfigMap). 
+//! 
+//! ```ignore
+//! // Doesn’t have to be a const
+//! const MODE: FailureMode = FailureMode :: Message ;
+//! let mut fail_map = FailureConfigMap::default();
+//! // Make some changes to fail_map...
+//! let msg: String = "My name is Baloo".to_string();
+//! let ser = UdpSerial::new(&dest, &msg);
+//! node.udp_select(&socket , &ser, MODE, &fail_map) ;
+//! ```
+//! 
+//! ### Logging
+//! Define a [`LogLevel`] for you environment, and call one of these log macros. They all have the same
+//! arguments.
+//! 
+//! - [`trace`](crate::trace)
+//! - [`debug`](crate::debug)
+//! - [`info`](crate::info)
+//! - [`warn`](crate::warn)
+//! - [`error`](crate::error)
+//! - [`fatal`](crate::fatal)
+//! 
+//! The logger is accessible from the node, but there is nothing stopping you from spawning your own
+//! logger, it’s just an actor. The log messages can be anything that implements
+//! [`Display`](std::fmt::Display). The argument is turned into a trait object in the macro body.
+//! 
+//! ```ignore
+//! // Doesn’t have to be a const
+//! const LEVEL: LogLevel = LogLevel::Debug ;
+//! // Not logged, the level is Debug, which is above Trace
+//! trace!(LEVEL, &node, "kelp") ;
+//! // This is logged, Warn is above Debug
+//! warn!(LEVEL, &node, "sharks") ;
+//! ```
+//! 
+//! 
 
 extern crate aurum_macros;
 use crate::testkit::LogLevel;
@@ -145,7 +210,7 @@ pub use {
 pub use {
   actor::Actor, 
   actor::ActorContext, 
-  actor::ActorName, 
+  actor::ActorId, 
   actor::ActorSignal,
   actor::TimeoutActor,
   actor_ref::ActorRef, 

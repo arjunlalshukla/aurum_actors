@@ -11,6 +11,7 @@ use serde::Serialize;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+/// Enumerates all possible message types within an application.
 pub trait UnifiedType:
   'static
   + Send
@@ -43,10 +44,12 @@ pub trait UnifiedType:
   fn has_interface(self, interface: Self) -> bool;
 }
 
+/// Signifies that a type belongs to a [`UnifiedType`]
 pub trait Case<S> {
   const VARIANT: Self;
 }
 
+/// Denotes message types that [`Actor`](crate::core::Actor) receives.
 pub trait RootMessage<U: UnifiedType + Case<Self>>
 where
   Self: Sized + Send + 'static,

@@ -6,6 +6,13 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
+/// A fully serialized message, to be sent over UDP.
+/// 
+/// A message sent over the wire includes a [`Destination`] and a message. [`UdpSerial`] serializes
+/// both of them and places them in buffer delimited with packet headers. If a message is too large
+/// to fit in a single packets, it is split into multiple packets.
+/// 
+/// To send a [`UdpSerial`], use the methods provided by [`Node`](crate::core::Node).
 pub struct UdpSerial {
   bytes: Vec<u8>,
 }
@@ -20,6 +27,7 @@ impl UdpSerial {
     self.bytes.len() / Self::PACKET_SIZE - (self.bytes.len() % Self::PACKET_SIZE == 0) as usize + 1
   }
 
+  /// The total number of bytes that will be sent with this [`UdpSerial`]
   pub fn len(&self) -> usize {
     self.bytes.len()
   }
@@ -28,6 +36,7 @@ impl UdpSerial {
     self.len() - DatagramHeader::SIZE * self.packets()
   }
 
+  /// Creates a [`UdpSerial`] by serializing message and a [`Destination`]
   pub fn msg<U, I>(dest: &Destination<U, I>, item: &I) -> Self
   where
     U: UnifiedType + Case<I>,
@@ -36,6 +45,7 @@ impl UdpSerial {
     Self::new(item, Interpretations::Message, dest)
   }
 
+  /// Creates a [`UdpSerial`] by serializing an [`ActorSignal`] and a [`Destination`]
   pub fn sig<U, I>(dest: &Destination<U, I>, sig: &ActorSignal) -> Self
   where
     U: UnifiedType + Case<I>,

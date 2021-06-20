@@ -16,6 +16,7 @@ maplit = "*"
 num_cpus = "*"
 num_enum = "*"
 rand = { version = "*", features = ["alloc", "small_rng"] }
+rayon = "*"
 rpds = { version = "*", features = ["serde"] }
 serde = { version = "*", features = ["derive", "rc"] }
 serde_cbor = "*"

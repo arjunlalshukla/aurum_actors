@@ -3,6 +3,12 @@
 //! [`Aurum`](crate) implements a distributed actor model. Its purpose is to make distributed programming
 //! easy. [`Aurum`](crate) provides support for clustering, [CRDT] sharing among cluster members and [IoT]
 //! device tracking. It has excellent type safety and full [serde] support.
+//! 
+//! # Prerequisite Knowledge
+//! We suggest having this knowledge before starting here:
+//! - A basic understanding of the [actor model]
+//! - Some knowledge of [serialization] and [serde]
+//! - [`async/await`] in Rust
 //!
 //! # Why Would You Want to Use [`Aurum`](crate)?
 //! ### Typed Actors
@@ -57,7 +63,8 @@
 //! learn how to use it.
 //! - [`testkit`](crate::testkit): Tools for testing actors and injecting failures.
 //! 
-//!
+//! [`async/await`]: https://rust-lang.github.io/async-book/
+//! [serialization]: https://en.wikipedia.org/wiki/Serialization
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //! [serde]: https://docs.serde.rs/serde/
 //! [CRDT]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type

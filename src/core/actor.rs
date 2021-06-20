@@ -13,16 +13,16 @@ use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 #[serde(bound = "U: UnifiedType")]
-pub struct ActorName<U> {
+pub struct ActorId<U> {
   recv_type: U,
   name: String,
 }
-impl<U: UnifiedType> ActorName<U> {
-  pub fn new<T>(s: String) -> ActorName<U>
+impl<U: UnifiedType> ActorId<U> {
+  pub fn new<T>(s: String) -> ActorId<U>
   where
     U: Case<T>,
   {
-    ActorName {
+    ActorId {
       recv_type: <U as Case<T>>::VARIANT,
       name: s,
     }
@@ -37,7 +37,7 @@ impl<U: UnifiedType> ActorName<U> {
   }
 }
 
-/// The main trait for actors to process messages.
+/// Defines how actors process messages.
 /// 
 /// Each actor runs on at least one asynchronous task. Messages are received and processed
 /// atomically. Actors are lightweight and have good scalability locally.
@@ -122,7 +122,7 @@ where
   S: 'static + Send + RootMessage<U>,
 {
   pub(in crate::core) tx: UnboundedSender<ActorMsg<U, S>>,
-  pub name: ActorName<U>,
+  pub name: ActorId<U>,
   pub node: Node<U>,
 }
 impl<U, S> ActorContext<U, S>

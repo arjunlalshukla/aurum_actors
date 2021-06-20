@@ -1,4 +1,4 @@
-use crate::core::{ActorName, Case, RootMessage, UnifiedType};
+use crate::core::{ActorId, Case, RootMessage, UnifiedType};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -67,7 +67,7 @@ impl Default for Socket {
 #[derive(Eq, PartialEq, Clone, Hash, Debug, Deserialize, Serialize)]
 #[serde(bound = "U: Serialize + DeserializeOwned")]
 pub(in crate::core) struct DestinationUntyped<U: UnifiedType> {
-  pub name: ActorName<U>,
+  pub name: ActorId<U>,
   pub interface: U,
 }
 
@@ -86,14 +86,14 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
   {
     Destination {
       untyped: DestinationUntyped {
-        name: ActorName::new::<S>(s),
+        name: ActorId::new::<S>(s),
         interface: <U as Case<I>>::VARIANT,
       },
       x: PhantomData,
     }
   }
 
-  pub fn name(&self) -> &ActorName<U> {
+  pub fn name(&self) -> &ActorId<U> {
     &self.untyped.name
   }
 

@@ -1,6 +1,6 @@
 use crate::core::{
   run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorMsg,
-  ActorName, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket, RootMessage,
+  ActorId, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket, RootMessage,
   TimeoutActor, UdpSerial, UnifiedType,
 };
 use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg};
@@ -16,10 +16,23 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
+/// Holds configuration options for [`Node`]
 pub struct NodeConfig {
+  /// The socket this node will receive remote messages on.
+  /// 
+  /// default: [`Socket::default`](crate::core::Socket::default)
   pub socket: Socket,
+  /// The number of threads the [`Tokio`](tokio) scheduler will use.
+  /// 
+  /// default: 1
   pub actor_threads: usize,
+  /// The stack size for each [`Tokio`](tokio) thread.
+  /// 
+  /// default: 3\*1024\*1024
   pub actor_thread_stack_size: usize,
+  /// Not yet of use. To be the number of threads in the [`Rayon`](rayon) thread pool.
+  /// 
+  /// default: [`num_cpus::get`]
   pub compute_threads: usize,
 }
 impl Default for NodeConfig {
@@ -152,7 +165,7 @@ impl<U: UnifiedType> Node<U> {
     rt.spawn(async move {
       let ctx = ActorContext {
         tx: tx,
-        name: ActorName::new::<S>(name),
+        name: ActorId::new::<S>(name),
         node: node_rx.await.unwrap(),
       };
       unit_single(actor, ctx, rx, false).await
@@ -169,7 +182,7 @@ impl<U: UnifiedType> Node<U> {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
     let ctx = ActorContext {
       tx: tx,
-      name: ActorName::new::<S>(name),
+      name: ActorId::new::<S>(name),
       node: self.clone(),
     };
     let ret = ctx.interface();
@@ -196,7 +209,7 @@ impl<U: UnifiedType> Node<U> {
     let (tx, rx) = unbounded_channel::<ActorMsg<U, S>>();
     let ctx = ActorContext {
       tx: tx,
-      name: ActorName::new::<S>(name),
+      name: ActorId::new::<S>(name),
       node: self.clone(),
     };
     let ret = ctx.interface();

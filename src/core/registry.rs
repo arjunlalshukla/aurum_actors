@@ -1,6 +1,6 @@
 use crate as aurum;
 use crate::core::{
-  deserialize, Actor, ActorContext, ActorName, DestinationUntyped, MessageBuilder, UnifiedType,
+  deserialize, Actor, ActorContext, ActorId, DestinationUntyped, MessageBuilder, UnifiedType,
   LOG_LEVEL,
 };
 use crate::{error, info, trace, warn, AurumInterface};
@@ -14,12 +14,12 @@ pub type SerializedRecvr<U> = Box<dyn Fn(U, MessageBuilder) -> bool + Send>;
 #[aurum(local)]
 pub enum RegistryMsg<U: UnifiedType> {
   Forward(MessageBuilder),
-  Register(ActorName<U>, SerializedRecvr<U>, Sender<()>),
-  Deregister(ActorName<U>),
+  Register(ActorId<U>, SerializedRecvr<U>, Sender<()>),
+  Deregister(ActorId<U>),
 }
 
 pub struct Registry<U: UnifiedType> {
-  pub register: HashMap<ActorName<U>, SerializedRecvr<U>>,
+  pub register: HashMap<ActorId<U>, SerializedRecvr<U>>,
 }
 impl<U: UnifiedType> Registry<U> {
   pub fn new() -> Registry<U> {

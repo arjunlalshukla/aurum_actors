@@ -3,9 +3,14 @@ use im;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+/// Dictates how messages should be dropped.
 pub enum FailureMode {
+  /// Individual packets are either sent/dropped/delayed by individually generated amounts.
   Packet,
+  /// Messages are either sent/dropped/delayed in full. This is no different from [`Packet`] for
+  /// single-packet messages.
   Message,
+  /// Messages will not be dropped.
   None,
 }
 
