@@ -5,7 +5,6 @@ use std::convert::TryFrom;
 use syn::{DeriveInput, TypePath};
 
 use super::{AurumProperties, AurumVariant};
-use crate::write_and_fmt;
 
 pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
   let type_tokens = ast.ident.to_string().parse().unwrap();
@@ -104,6 +103,5 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
       }
     }
   });
-  write_and_fmt(ast.ident.to_string(), &code).expect("can't save codegen");
   code
 }

@@ -1,4 +1,5 @@
 code-gen/
+target/
 Cargo.lock
 coverage.html
 cobertura.xml

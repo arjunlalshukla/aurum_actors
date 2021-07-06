@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
 //! [`Aurum`](crate) implements a distributed actor model. Its purpose is to make distributed programming
 //! easy. [`Aurum`](crate) provides support for clustering, [CRDT] sharing among cluster members and [IoT]

@@ -175,7 +175,7 @@ impl<U: UnifiedType> Actor<U, DeviceServerMsg> for DeviceServer<U> {
         if let State::InCluster(ic) = &mut self.state {
           let hbr_sender = ic.req_senders.get(&device);
           let manager = ic.ring.managers(&device, 1).into_iter().next().unwrap();
-          if (hbr_sender.is_some() || manager == ic.member) {
+          if hbr_sender.is_some() || manager == ic.member {
             self
               .common
               .causal

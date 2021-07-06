@@ -109,7 +109,6 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       }
     )*
   });
-  super::write_and_fmt(unified.to_string(), &code).expect("can't save codegen");
   code
 }
 
