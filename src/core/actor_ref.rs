@@ -1,6 +1,6 @@
 use crate::core::{
-  local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node, Socket,
-  RootMessage, UdpSerial, UnifiedType,
+  local_actor_msg_convert, ActorSignal, Case, Destination, LocalActorMsg, Node, RootMessage,
+  Socket, UdpSerial, UnifiedType,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -62,7 +62,6 @@ pub struct ActorRef<U: UnifiedType + Case<I>, I> {
   pub(in crate::core) local: Option<LocalRef<I>>,
 }
 impl<U: UnifiedType + Case<I>, I> ActorRef<U, I> {
-
   /// Tests if the actor identifier is valid given the generic type.
   pub fn valid(&self) -> bool {
     self.dest.valid()
@@ -173,8 +172,7 @@ use crate::core::{deserialize, serialize, Host};
 
 #[cfg(test)]
 mod ref_safety {
-
-  use crate as aurum;
+  use crate as aurum_actors;
   use crate::{unify, AurumInterface};
   use serde::{Deserialize, Serialize};
 

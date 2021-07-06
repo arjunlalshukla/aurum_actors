@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aurum::core::{
+use aurum_actors::core::{
   Actor, ActorContext, ActorId, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
 };
 use aurum_macros::{unify, AurumInterface};

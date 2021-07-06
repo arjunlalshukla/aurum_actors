@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::cluster::devices::{
   Device, DeviceClientMsg, DeviceClientRemoteMsg, DeviceInterval, DeviceServerMsg, LOG_LEVEL,
 };

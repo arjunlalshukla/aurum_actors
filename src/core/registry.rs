@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::core::{
   deserialize, Actor, ActorContext, ActorId, DestinationUntyped, MessageBuilder, UnifiedType,
   LOG_LEVEL,

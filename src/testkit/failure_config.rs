@@ -7,7 +7,7 @@ use std::time::Duration;
 pub enum FailureMode {
   /// Individual packets are either sent/dropped/delayed by individually generated amounts.
   Packet,
-  /// Messages are either sent/dropped/delayed in full. This is no different from 
+  /// Messages are either sent/dropped/delayed in full. This is no different from
   /// [`Packet`](crate::testkit::FailureMode::Packet) for
   /// single-packet messages.
   Message,

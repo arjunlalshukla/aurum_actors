@@ -12,7 +12,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 /// Enumerates all possible message types within an application.
-/// 
+///
 /// This trait should not be implemented manually. The [`unify`](crate::unify) macro will handle
 /// that. Feel free to use it in trait bounds.
 pub trait UnifiedType:
@@ -49,7 +49,7 @@ pub trait UnifiedType:
 }
 
 /// Signifies that type `S` belongs to a [`UnifiedType`].
-/// 
+///
 /// This trait should not be implemented manually. It is implemented by the [`unify`](crate::unify)
 /// macro instead. Feel free to use it in trait bounds.
 pub trait Case<S> {
@@ -58,7 +58,7 @@ pub trait Case<S> {
 }
 
 /// Denotes message types that [`Actor`](crate::core::Actor) receives.
-/// 
+///
 /// This trait shoud not be implemented manually. The [`AurumInterface`](crate::AurumInterface)
 /// derive macro will implement it. Feel free to use it in trait bounds.
 pub trait RootMessage<U: UnifiedType + Case<Self>>

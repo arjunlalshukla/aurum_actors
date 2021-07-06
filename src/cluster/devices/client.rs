@@ -1,10 +1,12 @@
+use crate as aurum_actors;
 use crate::cluster::devices::{
   Device, DeviceInterval, DeviceServerMsg, DeviceServerRemoteMsg, HBReqSenderRemoteMsg, LOG_LEVEL,
 };
 use crate::cluster::{IntervalStorage, FAILURE_MODE};
-use crate::core::{Actor, ActorContext, ActorRef, LocalRef, Node, Socket, UdpSerial, UnifiedType};
+use crate::core::{
+  Actor, ActorContext, ActorRef, Destination, LocalRef, Node, Socket, UdpSerial, UnifiedType,
+};
 use crate::testkit::FailureConfigMap;
-use crate::{self as aurum, core::Destination};
 use crate::{info, trace, AurumInterface};
 use async_trait::async_trait;
 use itertools::Itertools;

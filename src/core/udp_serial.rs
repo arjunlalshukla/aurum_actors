@@ -7,11 +7,11 @@ use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
 /// A fully serialized message, to be sent over UDP.
-/// 
+///
 /// A message sent over the wire includes a [`Destination`] and a message. [`UdpSerial`] serializes
 /// both of them and places them in buffer delimited with packet headers. If a message is too large
 /// to fit in a single packets, it is split into multiple packets.
-/// 
+///
 /// To send a [`UdpSerial`], use [`Node::udp`](crate::core::Node::udp) and
 /// [`Node::udp_select`](crate::core::Node::udp_select).
 pub struct UdpSerial {

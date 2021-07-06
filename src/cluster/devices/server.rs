@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::cluster::crdt::{CausalCmd, CausalDisperse, DispersalPreference, DispersalSelector};
 use crate::cluster::devices::{
   Device, DeviceInterval, DeviceMutator, Devices, HBReqSender, HBReqSenderConfig, HBReqSenderMsg,

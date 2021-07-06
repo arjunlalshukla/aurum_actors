@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::cluster::NodeRing;
 use crate::core::{Host, Socket};
 use crate::AurumInterface;

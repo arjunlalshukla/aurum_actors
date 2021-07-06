@@ -1,10 +1,12 @@
 use async_trait::async_trait;
-use aurum::cluster::{
+use aurum_actors::cluster::{
   Cluster, ClusterCmd, ClusterConfig, ClusterEvent, ClusterUpdate, HBRConfig, Member,
 };
-use aurum::core::{Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket};
-use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
-use aurum::{unify, AurumInterface};
+use aurum_actors::core::{
+  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
+};
+use aurum_actors::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
+use aurum_actors::{unify, AurumInterface};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};

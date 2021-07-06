@@ -1,12 +1,12 @@
 use async_trait::async_trait;
-use aurum::cluster::crdt::{
+use aurum_actors::cluster::crdt::{
   CausalCmd, CausalDisperse, CausalIntraMsg, CausalMsg, DeltaMutator, DispersalPreference,
   DispersalSelector, CRDT,
 };
-use aurum::cluster::{Cluster, ClusterConfig, HBRConfig};
-use aurum::core::{Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket};
-use aurum::testkit::FailureConfigMap;
-use aurum::{unify, AurumInterface};
+use aurum_actors::cluster::{Cluster, ClusterConfig, HBRConfig};
+use aurum_actors::core::{Actor, ActorContext, Host, LocalRef, Node, NodeConfig, Socket};
+use aurum_actors::testkit::FailureConfigMap;
+use aurum_actors::{unify, AurumInterface};
 use im;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};

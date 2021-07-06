@@ -1,27 +1,27 @@
 //! [`Aurum`](crate)'s base functionality: spawning actors, binding sockets, forging actor
-//! references and sending messages. 
-//! 
+//! references and sending messages.
+//!
 //! ### Unifying Types
 //! The programmer needs to enumerate to [`Aurum`](crate) all types of messages actors
 //! can receive thoughout their whole application. All applications using [`Aurum`](crate) must use
 //! exactly one enumeration (henceforth referred to as the
-//! [`UnifiedType`](crate::core::UnifiedType)). No more, no less. Due to the way the 
+//! [`UnifiedType`](crate::core::UnifiedType)). No more, no less. Due to the way the
 //! [`UnifiedType`](crate::core::UnifiedType)
 //! is handled, it is still possible to build and use many independent libraries on top of
 //! [`Aurum`](crate). The unified type is constructed with the [`unify`](crate::unify) macro. See
 //! the [`unify`](crate::unify) macro for an in-depth discussion on how it works and why we need it.
-//! 
+//!
 //! ### Actor References
 //! Actor References come in 2 flavors: [`ActorRef`](crate::core::ActorRef) and
 //! [`LocalRef`](crate::core::LocalRef). [`ActorRef`](crate::core::ActorRef) is
 //! location-transparent, it accepts both local and remote messages.
-//! [`LocalRef`](crate::core::LocalRef) is for local messages only. An 
+//! [`LocalRef`](crate::core::LocalRef) is for local messages only. An
 //! [`ActorRef`](crate::core::ActorRef) requires 2 generic parameters: the
 //! [`UnifiedType`](crate::core::UnifiedType) and the interface (not the root message type).
-//! 
+//!
 //! ### Creating a Message Type
 //! Use [`AurumInterface`](crate::AurumInterface) to create message types for actors.
-//! 
+//!
 //! ```ignore
 //! #[derive(AurumInterface)]
 //! #[aurum(local)]
@@ -33,14 +33,14 @@
 //!   MyOtherMsg(usize),
 //! }
 //! ```
-//! 
+//!
 //! ### A [`unify`](crate::unify) Example
 //! The [`unify`](crate::unify) macro is responsible for constructing the
 //! [`UnifiedType`](crate::core::UnifiedType) and implementing traits for it. Arguments must include
 //! all message types (whether they are to be remotely accessed or not), and types used for remote
 //! interfaces. [`unify`](crate::unify) creates a type, so it should only be called once in a single
-//! application. 
-//! 
+//! application.
+//!
 //! ```ignore
 //! unify! { MyUnifiedType =
 //!   MyMsgType |
@@ -51,13 +51,13 @@
 //!   InterfaceForSomeThirdPartyLibrary
 //! }
 //! ```
-//! 
+//!
 //! ### Spawning Actors
 //! To spawn actors, you need to create a [`Node`](crate::core::Node). You also need an initial
 //! instance of whatever type implements the actor trait, the string part of the actor’s name,
 //! whether the actor should be double-threaded and whether a reference to it should be sent to the
 //! registry.
-//! 
+//!
 //! ```ignore
 //! struct MyActor {
 //!   first: String,
@@ -66,7 +66,7 @@
 //! //Don’t forget this annotation
 //! #[async_trait]
 //! impl Actor<MyUnifiedType, MyMsgType> for MyActor { ... }
-//! 
+//!
 //! let mut config = NodeConfig::default();
 //! config.socket = Socket::new(...);
 //! let node = Node::new_sync(config);
@@ -81,17 +81,17 @@
 //!   true, // Register
 //! );
 //! ```
-//! 
+//!
 //! ### Sending Messages
 //! An [`ActorId`] is used to uniquely identify an actor in the registry of a [`Node`]. A
 //! [`Destination`] contains an [`ActorId`] and information on which interface it is sending
 //! messages to. A [`Destination`] can be forged, just like an [`ActorRef`]. The combination of a
 //! [`Socket`] and a [`Destination`] consitutes a complete actor address. You can construct and use
 //! these two components indepentently.
-//! 
+//!
 //! ```ignore
 //! let socket = Socket::new(...);
-//! 
+//!
 //! // Forging a Destination
 //! let dest = Destination::<MyUnifiedType, String>::new::<MyMsgType>(
 //!   "my-very-cool-actor".to_string()
@@ -99,7 +99,7 @@
 //! let msg = "My name is Baloo".to_string();
 //! let ser = UdpSerial::new(&dest, &msg)
 //! node.udp(&socket, &ser);
-//! 
+//!
 //! // Forging an ActorRef
 //! let forged = ActorRef::<MyUnifiedType, String>::new::<MyMsgType>(
 //!   "my-very-cool-actor".to_string(),
@@ -107,11 +107,11 @@
 //! );
 //! forged.remote_send(&node, &msg) ;
 //! ```
-//! 
+//!
 //! You can send a message unreliably using [`Node.udp_select`](crate::core::Node::udp_select).
 //! How messages are dropped or delayed depends on a [`FailureMode`](crate::testkit::FailureMode)
-//! and a [`FailureConfigMap`](crate::testkit::FailureConfigMap). 
-//! 
+//! and a [`FailureConfigMap`](crate::testkit::FailureConfigMap).
+//!
 //! ```ignore
 //! // Doesn’t have to be a const
 //! const MODE: FailureMode = FailureMode :: Message ;
@@ -121,22 +121,22 @@
 //! let ser = UdpSerial::new(&dest, &msg);
 //! node.udp_select(&socket , &ser, MODE, &fail_map) ;
 //! ```
-//! 
+//!
 //! ### Logging
 //! Define a [`LogLevel`] for you environment, and call one of these log macros. They all have the same
 //! arguments.
-//! 
+//!
 //! - [`trace`](crate::trace)
 //! - [`debug`](crate::debug)
 //! - [`info`](crate::info)
 //! - [`warn`](crate::warn)
 //! - [`error`](crate::error)
 //! - [`fatal`](crate::fatal)
-//! 
+//!
 //! The logger is accessible from the node, but there is nothing stopping you from spawning your own
 //! logger, it’s just an actor. The log messages can be anything that implements
 //! [`Display`](std::fmt::Display). The argument is turned into a trait object in the macro body.
-//! 
+//!
 //! ```ignore
 //! // Doesn’t have to be a const
 //! const LEVEL: LogLevel = LogLevel::Debug ;
@@ -145,8 +145,8 @@
 //! // This is logged, Warn is above Debug
 //! warn!(LEVEL, &node, "sharks") ;
 //! ```
-//! 
-//! 
+//!
+//!
 
 extern crate aurum_macros;
 use crate::testkit::LogLevel;

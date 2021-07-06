@@ -69,23 +69,23 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
   let code = TokenStream::from(quote! {
     #(#from_impls)*
 
-    impl<__Unified, #generics> aurum::core::RootMessage<__Unified>
+    impl<__Unified, #generics> aurum_actors::core::RootMessage<__Unified>
     for #type_id_with_generics
-    where __Unified: aurum::core::UnifiedType #(+ aurum::core::Case<#cases>)* ,
+    where __Unified: aurum_actors::core::UnifiedType #(+ aurum_actors::core::Case<#cases>)* ,
     #where_clause
     {
       fn deserialize_as(
         interface: __Unified, 
-        intp: aurum::core::Interpretations, 
+        intp: aurum_actors::core::Interpretations, 
         bytes: &[u8]
-      ) -> std::result::Result<
-        aurum::core::LocalActorMsg<Self>, 
-        aurum::core::DeserializeError<__Unified>
+      ) -> ::std::result::Result<
+        aurum_actors::core::LocalActorMsg<Self>, 
+        aurum_actors::core::DeserializeError<__Unified>
       > {
         #(
-          if <__Unified as aurum::core::Case<#non_locals>>::VARIANT 
+          if <__Unified as aurum_actors::core::Case<#non_locals>>::VARIANT 
             == interface {
-            return aurum::core::deserialize_msg
+            return aurum_actors::core::deserialize_msg
               ::<__Unified, #type_id_with_generics, #non_locals>(
                 interface, 
                 intp,
@@ -93,13 +93,16 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
               )
           }
         )*
-        return std::result::Result::Err(
-          aurum::core::DeserializeError::IncompatibleInterface(interface, <__Unified as aurum::core::Case<#type_id_with_generics>>::VARIANT )
+        return ::std::result::Result::Err(
+          aurum_actors::core::DeserializeError::IncompatibleInterface(
+            interface, 
+            <__Unified as aurum_actors::core::Case<#type_id_with_generics>>::VARIANT
+          )
         );
       }
 
       fn has_interface(interface: __Unified) -> bool {
-        #(<__Unified as aurum::core::Case<#non_locals>>::VARIANT == interface || )* false
+        #(<__Unified as aurum_actors::core::Case<#non_locals>>::VARIANT == interface || )* false
       }
     }
   });

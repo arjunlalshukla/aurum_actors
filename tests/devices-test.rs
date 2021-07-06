@@ -1,13 +1,15 @@
 use async_trait::async_trait;
-use aurum::cluster::crdt::CRDT;
-use aurum::cluster::devices::{
+use aurum_actors::cluster::crdt::CRDT;
+use aurum_actors::cluster::devices::{
   Charges, DeviceClient, DeviceClientCmd, DeviceClientConfig, DeviceServer, DeviceServerCmd,
   Devices, Manager,
 };
-use aurum::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
-use aurum::core::{Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket};
-use aurum::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
-use aurum::{unify, AurumInterface};
+use aurum_actors::cluster::{Cluster, ClusterCmd, ClusterConfig, ClusterUpdate, HBRConfig};
+use aurum_actors::core::{
+  Actor, ActorContext, ActorSignal, Host, LocalRef, Node, NodeConfig, Socket,
+};
+use aurum_actors::testkit::{FailureConfigMap, LogLevel, LoggerMsg};
+use aurum_actors::{unify, AurumInterface};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};

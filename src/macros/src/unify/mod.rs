@@ -13,47 +13,47 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     .map(|x| x.path.to_token_stream())
     .collect::<Vec<proc_macro2::TokenStream>>();
   specifics.push(quote! {
-    aurum::core::RegistryMsg<#unified>
+    aurum_actors::core::RegistryMsg<#unified>
   });
   specifics.push(quote! {
-    aurum::cluster::ClusterMsg<#unified>
+    aurum_actors::cluster::ClusterMsg<#unified>
   });
   specifics.push(quote! {
-    aurum::cluster::HeartbeatReceiverMsg
+    aurum_actors::cluster::HeartbeatReceiverMsg
   });
   specifics.push(quote! {
-    aurum::cluster::devices::DeviceServerMsg
+    aurum_actors::cluster::devices::DeviceServerMsg
   });
   specifics.push(quote! {
-    aurum::cluster::devices::DeviceClientMsg<#unified>
+    aurum_actors::cluster::devices::DeviceClientMsg<#unified>
   });
   specifics.push(quote! {
-    aurum::cluster::devices::HBReqSenderMsg
+    aurum_actors::cluster::devices::HBReqSenderMsg
   });
   specifics.push(quote! {
-    aurum::cluster::crdt::CausalMsg<aurum::cluster::devices::Devices>
+    aurum_actors::cluster::crdt::CausalMsg<aurum_actors::cluster::devices::Devices>
   });
   specifics.push(quote! {
-    aurum::testkit::LoggerMsg
+    aurum_actors::testkit::LoggerMsg
   });
   let mut interfaces = interfaces
     .into_iter()
     .map(|x| x.path.to_token_stream())
     .collect::<Vec<proc_macro2::TokenStream>>();
   interfaces.push(quote! {
-    aurum::cluster::IntraClusterMsg<#unified>
+    aurum_actors::cluster::IntraClusterMsg<#unified>
   });
   interfaces.push(quote! {
-    aurum::cluster::devices::DeviceServerRemoteMsg
+    aurum_actors::cluster::devices::DeviceServerRemoteMsg
   });
   interfaces.push(quote! {
-    aurum::cluster::devices::DeviceClientRemoteMsg<#unified>
+    aurum_actors::cluster::devices::DeviceClientRemoteMsg<#unified>
   });
   interfaces.push(quote! {
-    aurum::cluster::crdt::CausalIntraMsg<aurum::cluster::devices::Devices>
+    aurum_actors::cluster::crdt::CausalIntraMsg<aurum_actors::cluster::devices::Devices>
   });
   interfaces.push(quote! {
-    aurum::cluster::devices::HBReqSenderRemoteMsg
+    aurum_actors::cluster::devices::HBReqSenderRemoteMsg
   });
   let mut all = specifics.clone();
   all.append(&mut interfaces.clone());
@@ -78,11 +78,11 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     #vis enum #unified {
       #(#all_variants,)*
     }
-    impl aurum::core::UnifiedType for #unified {
+    impl aurum_actors::core::UnifiedType for #unified {
       fn has_interface(self, interface: Self) -> bool {
         match self {
           #(
-            #unified::#specific_variants => <#specifics as aurum::core::RootMessage<#unified>>::has_interface(interface),
+            #unified::#specific_variants => <#specifics as aurum_actors::core::RootMessage<#unified>>::has_interface(interface),
           )*
           _ => false
         }
@@ -104,7 +104,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
       }
     }
     #(
-      impl aurum::core::Case<#all> for #unified {
+      impl aurum_actors::core::Case<#all> for #unified {
         const VARIANT: #unified = #unified::#all_variants;
       }
     )*

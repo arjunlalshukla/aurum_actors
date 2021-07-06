@@ -1,7 +1,7 @@
 use crate::core::{
-  run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorMsg,
-  ActorId, ActorRef, Case, LocalRef, Registry, RegistryMsg, Socket, RootMessage,
-  TimeoutActor, UdpSerial, UnifiedType,
+  run_single_timeout, udp_receiver, unit_secondary, unit_single, Actor, ActorContext, ActorId,
+  ActorMsg, ActorRef, Case, LocalRef, Registry, RegistryMsg, RootMessage, Socket, TimeoutActor,
+  UdpSerial, UnifiedType,
 };
 use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg};
 use rand::rngs::SmallRng;
@@ -19,19 +19,19 @@ use tokio::task::JoinHandle;
 /// Holds configuration options for [`Node`].
 pub struct NodeConfig {
   /// The socket this node will receive remote messages on.
-  /// 
+  ///
   /// default: [`Socket::default`](crate::core::Socket::default)
   pub socket: Socket,
   /// The number of threads the [`Tokio`](tokio) scheduler will use.
-  /// 
+  ///
   /// default: 1
   pub actor_threads: usize,
   /// The stack size for each [`Tokio`](tokio) thread.
-  /// 
+  ///
   /// default: 3\*1024\*1024
   pub actor_thread_stack_size: usize,
   /// Not yet of use. To be the number of threads in the [`Rayon`](rayon) thread pool.
-  /// 
+  ///
   /// default: [`num_cpus::get`]
   pub compute_threads: usize,
 }
@@ -54,13 +54,13 @@ struct NodeImpl<U: UnifiedType> {
   rt: Runtime,
 }
 
-/// Spawns actors and manages system-wide information. 
-/// 
+/// Spawns actors and manages system-wide information.
+///
 /// The [`Node`] accessible from every actor it spawns through that actor's
 /// [`ActorContext`]. It contains references to its configuration,
 /// asynchronous runtime, registry and logger. To create a [`Node`], create a [`NodeConfig`], set
 /// the fields and pass it to [`new`] or [`new_sync`] associated functions.
-/// 
+///
 /// [`new`]: #method.new
 /// [`new_sync`]: #method.new_sync
 #[derive(Clone)]

@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::core::{Actor, ActorContext, Case, UnifiedType};
 use crate::AurumInterface;
 use async_trait::async_trait;
@@ -101,12 +101,12 @@ impl<U: Case<LoggerMsg> + UnifiedType> Actor<U, LoggerMsg> for Logger {
 macro_rules! log {
   ($env_level:expr, $node:expr, $msg_level:expr, $msg:expr) => {
     if $msg_level >= $env_level {
-      $node.log(aurum::testkit::LoggerMsg::Log {
+      $node.log($crate::testkit::LoggerMsg::Log {
         level: $msg_level,
-        file: std::file!(),
-        line: std::line!(),
-        column: std::column!(),
-        msg: std::boxed::Box::new($msg),
+        file: ::std::file!(),
+        line: ::std::line!(),
+        column: ::std::column!(),
+        msg: ::std::boxed::Box::new($msg),
       });
     }
   };
@@ -115,41 +115,41 @@ macro_rules! log {
 #[macro_export]
 macro_rules! trace {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Trace, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Trace, $msg);
   };
 }
 
 #[macro_export]
 macro_rules! debug {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Debug, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Debug, $msg);
   };
 }
 
 #[macro_export]
 macro_rules! info {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Info, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Info, $msg);
   };
 }
 
 #[macro_export]
 macro_rules! warn {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Warn, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Warn, $msg);
   };
 }
 
 #[macro_export]
 macro_rules! error {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Error, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Error, $msg);
   };
 }
 
 #[macro_export]
 macro_rules! fatal {
   ($env_level:expr, $node:expr, $msg:expr) => {
-    aurum::log!($env_level, $node, aurum::testkit::LogLevel::Fatal, $msg);
+    $crate::log!($env_level, $node, $crate::testkit::LogLevel::Fatal, $msg);
   };
 }

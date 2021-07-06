@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::cluster::{
   ClusterConfig, ClusterEvent, ClusterUpdate, Gossip, HBRConfig, HeartbeatReceiver,
   HeartbeatReceiverMsg, MachineState, Member, NodeRing, FAILURE_MODE, LOG_LEVEL,

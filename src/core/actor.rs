@@ -1,5 +1,5 @@
 use crate::core::{
-  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, SerializedRecvr, RootMessage,
+  ActorRef, Case, Destination, LocalRef, MessageBuilder, Node, RootMessage, SerializedRecvr,
   UnifiedType,
 };
 use async_trait::async_trait;
@@ -42,19 +42,19 @@ impl<U: UnifiedType> ActorId<U> {
 }
 
 /// Defines how actors process messages.
-/// 
+///
 /// Each actor runs on at least one asynchronous task. Messages are received and processed
 /// atomically. Actors are lightweight and have good scalability locally.
 /// [`Node`](crate::core::Node) uses the [`Tokio`] runtime to schedule its tasks.
 /// Aurum operates under the same rules as Rust’s (and Tokio’s) asynchrony: tasks are IO-bound.
 /// Code running in tasks is expected to `await` often, and starvation can occur if asynchronous
 /// code performs heavy compute operations or synchronous IO.
-/// 
+///
 /// It is recommended to implement [`Actor`] the [`async_trait`](async_trait::async_trait)
 /// annotation. Rust cannot have async functions in traits yet, so this is a temporary work-around.
 /// [`async_trait`](async_trait::async_trait) changes the type signatures of the member funtions
 /// for [`Actor`]. Just pretend the trait looks like this instead of the monstrosity below:
-/// 
+///
 /// ```ignore
 /// #[async_trait]
 /// pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>
@@ -66,23 +66,23 @@ impl<U: UnifiedType> ActorId<U> {
 ///   async fn post_stop(&mut self, _: &ActorContext<U, S>) {}
 /// }
 /// ```
-/// 
+///
 /// You'll need to use [`async_trait`](async_trait::async_trait) for every implementation of
 /// [`Actor`].
-/// 
+///
 /// ```
 /// use async_trait::async_trait;
-/// use aurum::AurumInterface;
-/// use aurum::core::{Actor, ActorContext, ActorRef, Case, UnifiedType};
+/// use aurum_actors::AurumInterface;
+/// use aurum_actors::core::{Actor, ActorContext, ActorRef, Case, UnifiedType};
 /// use serde::{Serialize, Deserialize};
-/// 
+///
 /// #[derive(AurumInterface, Serialize, Deserialize)]
 /// #[serde(bound = "U: UnifiedType")]
 /// enum Ball<U: UnifiedType + Case<Ball<U>>> {
 ///   Ping(ActorRef<U, Self>),
 ///   Pong(ActorRef<U, Self>),
 /// }
-/// 
+///
 /// struct Player<U: UnifiedType + Case<Ball<U>>> {
 ///   initial_contact: Option<ActorRef<U, Ball<U>>>
 /// }
@@ -103,7 +103,7 @@ impl<U: UnifiedType> ActorId<U> {
 ///       }
 ///     }
 ///   }
-/// } 
+/// }
 /// ```
 /// [`Tokio`]: https://docs.rs/tokio/
 #[async_trait]
@@ -141,7 +141,7 @@ pub(crate) enum ActorMsg<U, S> {
 }
 
 /// Messages that can be sent to any actor, regardless of its receiving type.
-/// 
+///
 /// There are some messages that you need to be able to send to any actor, regardless of what type
 /// that actor receives. Most of these messages concern the lifetime and execution of the actor.
 /// An actor of any type can be sent an [`ActorSignal`].

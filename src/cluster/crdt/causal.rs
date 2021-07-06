@@ -1,4 +1,4 @@
-use crate as aurum;
+use crate as aurum_actors;
 use crate::cluster::crdt::{DeltaMutator, CRDT, LOG_LEVEL};
 use crate::cluster::{ClusterCmd, ClusterEvent, ClusterUpdate, Member, FAILURE_MODE};
 use crate::core::{
