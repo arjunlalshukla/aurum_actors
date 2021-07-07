@@ -114,24 +114,54 @@ extern crate aurum_actors_macros;
 /// but the [`Case`](crate::core::Case) bounds for [`UnifiedType`](crate::core::UnifiedType) include
 /// the dependent message types for [`cluster`](crate::cluster) for the sake on convenience.
 ///
-/// ```ignore
+/// ```
+/// use async_trait::async_trait;
+/// use aurum_actors::{unify, AurumInterface};
+/// use aurum_actors::core::{Actor, ActorContext, Case, UnifiedType};
+/// use im;
+/// use serde::{Serialize, Deserialize};
+/// 
 /// #[derive(AurumInterface, Serialize, Deserialize)]
 /// enum MsgTypeForSomeThirdPartyLibrary {
 ///   #[aurum]
 ///   Something(InterfaceForSomeThirdPartyLibrary)
 /// }
+/// 
+/// #[derive(Serialize, Deserialize)]
+/// struct InterfaceForSomeThirdPartyLibrary;
 ///
-/// struct LibraryActor { ... }
+/// struct LibraryActor;
 /// #[async_trait]
 /// impl<U> Actor<U, MsgTypeForSomeThirdPartyLibrary> for LibraryActor
 /// where
-///   U: UnifiedType + Case<MsgTypeForSomeThirdPartyLibrary>
-/// { ... }
-/// ```
-///
-/// The syntax for [`unify`](crate::unify) is as follows:
-///
-/// ```ignore
+///   U: UnifiedType
+///     + Case<MsgTypeForSomeThirdPartyLibrary>
+///     + Case<InterfaceForSomeThirdPartyLibrary>
+/// {
+///   async fn recv(
+///     &mut self, 
+///     ctx: &ActorContext<U, MsgTypeForSomeThirdPartyLibrary>,
+///     msg: MsgTypeForSomeThirdPartyLibrary
+///   ) {
+///     // logic
+///   }
+/// }
+/// 
+/// #[derive(AurumInterface)]
+/// #[aurum(local)]
+/// enum MyMsgType {
+///   First,
+///   Second
+/// }
+/// 
+/// #[derive(AurumInterface)]
+/// #[aurum(local)]
+/// enum MyOtherMsgType {
+///   Nonserializable(::std::fs::File),
+///   #[aurum]
+///   Serializable(InterfaceForSomeThirdPartyLibrary)
+/// }
+/// 
 /// unify! { pub MyUnifiedType =
 ///   MyMsgType |
 ///   MyOtherMsgType |
@@ -141,6 +171,11 @@ extern crate aurum_actors_macros;
 ///   InterfaceForSomeThirdPartyLibrary
 /// }
 /// ```
+///
+/// The syntax for [`unify`](crate::unify) is as follows: an optional visibility modifier, a name
+/// for the [`UnifiedType`](crate::core::UnifiedType) to be created, a `=`, followed by a list of
+/// types implementing [`RootMessage`](crate::core::RootMessage) separated by `|`, a `;`, then a
+/// list of remote interfaces separated by `|`.
 pub use aurum_actors_macros::unify;
 
 /// Implements [`RootMessage`](crate::core::RootMessage) and other traits for a root message type.
@@ -151,15 +186,19 @@ pub use aurum_actors_macros::unify;
 /// has a single optional argument: `local`. Use `#[aurum(local)]` to notify [`AurumInterface`] that
 /// the interface is exclusively local.
 ///
-/// ```ignore
+/// ```
+/// use aurum_actors::AurumInterface;
+/// 
+/// type StrStaticRef = &'static str;
+/// 
 /// #[derive(AurumInterface)]
 /// #[aurum(local)]
-/// enum MyMsgType {
+/// enum DiverseMsgType {
 ///   #[aurum]
 ///   MyStringInterface(String),
 ///   #[aurum(local)]
-///   MyNonserializableInterface(&'static str),
-///   MyOtherMsg(usize),
+///   MyNonserializableInterface(StrStaticRef),
+///   MyOtherMsg(u128),
 /// }
 /// ```
 ///
@@ -181,4 +220,7 @@ pub use aurum_actors_macros::unify;
 /// [`AurumInterface`] implements [`From`](std::convert::From) on every interface type, local or
 /// not. In the example, [`From<String>`](std::convert::From) and
 /// [`From<&'static str>`](std::convert::From) are implemented for `MyMsgType`.
+/// 
+/// This macro's parsing is a work in progress, so for now you will need to create aliases for some
+/// types.
 pub use aurum_actors_macros::AurumInterface;

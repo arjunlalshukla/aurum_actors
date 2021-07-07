@@ -75,19 +75,19 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
     #where_clause
     {
       fn deserialize_as(
-        interface: __Unified, 
-        intp: aurum_actors::core::Interpretations, 
+        interface: __Unified,
+        intp: aurum_actors::core::Interpretations,
         bytes: &[u8]
       ) -> ::std::result::Result<
-        aurum_actors::core::LocalActorMsg<Self>, 
+        aurum_actors::core::LocalActorMsg<Self>,
         aurum_actors::core::DeserializeError<__Unified>
       > {
         #(
-          if <__Unified as aurum_actors::core::Case<#non_locals>>::VARIANT 
+          if <__Unified as aurum_actors::core::Case<#non_locals>>::VARIANT
             == interface {
             return aurum_actors::core::deserialize_msg
               ::<__Unified, #type_id_with_generics, #non_locals>(
-                interface, 
+                interface,
                 intp,
                 bytes
               )
@@ -95,7 +95,7 @@ pub fn aurum_interface_impl(ast: DeriveInput) -> TokenStream {
         )*
         return ::std::result::Result::Err(
           aurum_actors::core::DeserializeError::IncompatibleInterface(
-            interface, 
+            interface,
             <__Unified as aurum_actors::core::Case<#type_id_with_generics>>::VARIANT
           )
         );

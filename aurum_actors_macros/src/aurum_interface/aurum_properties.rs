@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use syn::{
-  parenthesized, parse::Parse, parse::ParseStream, punctuated::Punctuated,
-  Attribute, Expr, ExprPath, Token,
+  parenthesized, parse::Parse, parse::ParseStream, punctuated::Punctuated, Attribute, Expr,
+  ExprPath, Token,
 };
 pub struct AurumProperties {
   pub non_local: bool,
@@ -9,7 +9,9 @@ pub struct AurumProperties {
 }
 impl Default for AurumProperties {
   fn default() -> AurumProperties {
-    AurumProperties { non_local: true }
+    AurumProperties {
+      non_local: true,
+    }
   }
 }
 impl TryFrom<Vec<Attribute>> for AurumProperties {
@@ -33,9 +35,8 @@ impl Parse for AurumProperties {
 
     let inner;
     parenthesized!(inner in input);
-    let args = Punctuated::<Expr, Token![,]>::parse_terminated(&inner)?
-      .into_iter()
-      .collect::<Vec<Expr>>();
+    let args =
+      Punctuated::<Expr, Token![,]>::parse_terminated(&inner)?.into_iter().collect::<Vec<Expr>>();
 
     for attr in args {
       match attr {

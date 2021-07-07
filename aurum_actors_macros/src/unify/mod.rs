@@ -6,8 +6,12 @@ use syn::parse::Parse;
 use syn::{punctuated::Punctuated, Ident, Token, TypePath, Visibility};
 
 pub fn unify_impl(toks: TokenStream) -> TokenStream {
-  let UnifiedType { unified, specifics, interfaces, vis } =
-    syn::parse::<UnifiedType>(toks).unwrap();
+  let UnifiedType {
+    unified,
+    specifics,
+    interfaces,
+    vis,
+  } = syn::parse::<UnifiedType>(toks).unwrap();
   let mut specifics = specifics
     .into_iter()
     .map(|x| x.path.to_token_stream())
@@ -61,12 +65,7 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
     .take((all.len() as f64).log(1.9).ceil() as usize)
     .multi_cartesian_product()
     .take(all.len())
-    .map(|x| {
-      Ident::new(
-        x.into_iter().collect::<String>().as_str(),
-        Span::call_site(),
-      )
-    })
+    .map(|x| Ident::new(x.into_iter().collect::<String>().as_str(), Span::call_site()))
     .collect_vec();
   let specific_variants = all_variants.clone().into_iter().take(specifics.len()).collect_vec();
   let code = TokenStream::from(quote! {
@@ -116,23 +115,20 @@ struct UnifiedType {
   unified: Ident,
   specifics: Vec<SpecificType>,
   interfaces: Vec<SpecificType>,
-  vis: Visibility
+  vis: Visibility,
 }
 impl Parse for UnifiedType {
   fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
     let vis = input.parse::<Visibility>()?;
     let unified = input.parse::<Ident>()?;
     input.parse::<Token![=]>()?;
-    let specifics =
-      Punctuated::<SpecificType, Token![|]>::parse_separated_nonempty(&input)?
-        .into_iter()
-        .collect();
+    let specifics = Punctuated::<SpecificType, Token![|]>::parse_separated_nonempty(&input)?
+      .into_iter()
+      .collect();
     let interfaces = {
       if input.peek(Token![;]) {
         input.parse::<Token![;]>()?;
-        Punctuated::<SpecificType, Token![|]>::parse_terminated(&input)?
-          .into_iter()
-          .collect()
+        Punctuated::<SpecificType, Token![|]>::parse_terminated(&input)?.into_iter().collect()
       } else {
         vec![]
       }
@@ -141,7 +137,7 @@ impl Parse for UnifiedType {
       unified: unified,
       specifics: specifics,
       interfaces: interfaces,
-      vis: vis
+      vis: vis,
     })
   }
 }
@@ -152,6 +148,8 @@ struct SpecificType {
 impl Parse for SpecificType {
   fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
     let path = input.parse::<TypePath>()?;
-    Ok(SpecificType { path: path })
+    Ok(SpecificType {
+      path: path,
+    })
   }
 }

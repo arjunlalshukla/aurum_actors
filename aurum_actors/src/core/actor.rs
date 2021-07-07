@@ -55,8 +55,10 @@ impl<U: UnifiedType> ActorId<U> {
 /// [`async_trait`](async_trait::async_trait) changes the type signatures of the member funtions
 /// for [`Actor`]. Just pretend the trait looks like this instead of the monstrosity below:
 ///
-/// ```ignore
-/// #[async_trait]
+/// ```
+/// # use async_trait::async_trait;
+/// # use aurum_actors::core::{ActorContext, Case, UnifiedType, RootMessage};
+/// # #[async_trait]
 /// pub trait Actor<U: Case<S> + UnifiedType, S: Send + RootMessage<U>>
 /// where
 /// Self: Send + 'static,

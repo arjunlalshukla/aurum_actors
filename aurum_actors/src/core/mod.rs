@@ -69,7 +69,7 @@
 //!
 //! let mut config = NodeConfig::default();
 //! config.socket = Socket::new(...);
-//! let node = Node::new_sync(config);
+//! let node = Node::<MyUnifiedType>::new_sync(config);
 //! let actor = MyActor {
 //!   first: "hi  there".to_string(),
 //!   second: 4214
@@ -137,7 +137,18 @@
 //! logger, it’s just an actor. The log messages can be anything that implements
 //! [`Display`](std::fmt::Display). The argument is turned into a trait object in the macro body.
 //!
-//! ```ignore
+//! ```no_run
+//! use aurum_actors::{trace, warn};
+//! use aurum_actors::testkit::LogLevel;
+//! # use aurum_actors::{unify, AurumInterface};
+//! # use aurum_actors::core::{Node, NodeConfig};
+//! # 
+//! # #[derive(AurumInterface)]
+//! # #[aurum(local)]
+//! # enum Unit {}
+//! # unify!(Foo = Unit;);
+//! # let node = Node::<Foo>::new_sync(NodeConfig::default()).unwrap();
+//! 
 //! // Doesn’t have to be a const
 //! const LEVEL: LogLevel = LogLevel::Debug ;
 //! // Not logged, the level is Debug, which is above Trace
@@ -145,8 +156,6 @@
 //! // This is logged, Warn is above Debug
 //! warn!(LEVEL, &node, "sharks") ;
 //! ```
-//!
-//!
 
 use crate::testkit::LogLevel;
 

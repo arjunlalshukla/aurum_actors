@@ -16,12 +16,8 @@ impl TryFrom<Variant> for AurumVariant {
   fn try_from(variant: Variant) -> Result<Self, Self::Error> {
     let props = AurumProperties::try_from(variant.attrs)?;
     let fields: Vec<(syn::Type, Option<Ident>)> = match variant.fields {
-      syn::Fields::Named(n) => {
-        n.named.into_iter().map(|x| (x.ty, x.ident)).collect()
-      }
-      syn::Fields::Unnamed(u) => {
-        u.unnamed.into_iter().map(|x| (x.ty, x.ident)).collect()
-      }
+      syn::Fields::Named(n) => n.named.into_iter().map(|x| (x.ty, x.ident)).collect(),
+      syn::Fields::Unnamed(u) => u.unnamed.into_iter().map(|x| (x.ty, x.ident)).collect(),
       syn::Fields::Unit => Vec::new(),
     };
     match fields.into_iter().exactly_one() {
