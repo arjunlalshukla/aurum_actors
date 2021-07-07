@@ -13,7 +13,10 @@ const RING_SIZE: u16 = 20;
 enum Ball {
   Ball(u32, ActorId<RingTypes>),
 }
-unify!(RingTypes = Ball);
+unify! {
+  unified_name = RingTypes;
+  root_types = { Ball };
+}
 
 #[derive(PartialEq, Eq, Debug)]
 enum TestRecvr {

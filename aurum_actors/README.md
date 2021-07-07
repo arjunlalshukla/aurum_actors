@@ -1,24 +1,22 @@
-Make sure you have [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed. To build the docs, use this command from the project root:
-```
-$ cargo doc
-```
+This crate is an implementation of the [actor model]. Code examples and explainations are in the [API documentation](https://docs.rs/aurum_actors).
 
-The docs are generated HTML. The root doc is located here after generation:
+## Features
+- Actors are typed: they may only receive one type as their messages.
+- Actor can have interfaces for subsets of its possible messages.
+- Actors are distributed: they can be sent messages from another machine.
+- Serialization is customizable and built-in.
+- Actor references are forgeable, they can be created from scratch.
+- This crate has excellent type safety and catches many potential bugs at compile time.
+- The capability of actor systems to form clusters is included.
+- Many kinds of [CRDT] can be shared among cluster members.
+- You can define your own [CRDT], and share it in the cluster.
+- Aurum's feature set is well-suited to IoT applications.
 
-```
-./target/doc/aurum/index.html
-```
+## How is Aurum different from other actor models?
+- Most actor model implementations are exclusively local.
+- Most distributed actor models are untyped, which decreases type-safety.
+- Most actor model implementations do not allow you to forge actor references.
+- Serialization in Aurum is more powerful and flexible.
 
-Project layout:
-```
-src
-├── bin : Contains drivers for experiments, including the benchmark
-├── cluster : The cluster module and its submodules
-│   ├── crdt : Delta-state CRDT dispersal
-│   └── devices : External node tracking
-├── core : The main foundation of the library
-├── lib.rs
-├── macros : A separate crate holding the AurumInterface and unify! procedural macros
-└── testkit : Tools for failure injection
-tests : Integration tests for Aurum
-```
+[actor model]: https://en.wikipedia.org/wiki/Actor_model
+[CRDT]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type

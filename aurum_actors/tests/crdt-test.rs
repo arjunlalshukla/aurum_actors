@@ -15,13 +15,11 @@ use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
-unify!(CRDTTestType =
-  CausalMsg<LocalGCounter> |
-  CoordinatorMsg |
-  DataReceiverMsg
-  ;
-  CausalIntraMsg<LocalGCounter>
-);
+unify! {
+  unified_name = CRDTTestType;
+  root_types = { CausalMsg<LocalGCounter>, CoordinatorMsg, DataReceiverMsg };
+  interfaces = { CausalIntraMsg<LocalGCounter> };
+}
 
 #[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct Increment {

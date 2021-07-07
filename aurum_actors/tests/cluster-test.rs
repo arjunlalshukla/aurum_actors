@@ -15,7 +15,10 @@ use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
-unify!(ClusterTestTypes = CoordinatorMsg | ClusterClientMsg);
+unify! {
+  unified_name = ClusterTestTypes;
+  root_types = { CoordinatorMsg, ClusterClientMsg };
+}
 
 const HOST: Host = Host::IP(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
 

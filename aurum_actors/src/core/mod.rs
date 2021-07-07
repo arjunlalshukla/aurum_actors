@@ -142,13 +142,10 @@
 //! use aurum_actors::testkit::LogLevel;
 //! # use aurum_actors::{unify, AurumInterface};
 //! # use aurum_actors::core::{Node, NodeConfig};
-//! # 
-//! # #[derive(AurumInterface)]
-//! # #[aurum(local)]
-//! # enum Unit {}
-//! # unify!(Foo = Unit;);
+//! #
+//! # unify!(unified_name = Foo;);
 //! # let node = Node::<Foo>::new_sync(NodeConfig::default()).unwrap();
-//! 
+//!
 //! // Doesn’t have to be a const
 //! const LEVEL: LogLevel = LogLevel::Debug ;
 //! // Not logged, the level is Debug, which is above Trace

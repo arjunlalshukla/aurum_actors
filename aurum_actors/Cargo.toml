@@ -1,17 +1,18 @@
 [package]
 name = "aurum_actors"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["Arjun Shukla <arjunlalshukla@gmail.com>"]
 edition = "2018"
 license = "MIT"
-description = "Typed, distributed actors with clustering, CRDTs, IoT features and flexible serialization"
+description = "Typed, distributed actors with clustering, CRDTs, IoT features and flexible serialization."
 readme = "README.md"
 repository = "https://github.com/arjunlalshukla/aurum_actors"
+documentation = "https://docs.rs/aurum_actors"
 keywords = ["distributed", "actor", "akka", "erlang"]
 
 
 [dependencies]
-aurum_actors_macros = { version = "0.0.0", path = "../aurum_actors_macros" }
+aurum_actors_macros = { version = "0.0.1", path = "../aurum_actors_macros" }
 async-trait = "0.1.50"
 crossbeam = "0.8.1"
 hashbrown = "0.11.2"

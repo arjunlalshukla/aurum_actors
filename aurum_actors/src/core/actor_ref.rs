@@ -190,7 +190,11 @@ mod ref_safety {
     Two(i32),
   }
 
-  unify!(pub Quz = Foo | Bar ; String | i32);
+  unify! {
+    unified_name = pub Quz;
+    root_types = { Foo, Bar };
+    interfaces = { String, i32 };
+  }
 }
 #[cfg(test)]
 use ref_safety::*;

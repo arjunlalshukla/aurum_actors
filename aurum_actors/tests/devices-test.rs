@@ -17,7 +17,10 @@ use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 use CoordinatorMsg::*;
 
-unify!(DeviceTestTypes = CoordinatorMsg | ServerMsg | ClientMsg);
+unify! {
+  unified_name = DeviceTestTypes;
+  root_types = { CoordinatorMsg, ServerMsg, ClientMsg };
+}
 
 const HOST: Host = Host::IP(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
 

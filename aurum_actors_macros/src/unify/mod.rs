@@ -2,63 +2,45 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{self, Span};
 use quote::{quote, ToTokens};
-use syn::parse::Parse;
-use syn::{punctuated::Punctuated, Ident, Token, TypePath, Visibility};
+use syn::parse::{Error, Parse};
+use syn::{braced, punctuated::Punctuated, Ident, Token, Type, Visibility};
 
 pub fn unify_impl(toks: TokenStream) -> TokenStream {
-  let UnifiedType {
-    unified,
-    specifics,
+  let Unification {
+    unified_name: unified,
+    unified_vis: vis,
+    root_types: specifics,
     interfaces,
-    vis,
-  } = syn::parse::<UnifiedType>(toks).unwrap();
-  let mut specifics = specifics
-    .into_iter()
-    .map(|x| x.path.to_token_stream())
-    .collect::<Vec<proc_macro2::TokenStream>>();
-  specifics.push(quote! {
-    aurum_actors::core::RegistryMsg<#unified>
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::ClusterMsg<#unified>
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::HeartbeatReceiverMsg
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::devices::DeviceServerMsg
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::devices::DeviceClientMsg<#unified>
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::devices::HBReqSenderMsg
-  });
-  specifics.push(quote! {
-    aurum_actors::cluster::crdt::CausalMsg<aurum_actors::cluster::devices::Devices>
-  });
-  specifics.push(quote! {
-    aurum_actors::testkit::LoggerMsg
-  });
-  let mut interfaces = interfaces
-    .into_iter()
-    .map(|x| x.path.to_token_stream())
-    .collect::<Vec<proc_macro2::TokenStream>>();
-  interfaces.push(quote! {
-    aurum_actors::cluster::IntraClusterMsg<#unified>
-  });
-  interfaces.push(quote! {
-    aurum_actors::cluster::devices::DeviceServerRemoteMsg
-  });
-  interfaces.push(quote! {
-    aurum_actors::cluster::devices::DeviceClientRemoteMsg<#unified>
-  });
-  interfaces.push(quote! {
-    aurum_actors::cluster::crdt::CausalIntraMsg<aurum_actors::cluster::devices::Devices>
-  });
-  interfaces.push(quote! {
-    aurum_actors::cluster::devices::HBReqSenderRemoteMsg
-  });
+  } = match syn::parse(toks) {
+    Ok(x) => x,
+    Err(e) => return e.to_compile_error().into()
+  };
+
+  let specifics = vec![
+    quote!(aurum_actors::core::RegistryMsg<#unified>),
+    quote!(aurum_actors::cluster::ClusterMsg<#unified>),
+    quote!(aurum_actors::cluster::HeartbeatReceiverMsg),
+    quote!(aurum_actors::cluster::devices::DeviceServerMsg),
+    quote!(aurum_actors::cluster::devices::DeviceClientMsg<#unified>),
+    quote!(aurum_actors::cluster::devices::HBReqSenderMsg),
+    quote!(aurum_actors::cluster::crdt::CausalMsg<aurum_actors::cluster::devices::Devices>),
+    quote!(aurum_actors::testkit::LoggerMsg)
+  ]
+  .into_iter()
+  .chain(specifics.into_iter().map(|x| x.to_token_stream()))
+  .collect::<Vec<proc_macro2::TokenStream>>();
+
+  let interfaces = vec![
+    quote!(aurum_actors::cluster::IntraClusterMsg<#unified>),
+    quote!(aurum_actors::cluster::devices::DeviceServerRemoteMsg),
+    quote!(aurum_actors::cluster::devices::DeviceClientRemoteMsg<#unified>),
+    quote!(aurum_actors::cluster::crdt::CausalIntraMsg<aurum_actors::cluster::devices::Devices>),
+    quote!(aurum_actors::cluster::devices::HBReqSenderRemoteMsg),
+  ]
+  .into_iter()
+  .chain(interfaces.into_iter().map(|x| x.to_token_stream()))
+  .collect::<Vec<proc_macro2::TokenStream>>();
+
   let mut all = specifics.clone();
   all.append(&mut interfaces.clone());
   let all_variants = std::iter::repeat(('A'..='B').collect_vec())
@@ -111,45 +93,64 @@ pub fn unify_impl(toks: TokenStream) -> TokenStream {
   code
 }
 
-struct UnifiedType {
-  unified: Ident,
-  specifics: Vec<SpecificType>,
-  interfaces: Vec<SpecificType>,
-  vis: Visibility,
+struct Unification {
+  unified_name: Ident,
+  unified_vis: Visibility,
+  root_types: Vec<Type>,
+  interfaces: Vec<Type>,
 }
-impl Parse for UnifiedType {
+impl Parse for Unification {
   fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-    let vis = input.parse::<Visibility>()?;
-    let unified = input.parse::<Ident>()?;
-    input.parse::<Token![=]>()?;
-    let specifics = Punctuated::<SpecificType, Token![|]>::parse_separated_nonempty(&input)?
-      .into_iter()
-      .collect();
-    let interfaces = {
-      if input.peek(Token![;]) {
-        input.parse::<Token![;]>()?;
-        Punctuated::<SpecificType, Token![|]>::parse_terminated(&input)?.into_iter().collect()
-      } else {
-        vec![]
-      }
-    };
-    Ok(UnifiedType {
-      unified: unified,
-      specifics: specifics,
-      interfaces: interfaces,
-      vis: vis,
-    })
-  }
-}
+    let mut unified_name: Option<(Visibility, Ident)> = None;
+    let mut root_types: Option<Vec<Type>> = None;
+    let mut interfaces: Option<Vec<Type>> = None;
 
-struct SpecificType {
-  path: TypePath,
-}
-impl Parse for SpecificType {
-  fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-    let path = input.parse::<TypePath>()?;
-    Ok(SpecificType {
-      path: path,
+    while !input.is_empty() {
+      let key = input.parse::<Ident>()?;
+      input.parse::<Token![=]>()?;
+      let key_str = key.to_string();
+      match key_str.as_str() {
+        "unified_name" => {
+          if unified_name.is_some() {
+            return Err(Error::new(key.span(), "Duplicate key `unified_name`"));
+          }
+          unified_name = Some((input.parse::<Visibility>()?, input.parse::<Ident>()?));
+        }
+        "root_types" => {
+          if root_types.is_some() {
+            return Err(Error::new(key.span(), "Duplicate key `root_types`"));
+          }
+          let content;
+          braced!(content in input);
+          root_types = Some(
+            Punctuated::<Type, Token![,]>::parse_terminated(&content)?.into_iter().collect()
+          );
+        }
+        "interfaces" => {
+          if interfaces.is_some() {
+            return Err(Error::new(key.span(), "Duplicate key `interfaces`"));
+          }
+          let content;
+          braced!(content in input);
+          interfaces = Some(
+            Punctuated::<Type, Token![,]>::parse_terminated(&content)?.into_iter().collect()
+          );
+        }
+        _ => return Err(Error::new(key.span(), format!("Unrecognized key `{}`", key_str)))
+      }
+      input.parse::<Token![;]>()?;
+    }
+
+    let (vis, name) = match unified_name {
+      Some(x) => x,
+      None => return Err(Error::new(input.span(), "Missing required key `unified_name`"))
+    };
+
+    Ok(Self {
+      unified_name: name,
+      unified_vis: vis,
+      root_types: root_types.unwrap_or(vec![]),
+      interfaces: interfaces.unwrap_or(vec![])
     })
   }
 }
