@@ -74,7 +74,7 @@
 pub mod cluster;
 pub mod core;
 pub mod testkit;
-extern crate aurum_macros;
+extern crate aurum_actors_macros;
 
 /// Creates a [`UnifiedType`](crate::core::UnifiedType) and implements traits for it.
 ///
@@ -141,7 +141,7 @@ extern crate aurum_macros;
 ///   InterfaceForSomeThirdPartyLibrary
 /// }
 /// ```
-pub use aurum_macros::unify;
+pub use aurum_actors_macros::unify;
 
 /// Implements [`RootMessage`](crate::core::RootMessage) and other traits for a root message type.
 ///
@@ -181,4 +181,4 @@ pub use aurum_macros::unify;
 /// [`AurumInterface`] implements [`From`](std::convert::From) on every interface type, local or
 /// not. In the example, [`From<String>`](std::convert::From) and
 /// [`From<&'static str>`](std::convert::From) are implemented for `MyMsgType`.
-pub use aurum_macros::AurumInterface;
+pub use aurum_actors_macros::AurumInterface;

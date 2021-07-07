@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use aurum_actors::core::{
   Actor, ActorContext, ActorRef, ActorSignal, Host, Node, NodeConfig, Socket,
 };
-use aurum_macros::{unify, AurumInterface};
+use aurum_actors::{unify, AurumInterface};
 use crossbeam::channel::{unbounded, Sender};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

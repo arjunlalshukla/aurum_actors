@@ -1,0 +1,34 @@
+[package]
+name = "aurum_actors"
+version = "0.0.0"
+authors = ["Arjun Shukla <arjunlalshukla@gmail.com>"]
+edition = "2018"
+license = "MIT"
+description = "Typed, distributed actors with clustering, CRDTs, IoT features and flexible serialization"
+readme = "README.md"
+repository = "https://github.com/arjunlalshukla/aurum_actors"
+keywords = ["distributed", "actor", "akka", "erlang"]
+
+
+[dependencies]
+aurum_actors_macros = { version = "0.0.0", path = "../aurum_actors_macros" }
+async-trait = "0.1.50"
+crossbeam = "0.8.1"
+hashbrown = "0.11.2"
+im = { version = "15.0.0", features = ["serde"] }
+itertools = "0.10.1"
+linked-hash-map = "0.5.4"
+maplit = "1.0.2"
+num_cpus = "1.13.0"
+num_enum = "0.5.1"
+rand = { version = "0.8.3", features = ["alloc", "small_rng"] }
+rayon = "1.5.1"
+rpds = { version = "0.9.0", features = ["serde"] }
+serde = { version = "1.0.126", features = ["derive", "rc"] }
+serde_cbor = "0.11.1"
+smallvec = "1.6.1"
+statrs = "0.13.0"
+tokio = { version = "1", features = ["sync", "macros", "time", "net", "rt", "rt-multi-thread"] }
+tokio-test = "0.4.2"
+validator = "0.14.0"
+wyhash = "0.5.0"

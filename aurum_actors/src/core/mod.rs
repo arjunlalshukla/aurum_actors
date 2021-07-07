@@ -148,7 +148,6 @@
 //!
 //!
 
-extern crate aurum_macros;
 use crate::testkit::LogLevel;
 
 mod actor;
