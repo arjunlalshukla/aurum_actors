@@ -14,8 +14,9 @@ pub enum Host {
   DNS(String),
   IP(IpAddr),
 }
-impl From<String> for Host {
-  fn from(s: String) -> Self {
+impl<T: ToString> From<T> for Host {
+  fn from(s: T) -> Self {
+    let s = s.to_string();
     match IpAddr::from_str(s.as_str()) {
       Ok(ip) => Host::IP(ip),
       Err(_) => Host::DNS(s),

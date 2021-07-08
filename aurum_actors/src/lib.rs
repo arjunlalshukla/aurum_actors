@@ -180,9 +180,9 @@ extern crate aurum_actors_macros;
 /// terminated by a semicolon. No key should be defined more than once. The keys are:
 /// - `unified_name`: Required. Give an optional visibility and an identifier to name the
 /// [`UnifiedType`](crate::core::UnifiedType).
-/// - `root_types`: Optional. Contained in braces it is an unordered, comma-terminated set of types
+/// - `root_types`: Optional. Contained in braces, it is an unordered, comma-terminated set of types
 /// that implement [`RootMessage`](crate::core::RootMessage).
-/// - `interfaces`: Optional. Contained in braces it is an unordered, comma-terminated set of types
+/// - `interfaces`: Optional. Contained in braces, it is an unordered, comma-terminated set of types
 /// which are used as interfaces to root types. These are types annotated with `#[aurum]` on
 /// invocations of [`AurumInterface`](crate::AurumInterface).
 pub use aurum_actors_macros::unify;

@@ -7,6 +7,7 @@ use crate::testkit::{FailureConfigMap, FailureMode, LogLevel, Logger, LoggerMsg}
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use std::io::{Error, ErrorKind};
+use std::marker::PhantomData;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +18,10 @@ use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
 /// Holds configuration options for [`Node`].
+/// 
+/// A [`NodeConfig`] instance must be created first with [`default`](NodeConfig::default), then
+/// mutated. This is to ensure forwards compatibility with future additions of fields to the
+/// struct.
 pub struct NodeConfig {
   /// The socket this node will receive remote messages on.
   ///
@@ -24,7 +29,7 @@ pub struct NodeConfig {
   pub socket: Socket,
   /// The number of threads the [`Tokio`](tokio) scheduler will use.
   ///
-  /// default: 1
+  /// default: [`num_cpus::get`]
   pub actor_threads: usize,
   /// The stack size for each [`Tokio`](tokio) thread.
   ///
@@ -34,14 +39,20 @@ pub struct NodeConfig {
   ///
   /// default: [`num_cpus::get`]
   pub compute_threads: usize,
+
+  /// Prevents the creation of [`NodeConfig`] instances without
+  /// [`default`](NodeConfig::default)
+  x: std::marker::PhantomData<()>
 }
 impl Default for NodeConfig {
+  #[inline]
   fn default() -> Self {
     Self {
       socket: Socket::default(),
       actor_threads: num_cpus::get(),
       actor_thread_stack_size: 3 * 1024 * 1024,
       compute_threads: num_cpus::get(),
+      x: PhantomData
     }
   }
 }

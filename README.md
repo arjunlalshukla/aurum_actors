@@ -18,5 +18,9 @@ This crate is an implementation of the [actor model]. Code examples and explaina
 - Most actor model implementations do not allow you to forge actor references.
 - Serialization in Aurum is more powerful and flexible.
 
+## Current state of the project
+Aurum is brand new, and we welcome new users to experiment with it. We are pre-1.0 at the moment,
+and new versions may include significant breaking changes as we figure out the API.
+
 [actor model]: https://en.wikipedia.org/wiki/Actor_model
 [CRDT]: https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
