@@ -7,7 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The crates [`aurum_actors`] and [`aurum_actors_macros`] will always have the same version number.
 Changes to both are listed here.
 
-## Unreleased
+## [0.0.1] - 2021-07-08
 ### Breaking
 - `unify!` has been completely revamped into something more readable and extendable. It now has
 decent error messages.
