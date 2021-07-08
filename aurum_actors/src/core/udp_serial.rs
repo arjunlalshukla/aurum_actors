@@ -24,7 +24,7 @@ impl UdpSerial {
   // const MAX_SAFE_PAYLOAD: usize = 508;
   #[allow(dead_code)]
   const MAX_UDP_PAYLOAD: usize = 65507;
-  /// The size of each packet sent of UDP, including the header.
+  /// The size of each packet sent with UDP, including the header.
   pub const PACKET_SIZE: usize = 75;
   const PAYLOAD_PER_PACKET: usize = Self::PACKET_SIZE - DatagramHeader::SIZE;
 
@@ -33,7 +33,7 @@ impl UdpSerial {
     self.bytes.len() / Self::PACKET_SIZE - (self.bytes.len() % Self::PACKET_SIZE == 0) as usize + 1
   }
 
-  /// The total number of bytes that will be sent with this [`UdpSerial`]
+  /// The total number of bytes that will be sent with this [`UdpSerial`].
   pub fn len(&self) -> usize {
     self.bytes.len()
   }
@@ -43,7 +43,7 @@ impl UdpSerial {
     self.len() - DatagramHeader::SIZE * self.packets()
   }
 
-  /// Creates a [`UdpSerial`] by serializing a message and a [`Destination`]
+  /// Creates a [`UdpSerial`] by serializing a message and a [`Destination`].
   pub fn msg<U, I>(dest: &Destination<U, I>, item: &I) -> Self
   where
     U: UnifiedType + Case<I>,
@@ -52,7 +52,7 @@ impl UdpSerial {
     Self::new(item, Interpretations::Message, dest)
   }
 
-  /// Creates a [`UdpSerial`] by serializing an [`ActorSignal`] and a [`Destination`]
+  /// Creates a [`UdpSerial`] by serializing an [`ActorSignal`] and a [`Destination`].
   pub fn sig<U, I>(dest: &Destination<U, I>, sig: &ActorSignal) -> Self
   where
     U: UnifiedType + Case<I>,

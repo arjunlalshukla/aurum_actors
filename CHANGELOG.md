@@ -7,7 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The crates [`aurum_actors`] and [`aurum_actors_macros`] will always have the same version number.
 Changes to both are listed here.
 
-## [0.0.1] - 2021-07-07
+## Unreleased
 ### Breaking
 - `unify!` has been completely revamped into something more readable and extendable. It now has
 decent error messages.
@@ -15,5 +15,5 @@ decent error messages.
 ### Added
 - `core::Host` can now be converted from any `ToString` implementor instead of just `String`.
 
-[aurum_actors]: https://crates.io/crates/aurum_actors
-[aurum_actors_macros]: https://crates.io/crates/aurum_actors_macros
+[`aurum_actors`]: https://crates.io/crates/aurum_actors
+[`aurum_actors_macros`]: https://crates.io/crates/aurum_actors_macros

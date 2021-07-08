@@ -30,12 +30,12 @@ impl<U: UnifiedType> ActorId<U> {
     }
   }
 
-  /// Returns the [`Case`] variant of this [`ActorId`]
+  /// Returns the [`Case`] variant of this [`ActorId`].
   pub fn recv_type(&self) -> U {
     self.recv_type
   }
 
-  /// Returns the [`String`] part of this [`ActorId`]
+  /// Returns the [`String`] part of this [`ActorId`].
   pub fn name(&self) -> &String {
     &self.name
   }

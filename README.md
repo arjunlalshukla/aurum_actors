@@ -1,4 +1,6 @@
-This crate is an implementation of the [actor model]. Code examples and explainations are in the [API documentation](https://docs.rs/aurum_actors).
+This crate is an implementation of the [actor model]. Code examples and explainations are in the
+[API documentation](https://docs.rs/aurum_actors). Version differences are in the
+[changelog](https://github.com/arjunlalshukla/aurum_actors/blob/master/CHANGELOG.md).
 
 ## Features
 - Actors are typed: they may only receive one type as their messages.

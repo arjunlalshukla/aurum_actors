@@ -35,7 +35,7 @@ pub struct Socket {
   pub tcp: u16,
 }
 impl Socket {
-  /// Creates a new [`Socket`]
+  /// Creates a new [`Socket`].
   pub fn new(host: Host, udp: u16, tcp: u16) -> Socket {
     Socket {
       host: host,
@@ -90,7 +90,7 @@ pub struct Destination<U: UnifiedType + Case<I>, I> {
   x: PhantomData<I>,
 }
 impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
-  /// Forges a new [`Destination`]
+  /// Forges a new [`Destination`].
   pub fn new<S>(s: String) -> Destination<U, I>
   where
     U: Case<S>,
@@ -105,7 +105,7 @@ impl<U: UnifiedType + Case<I>, I> Destination<U, I> {
     }
   }
 
-  /// Returns the [`ActorId`] component of this [`Destination`]
+  /// Returns the [`ActorId`] component of this [`Destination`].
   pub fn name(&self) -> &ActorId<U> {
     &self.untyped.name
   }
