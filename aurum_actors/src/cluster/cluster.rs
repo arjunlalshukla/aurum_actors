@@ -484,6 +484,13 @@ impl<U: UnifiedType> NodeState<U> {
   }
 }
 
+/// Represents a local clustering instance.
+/// 
+/// To join the cluster, a local clustering instance needs to be started. The local instance needs
+/// a [`ClusterConfig`]. You must provide a list of seed nodes to the [`ClusterConfig`]. All seed
+/// nodes will be continually pinged until the first response, upon which the node is now part of
+/// the cluster. If the seed nodes do not response before the limit is reached or the list is empty,
+/// the node will start a separate cluster consisting of only itself. You also need a [`HBRConfig`].
 pub struct Cluster<U: UnifiedType> {
   common: NodeState<U>,
   state: State,

@@ -9,6 +9,21 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use wyhash::{wyrng, WyHash};
 
+/// A [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) ring used to delegate
+/// responsibility in a cluster.
+/// 
+/// Within the ring, each node has a number of virtual nodes (or `vnodes`) representing it at
+/// different points in the ring. `vnodes` communicate how much relative work a node should be
+/// assigned in proportion to the rest of the cluster. A single node having 6 `vnodes` in the ring
+/// while every other node has 3 generally means that node will be performing twice as much cluster
+/// work. Because `vnodes` express a proportion, assiging every node 3 `vnodes` allots the same
+/// amount of relative work to each node as using 1 `vnode`. Using more `vnodes` for each node
+/// decreases the chances of a node not getting enough work or getting too much work based on an
+/// unlucky hash value. Using more `vnodes` also increases the size of the ring structure, so this
+/// is a trade-off. However, because the ring is based on the gossip state, changes to the gossip
+/// state causes a node to change its view of the ring. It is never sent over the network, so
+/// increased memory use is the only potential problem for a larger ring. Increasing the number of
+/// `vnodes` does not change the size of the gossip state.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeRing {
   ring: RedBlackTreeMapSync<u64, (bool, Arc<Member>)>,
