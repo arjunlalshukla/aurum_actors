@@ -14,7 +14,7 @@ use tokio::net::UdpSocket;
 ///
 /// To send a [`UdpSerial`], use [`Node::udp`](crate::core::Node::udp) and
 /// [`Node::udp_select`](crate::core::Node::udp_select).
-/// 
+///
 /// [`UdpSerial`] is useful for memoizing serialized messages. You may want memoization if you are
 /// sending the same message multiple times or to multiple recipients.
 pub struct UdpSerial {

@@ -162,7 +162,7 @@ extern crate aurum_actors_macros;
 ///   Serializable(InterfaceForSomeThirdPartyLibrary)
 /// }
 ///
-/// unify! { 
+/// unify! {
 ///   unified_name = pub MyUnifiedType;
 ///   root_types = {
 ///     MyMsgType,

@@ -18,7 +18,7 @@ use tokio::sync::oneshot::{channel, Sender};
 use tokio::task::JoinHandle;
 
 /// Holds configuration options for [`Node`].
-/// 
+///
 /// A [`NodeConfig`] instance must be created first with [`default`](NodeConfig::default), then
 /// mutated. This is to ensure forwards compatibility with future additions of fields to the
 /// struct.
@@ -42,7 +42,7 @@ pub struct NodeConfig {
 
   /// Prevents the creation of [`NodeConfig`] instances without
   /// [`default`](NodeConfig::default)
-  x: std::marker::PhantomData<()>
+  x: std::marker::PhantomData<()>,
 }
 impl Default for NodeConfig {
   #[inline]
@@ -52,7 +52,7 @@ impl Default for NodeConfig {
       actor_threads: num_cpus::get(),
       actor_thread_stack_size: 3 * 1024 * 1024,
       compute_threads: num_cpus::get(),
-      x: PhantomData
+      x: PhantomData,
     }
   }
 }
